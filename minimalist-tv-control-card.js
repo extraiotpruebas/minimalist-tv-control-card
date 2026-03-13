@@ -18,6 +18,7 @@ class TVControlCard extends HTMLElement {
             source: null,
             isConnected: false,
             defaultMode: null,
+            isSelectingSource: false,
         };
         this.elements = {};
 
@@ -43,7 +44,7 @@ class TVControlCard extends HTMLElement {
                 fontColorOff: 'rgba(255, 255, 255, 0.3)',                    
                 modeActive: 'rgba(234, 102, 102, 0.6)'
             },
-            'Disney Plus': {
+            'Disney+': {
                 cardBackground: 'linear-gradient(180deg, rgba(8, 28, 45, 1) 0%, rgba(5, 15, 25, 1) 100%)',
                 cardShadow: '0 25px 60px rgba(0, 0, 0, 0.7), inset 0 1px 0 rgba(0, 180, 255, 0.18)',
                 
@@ -150,7 +151,7 @@ class TVControlCard extends HTMLElement {
         
         this.streamingServices = [
             { id: 'netflix', name: 'Netflix', icon: 'mdi:netflix', service: 'Netflix' },
-            { id: 'disney', name: 'Disney Plus', icon: 'phu:disney-plus', service: 'Disney Plus' },
+            { id: 'disney', name: 'Disney+', icon: 'phu:disney-plus', service: 'Disney+' },
             { id: 'YouTube', name: 'YouTube', icon: 'mdi:youtube', service: 'YouTube' },
             { id: 'prime', name: 'Prime Video', icon: 'phu:prime-video', service: 'Prime Video' }
         ];
@@ -186,6 +187,38 @@ class TVControlCard extends HTMLElement {
                 right: { icon: 'mdi:surround-sound', action: null, label: 'Sonido' },
                 down: { icon: 'mdi:volume-minus', action: 'VOLUMEDOWN', label: 'Bajar volumen' }
             },
+            'text': {
+                up: { icon: 'mdi:comment-text-multiple', action: 'pendiente', label: 'Enviar mensaje a TV' },
+                left: { icon: 'mdi:keyboard-settings', action: 'SCREEN_REMOTE', label: 'Controles en Pantalla' },
+                right: { icon: 'mdi:backspace', action: 'pendiente', label: 'borrar texto' },
+                down: { icon: 'mdi:form-textbox', action: 'pendiente', label: 'escribir texto' }
+            },
+            'amplificador': {
+                up: { icon: 'phu:dolby-atmos', action: 'pendiente', label: 'dolby' },
+                left: { icon: 'mdi:home-sound-out-outline', action: 'pendiente', label: 'sonido orange' },
+                right: { icon: 'mdi:television-play', action: 'pendiente', label: 'sonido TV' },
+                down: { icon: 'mdi:surround-sound-5-1', action: 'pendiente', label: 'surround' }
+            },
+            'fuentes': {
+                up: { icon: 'mdi:numeric-1-box-multiple-outline', action: 'pendiente', label: 'HDMI 1' },
+                left: { icon: 'mdi:numeric-2-box-multiple-outline', action: 'pendiente', label: 'HDMI 2' },
+                right: { icon: 'mdi:numeric-3-box-multiple-outline', action: 'pendiente', label: 'HDMI 3' },
+                down: { icon: 'mdi:numeric-4-box-multiple-outline', action: 'pendiente', label: 'HDMI 4' }
+            },
+            'info': {
+                up: { icon: 'mdi:television-guide', action: 'GUIDE', label: '' },
+                left: { icon: 'mdi:information-slab-circle-outline', action: 'INFO', label: '' },
+                right: { icon: 'mdi:apps', action: 'MYAPPS', label: '' },
+                down: { icon: 'mdi:book-information-variant', action: 'pendiente', label: '"com.webos.applicationManager/getForegroundAppInfo"' }
+            },
+/* AQUI FALTA VER COMO SE VA A IMPLEMENTAR, PORQUE LA RUEDA VA A CAMBIAR A 9 NUMEROS
+            'keyboard': {
+                up: { icon: '', action: 'pendiente', label: '' },
+                left: { icon: '', action: 'pendiente', label: '' },
+                right: { icon: '', action: 'pendiente', label: '' },
+                down: { icon: '', action: 'pendiente', label: '' }
+            },
+*/
             'default': {
                 up: { icon: 'mdi:circle-medium', action: 'UP', label: 'Arriba' },
                 left: { icon: 'mdi:circle-medium', action: 'LEFT', label: 'Izquierda' },
@@ -205,12 +238,30 @@ class TVControlCard extends HTMLElement {
         console.log("esto es la nueva propiedad YAML que estamos definiendo" + config.colorMode)
         this.state.tvEntityId = config.entity;
         console.log("esto es tvEntityID que deberia ser la entidad que defines" + config.entity)
-        let ejemplo = this.getTvSource
+        let ejemplo = this.getTvSource()
         console.log("ESTE ES EL ESTADO DE SOURCE " + ejemplo)
         this.state.controlModeId = config.control_mode_entity || null;
         if (this.state.isConnected) {
             this.render();
         }
+    }
+
+    //ESTA ES LA CONFIG DEL UI///////////
+    static getConfigElement() {
+        return document.createElement('tv-control-card-editor');
+    }
+    
+    static getStubConfig() {
+        return {
+            entity: 'media_player.mi_tv',
+            colorMode: 'dark',
+            control_mode_entity: ''
+        };
+    }    
+    ////////////////////////////////////
+
+    delay(ms) {
+        return new Promise(resolve => setTimeout(resolve, ms));
     }
     
     getCardSize() {
@@ -236,6 +287,10 @@ class TVControlCard extends HTMLElement {
         const styles = this.getCurrentStyles();
         this.shadowRoot.innerHTML = `
             <style>
+                @keyframes spin {
+                    0% { transform: rotate(0deg); }
+                    100% { transform: rotate(360deg); }
+                }                
                 :host {
                     display: block;
                     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
@@ -560,7 +615,7 @@ class TVControlCard extends HTMLElement {
                 .streaming-button.active {
                     border: 2.5px solid ${this.state.source === 'Prime Video' 
                         ? 'rgba(100, 255, 100, 0.6)' 
-                        : this.state.source === 'Disney Plus'
+                        : this.state.source === 'Disney+'
                         ? 'rgba(6, 86, 186, 1)'
                         : 'rgba(255, 100, 100, 0.15)'};
                 }
@@ -648,7 +703,7 @@ class TVControlCard extends HTMLElement {
                                 <ha-icon icon="mdi:lock-alert"></ha-icon>
                             </div>
                             <div class="tv-status-label ${this.getTvStatus() === 'on' ? 'on' : 'off'}">
-                                ${this.getTvStatus() === 'on' ? 'ON' : 'OFF'}
+                                ${this.getTvStatus() === 'on' ? `ON - ${this.state.source || ''}` : 'OFF'}
                             </div>
 
                             <div class="top-button power-button" data-action="power">
@@ -795,7 +850,7 @@ class TVControlCard extends HTMLElement {
     getStreamingButtonBackground(service) {
         const source = this.state.source;
         if (source === 'Netflix') return 'rgba(40, 20, 20, 0.6)';
-        if (source === 'Disney Plus') return 'rgba(6, 19, 31, 0.8)';
+        if (source === 'Disney+') return 'rgba(6, 19, 31, 0.8)';
         if (source === 'Prime Video') return 'rgba(30, 30, 30, 0.6)';
         return 'rgba(30, 30, 30, 0.6)';
     }
@@ -810,7 +865,7 @@ class TVControlCard extends HTMLElement {
         if (isActive && service === 'Netflix') {
             return '2.5px solid rgba(255, 100, 100, 0.7)';
         }
-        if (isActive && service === 'Disney Plus') {
+        if (isActive && service === 'Disney+') {
             return '2.5px solid rgba(255, 255, 210, 0.7)';
         }
         return '1.5px solid rgba(255, 255, 255, 0.15)';
@@ -819,7 +874,7 @@ class TVControlCard extends HTMLElement {
     getStreamingButtonColor(service) {
         const source = this.state.source;
         if (source === 'Netflix' && service === 'Netflix') return 'rgba(255, 255, 255, 1)';
-        if (source === 'Disney Plus' && service === 'Disney Plus') return 'rgba(255, 255, 255, 1)';
+        if (source === 'Disney+' && service === 'Disney+') return 'rgba(255, 255, 255, 1)';
         if (source === 'Prime Video' && service === 'Prime Video') return 'rgba(255, 255, 255, 0.85)';
         return 'rgba(255, 255, 255, 0.5)';
     }
@@ -834,13 +889,35 @@ class TVControlCard extends HTMLElement {
     }
     
     selectSource(source) {
-        if (this._hass && this.state.tvEntityId) {
-            this._hass.callService('media_player', 'select_source', {
-                entity_id: this.state.tvEntityId,
-                source: source
-            });
-        }
+            if (this._hass && this.state.tvEntityId) {
+                this._hass.callService('media_player', 'select_source', {
+                    entity_id: this.state.tvEntityId,
+                    source: source
+                });
+            }     
+
     }
+
+    async selectSourceWithRetry(targetSource, haIcon, originalIcon, maxRetries = 3) {
+        for (let attempt = 1; attempt <= maxRetries; attempt++) {
+            await this.delay(5000);
+            this.selectSource(targetSource);
+    
+            if (this.state.source === targetSource) {
+                // Termina por éxito
+                this.state.isSelectingSource = false;
+                haIcon.setAttribute('icon', originalIcon);
+                haIcon.style.animation = '';
+                return;
+            }
+        }
+    
+        // Termina por agotar reintentos
+        this.state.isSelectingSource = false;
+        haIcon.setAttribute('icon', originalIcon);
+        haIcon.style.animation = '';
+    }
+    
     selectControlMode(mode) {
         this.state.controlMode = mode;
         this.render();
@@ -1038,7 +1115,15 @@ class TVControlCard extends HTMLElement {
             let botonStreaming = this.shadowRoot.querySelector(`.${service.id}-button`);
             if (botonStreaming) {
                 botonStreaming.addEventListener('click', () => {
-                    this.selectSource(service.service);
+                    // Si ya hay un proceso en curso, ignorar el click
+                    if (this.state.isSelectingSource) return;
+                
+                    this.state.isSelectingSource = true;
+                    const haIcon = botonStreaming.querySelector('ha-icon');
+                    haIcon.setAttribute('icon', 'mdi:dots-circle');
+                    haIcon.style.animation = 'spin 0.5s steps(5) infinite';
+                
+                    this.selectSourceWithRetry(service.service, haIcon, service.icon);
                 });
             }
         });
@@ -1080,7 +1165,6 @@ class TVControlCard extends HTMLElement {
         }
     }
     sendPass() {
-        
         if (this._hass && this.state.tvEntityId) {
             this._hass.callService('script', 'lg_passwd', {
             });
@@ -1159,7 +1243,83 @@ class TVControlCard extends HTMLElement {
     }
     
 }
+
+class TVControlCardEditor extends HTMLElement {
+    
+    setConfig(config) {
+        this._config = config;
+        this.render();
+    }
+
+    set hass(hass) {
+        this._hass = hass;
+        // Re-renderizar para tener las entidades disponibles
+        if (this._config) {
+            this.render();
+        }
+    }
+
+    render() {
+        if (!this._hass || !this._config) return;
+
+        // Obtener todas las entidades media_player disponibles en HA
+        const mediaPlayers = Object.keys(this._hass.states).filter(
+            entityId => entityId.startsWith('media_player.')
+        );
+
+        this.innerHTML = `
+            <div style="padding: 16px;">
+                <div style="margin-bottom: 16px;">
+                    <label style="display: block; margin-bottom: 8px; font-weight: bold;">
+                        Entidad de TV
+                    </label>
+                    <select id="entity-select" style="width: 100%; padding: 8px; border-radius: 4px;">
+                        ${mediaPlayers.map(entity => `
+                            <option value="${entity}" ${entity === this._config.entity ? 'selected' : ''}>
+                                ${this._hass.states[entity].attributes.friendly_name || entity}
+                            </option>
+                        `).join('')}
+                    </select>
+                </div>
+            </div>
+
+            <div style="padding: 16px;">
+                <div style="margin-bottom: 16px;">
+                    <label style="display: block; margin-bottom: 8px; font-weight: bold;">
+                        Modo default
+                    </label>
+                <select id="colormode-select" style="width: 100%; padding: 8px; border-radius: 4px;">
+                    <option value="dark" ${this._config.colorMode === 'dark' ? 'selected' : ''}>Dark</option>
+                    <option value="light" ${this._config.colorMode === 'light' ? 'selected' : ''}>Light</option>
+                </select>
+                </div>
+            </div>            
+        `;
+
+        // Escuchar cambios en el select
+        this.querySelector('#entity-select').addEventListener('change', (e) => {
+            // Disparar evento para que HA guarde el nuevo config
+            this.dispatchEvent(new CustomEvent('config-changed', {
+                detail: {
+                    config: {
+                        ...this._config,
+                        entity: e.target.value
+                    }
+                }
+            }));
+        });
+
+        this.querySelector('#colormode-select').addEventListener('change', (e) => {
+            // Disparar evento para que HA guarde el nuevo config
+            this.dispatchEvent(new CustomEvent('config-changed', {
+                detail: { config: { ...this._config, colorMode: e.target.value }}
+            }));
+        });
+    }
+}
+
 customElements.define('tv-control-card', TVControlCard);
+customElements.define('tv-control-card-editor', TVControlCardEditor);
 
 window.customCards = window.customCards || [];
 window.customCards.push({
