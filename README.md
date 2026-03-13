@@ -181,5 +181,6 @@ Si encuentras útil esta tarjeta, considera:
 - Sugerir nuevas características
 
 ---
-
+## Vista previa
+![TV Control Card](Control-default.png)
 **Nota**: Esta es una tarjeta personalizada no oficial y no está afiliada con LG Electronics.
