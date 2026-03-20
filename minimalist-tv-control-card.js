@@ -18,6 +18,7 @@ class TVControlCard extends HTMLElement {
             source: null,
             isConnected: false,
             defaultMode: null,
+            tvMessage: null,
             isSelectingSource: false,
         };
         this.elements = {};
@@ -396,6 +397,10 @@ class TVControlCard extends HTMLElement {
                     padding: 4px 12px;
                     border-radius: 20px;
                     transition: all 0.4s ease;
+                    max-width: 120px;
+                    white-space: nowrap;
+                    overflow: hidden;
+                    text-overflow: ellipsis;                    
                 }
 
                 .tv-status-label.on {
@@ -619,6 +624,18 @@ class TVControlCard extends HTMLElement {
                         ? 'rgba(6, 86, 186, 1)'
                         : 'rgba(255, 100, 100, 0.15)'};
                 }
+                .tv-message {
+                    position: absolute;
+                    bottom: 20px;
+                    left: 50%;
+                    transform: translateX(-50%);
+                    background: rgba(0, 0, 0, 0.8);
+                    color: white;
+                    padding: 8px 16px;
+                    border-radius: 20px;
+                    font-size: 12px;
+                    z-index: 100;
+                }                        
 
                 @media (min-width: 601px){
                     .tv-control-card {
@@ -683,20 +700,104 @@ class TVControlCard extends HTMLElement {
                     }
                     
                     .touchpad-section {
-                        width: 200px;
-                        height: 200px;
+                        width: 270px;
+                        height: 270px;
                         transform: scale(1) !important;
                     }
                     
                     .touchpad-center-button {
+                        width: 100px;
+                        height: 100px;
+                    }
+                    .streaming-button {
+                        height: 45px;
+                        width: 45px;
+                        border-radius: 10px;
+                    }
+
+                    .streaming-grid {
+                        gap: 0px 8px;
+                        justify-items: center;
+                    }
+
+                    .bottom-grid {
+                        gap: 0px 15px;
+                    }
+
+                    .bottom-button {
+                        height: 45px;
+                        width: 45px;
+                    }
+
+                    .mode-grid {
+                        gap: 0px 15px;
+                    }
+
+                    .mode-button {
+                        height: 45px;
+                        width: 45px;
+                    }                        
+                }
+                @media (max-width: 320px) {
+                    .touchpad-section {
+                        width: 200px;
+                        height: 200px;
+                        transform: scale(1) !important;
+                    }
+
+                    .touchpad-center-button {
                         width: 80px;
                         height: 80px;
                     }
-                }
+
+                    .streaming-button {
+                        height: 45px;
+                        width: 45px;
+                        border-radius: 10px;
+                    }
+
+                    .streaming-grid {
+                        gap: 0px 8px;
+                        justify-items: center;
+                    }
+
+                    .bottom-grid {
+                        gap: 0px 15px;
+                    }
+
+                    .bottom-button {
+                        height: 45px;
+                        width: 45px;
+                    }
+
+                    .mode-grid {
+                        gap: 0px 15px;
+                    }
+
+                    .mode-button {
+                        height: 45px;
+                        width: 45px;
+                    }
+
+                    .tv-status-label {
+                        font-size: 9px;
+                        letter-spacing: 0.8px;
+                        padding: 4px 8px;
+                        max-width: 120px;
+                        white-space: nowrap;
+                        overflow: hidden;
+                        text-overflow: ellipsis;
+                    }
+                }                    
             </style>
             
             <ha-card>
                 <div class="tv-control-card">
+                    ${this.state.tvMessage ? `
+                        <div class="tv-message">
+                            ${this.state.tvMessage}
+                        </div>
+                    ` : ''}
                     <div class="card-grid">
                         <div class="top-section">
                             <div class="top-button exit-button" data-action="exit">
@@ -922,6 +1023,16 @@ class TVControlCard extends HTMLElement {
         this.state.controlMode = mode;
         this.render();
     }
+        // Función para disparar feedback háptico
+    _dispararHaptic(tipo = 'light') {
+        // Tipos comunes: 'light', 'medium', 'heavy', 'selection', 'success', 'warning', 'failure'
+        const event = new CustomEvent('haptic', {
+        detail: tipo,
+        bubbles: true,
+        composed: true, // Importante para que atraviese el Shadow DOM
+        });
+        this.dispatchEvent(event);
+    }
     
     listenerAudio(){
         function find(el, tag="TV-CONTROL-CARD") {
@@ -963,6 +1074,7 @@ class TVControlCard extends HTMLElement {
         let audioBtn = findAudioBtn();
         if(audioBtn) {
             audioBtn.addEventListener("click", () => {
+                this._dispararHaptic('light');
                 iteracionAudio++;
                 if(iteracionAudio % 2 === 0) {
                     this.selectControlMode('seleccion');
@@ -1025,6 +1137,7 @@ class TVControlCard extends HTMLElement {
         let busqBtn = findBusqBtn();
         if(busqBtn) {
             busqBtn.addEventListener("click", () => {
+                this._dispararHaptic('light');
                 iteracionBusq++;
                 if(iteracionBusq % 2 === 0) {
                     this.selectControlMode('seleccion');
@@ -1083,6 +1196,7 @@ class TVControlCard extends HTMLElement {
         let navBtn = findNavBtn();
         if(navBtn) {
             navBtn.addEventListener("click", () => {
+                this._dispararHaptic('light');
                 iteracionNav++;
                 if(iteracionNav % 2 === 0) {
                     this.selectControlMode('seleccion');
@@ -1106,18 +1220,28 @@ class TVControlCard extends HTMLElement {
     }
 
     listenerExit(){
-        let botonPower = this.shadowRoot.querySelector('.exit-button');
-        botonPower.addEventListener('click', () => this.sendPass());
+        let botonExit = this.shadowRoot.querySelector('.exit-button');
+        botonExit.addEventListener('click', () => this.sendPass());
     }
 
     listenerStreaming() {
         this.streamingServices.forEach(service => {
             let botonStreaming = this.shadowRoot.querySelector(`.${service.id}-button`);
             if (botonStreaming) {
-                botonStreaming.addEventListener('click', () => {
-                    // Si ya hay un proceso en curso, ignorar el click
+                botonStreaming.addEventListener('click', async () => {
+                    this._dispararHaptic('light');
+                    if (this.getTvStatus() === 'off') {
+                        this.state.tvMessage = 'Encendiendo TV...';
+                        this.render();
+                        this.togglePower();
+                        await this.delay(15000);
+                        this.selectSource(service.service);
+                        this.state.tvMessage = null;
+                        this.render();
+                        return;
+                    }
                     if (this.state.isSelectingSource) return;
-                
+                    console.log("quiero el estado del tv status " + this.getTvStatus());                
                     this.state.isSelectingSource = true;
                     const haIcon = botonStreaming.querySelector('ha-icon');
                     haIcon.setAttribute('icon', 'mdi:dots-circle');
@@ -1128,12 +1252,20 @@ class TVControlCard extends HTMLElement {
             }
         });
     }
+    powerWhenStreaming(){
+        this.togglePower();
+        setTimeout(() => {
+            console.log("Esto se ejecuta después de 15 segundos");
+            this.selectSource(service.service);
+          }, 15000); // 2000 ms = 2 segundos
+    }
 
     listenerBottomButtons() {
         this.bottomButtons.forEach(button => {
             let botonGral = this.shadowRoot.querySelector(`.${button.id}-button`);
             if (botonGral) {
                 botonGral.addEventListener('click', () => {
+                    this._dispararHaptic('light');
                     this.sendButtonAction(button.action);
                 });
             }
@@ -1144,6 +1276,7 @@ class TVControlCard extends HTMLElement {
             let botonTouchpad = this.shadowRoot.querySelector(`.touchpad-${direction}`);
             if (botonTouchpad) {
                 botonTouchpad.addEventListener('click', () => {
+                    this._dispararHaptic('light');
                     this.handleTouchpadButton(direction);
                 });
             }
@@ -1157,19 +1290,23 @@ class TVControlCard extends HTMLElement {
         }
     }
     togglePower() {
-        
+        this._dispararHaptic('light');
         if (this._hass && this.state.tvEntityId) {
             this._hass.callService('media_player', 'toggle', {
                 entity_id: this.state.tvEntityId
             });
         }
     }
-    sendPass() {
+    async sendPass() {
+        this._dispararHaptic('light');
         if (this._hass && this.state.tvEntityId) {
-            this._hass.callService('script', 'lg_passwd', {
-            });
+            const buttons = ['1', '1', '0', '2'];
+            for (const button of buttons) {
+                this.sendButtonAction(button);
+                await this.delay(500);
+            }
         }
-    }    
+    }
     
     sendButtonAction(button) {
         
