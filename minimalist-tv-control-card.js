@@ -19,6 +19,7 @@ class TVControlCard extends HTMLElement {
             isConnected: false,
             defaultMode: null,
             tvMessage: null,
+            modelConfig: null,
             isSelectingSource: false,
         };
         this.elements = {};
@@ -163,30 +164,30 @@ class TVControlCard extends HTMLElement {
         ];
         
         this.bottomButtons = [
-            { id: 'back', icon: 'mdi:undo-variant', action: 'BACK', label: 'Atrás' },
-            { id: 'home', icon: 'mdi:home', action: 'HOME', label: 'Inicio' },
-            { id: 'exit', icon: 'mdi:exit-to-app', action: 'EXIT', label: 'Salir' },
-            { id: 'menu', icon: 'mdi:menu', action: 'MENU', label: 'Menú' }
+            { id: 'back', icon: 'mdi:undo-variant', actionLG: 'BACK', actionSamsung: 'KEY_RETURN', label: 'Atrás' },
+            { id: 'home', icon: 'mdi:home', actionLG: 'HOME', actionSamsung: 'KEY_HOME', label: 'Inicio' },
+            { id: 'exit', icon: 'mdi:exit-to-app', actionLG: 'EXIT', actionSamsung: 'KEY_EXIT', label: 'Salir' },
+            { id: 'menu', icon: 'mdi:menu', actionLG: 'MENU', actionSamsung: 'KEY_MENU', label: 'Menú' }
         ];
         
         this.touchpadButtons = {
             'navegacion': {
-                up: { icon: 'mdi:menorah', action: 'HOME', label: 'Inicio' },
-                left: { icon: 'mdi:movie-star', action: 'MENU', label: 'Menú' },
-                right: { icon: 'mdi:lightbulb-group-outline', action: 'EXIT', label: 'Salir' },
-                down: { icon: 'mdi:home-thermometer', action: 'BACK', label: 'Atrás' }
+                up: { icon: 'mdi:menorah', actionLG: 'HOME', actionSamsung: 'KEY_HOME', label: 'Inicio' },
+                left: { icon: 'mdi:movie-star', actionLG: 'MENU', actionSamsung: 'KEY_MENU', label: 'Menú' },
+                right: { icon: 'mdi:lightbulb-group-outline', actionLG: 'EXIT', actionSamsung: 'KEY_EXIT', label: 'Salir' },
+                down: { icon: 'mdi:home-thermometer', actionLG: 'BACK', actionSamsung: 'KEY_RETURN', label: 'Atrás' }
             },
             'busqueda': {
-                up: { icon: 'mdi:plus-box', action: 'CHANNELUP', label: 'Subir canal' },
-                left: { icon: 'mdi:hdmi-port', action: 'INFO', label: 'Información' },
-                right: { icon: 'mdi:format-list-numbered', action: 'GUIDE', label: 'Guía' },
-                down: { icon: 'mdi:minus-box', action: 'CHANNELDOWN', label: 'Bajar canal' }
+                up: { icon: 'mdi:plus-box', actionLG: 'CHANNELUP', actionSamsung: 'KEY_CHUP', label: 'Subir canal' },
+                left: { icon: 'mdi:hdmi-port', actionLG: 'INFO', actionSamsung: 'KEY_INFO', label: 'Información' },
+                right: { icon: 'mdi:format-list-numbered', actionLG: 'GUIDE', actionSamsung: 'KEY_GUIDE', label: 'Guía' },
+                down: { icon: 'mdi:minus-box', actionLG: 'CHANNELDOWN', actionSamsung: 'KEY_CHDOWN', label: 'Bajar canal' }
             },
             'audio': {
-                up: { icon: 'mdi:volume-plus', action: 'VOLUMEUP', label: 'Subir volumen' },
-                left: { icon: 'mdi:volume-off', action: 'MUTE', label: 'Silenciar' },
-                right: { icon: 'mdi:surround-sound', action: null, label: 'Sonido' },
-                down: { icon: 'mdi:volume-minus', action: 'VOLUMEDOWN', label: 'Bajar volumen' }
+                up: { icon: 'mdi:volume-plus', actionLG: 'VOLUMEUP', actionSamsung: 'KEY_VOLUP', label: 'Subir volumen' },
+                left: { icon: 'mdi:volume-off', actionLG: 'MUTE', actionSamsung: 'KEY_MUTE', label: 'Silenciar' },
+                right: { icon: 'mdi:surround-sound', actionLG: null, actionSamsung: null, label: 'Sonido' },
+                down: { icon: 'mdi:volume-minus', actionLG: 'VOLUMEDOWN', actionSamsung: 'KEY_VOLDOWN', label: 'Bajar volumen' }
             },
             'text': {
                 up: { icon: 'mdi:comment-text-multiple', action: 'pendiente', label: 'Enviar mensaje a TV' },
@@ -239,6 +240,8 @@ class TVControlCard extends HTMLElement {
         console.log("esto es la nueva propiedad YAML que estamos definiendo" + config.colorMode)
         this.state.tvEntityId = config.entity;
         console.log("esto es tvEntityID que deberia ser la entidad que defines" + config.entity)
+        this.state.modelConfig = config.modelConfig;
+        console.log("modelConfig recibido: " + config.modelConfig);
         let ejemplo = this.getTvSource()
         console.log("ESTE ES EL ESTADO DE SOURCE " + ejemplo)
         this.state.controlModeId = config.control_mode_entity || null;
@@ -1266,7 +1269,8 @@ class TVControlCard extends HTMLElement {
             if (botonGral) {
                 botonGral.addEventListener('click', () => {
                     this._dispararHaptic('light');
-                    this.sendButtonAction(button.action);
+                    const action = this._config.modelConfig === 'samsung' ? button.actionSamsung : button.actionLG;
+                    this.sendButtonAction(action);
                 });
             }
         });
@@ -1298,6 +1302,7 @@ class TVControlCard extends HTMLElement {
         }
     }
     async sendPass() {
+        if (this._config.modelConfig === 'samsung') return;
         this._dispararHaptic('light');
         if (this._hass && this.state.tvEntityId) {
             const buttons = ['1', '1', '0', '2'];
@@ -1309,12 +1314,19 @@ class TVControlCard extends HTMLElement {
     }
     
     sendButtonAction(button) {
-        
         if (this._hass && this.state.tvEntityId) {
-            this._hass.callService('webostv', 'button', {
-                entity_id: this.state.tvEntityId,
-                button: button
-            });
+            if (this._config.modelConfig === 'samsung') {
+                this._hass.callService('media_player', 'play_media', {
+                    entity_id: this.state.tvEntityId,
+                    media_content_type: 'send_key',
+                    media_content_id: button
+                });
+            } else {
+                this._hass.callService('webostv', 'button', {
+                    entity_id: this.state.tvEntityId,
+                    button: button
+                });
+            }
         }
     }
     
@@ -1322,14 +1334,17 @@ class TVControlCard extends HTMLElement {
         const mode = this.state.controlMode;
         const buttons = this.touchpadButtons[mode] || this.touchpadButtons['default'];
         const button = buttons[direction];
-        
-        if (button && button.action) {
-            this.sendButtonAction(button.action);
+        const action = this._config.modelConfig === 'samsung' ? button.actionSamsung : button.actionLG;
+        console.log("esto tengo ahorita en model config, para saber si esta evaluando LG o samsung " + action);
+
+        if (button && action) {
+            this.sendButtonAction(action);
         }
     }
     
     handleCenterButton() {
-        this.sendButtonAction('ENTER');
+        const action = this._config.modelConfig === 'samsung' ? 'KEY_ENTER' : 'ENTER';
+        this.sendButtonAction(action);
     }
     
     
@@ -1430,7 +1445,19 @@ class TVControlCardEditor extends HTMLElement {
                     <option value="light" ${this._config.colorMode === 'light' ? 'selected' : ''}>Light</option>
                 </select>
                 </div>
-            </div>            
+            </div>
+            
+            <div style="padding: 16px;">
+                <div style="margin-bottom: 16px;">
+                    <label style="display: block; margin-bottom: 8px; font-weight: bold;">
+                        Tipo de TV
+                    </label>
+                    <select id="model-select" style="width: 100%; padding: 8px; border-radius: 4px;">
+                    <option value="samsung" ${this._config.modelConfig === 'samsung' ? 'selected' : ''}>SAMSUNG</option>
+                    <option value="LG TV" ${this._config.modelConfig === 'lg' ? 'selected' : ''}>LG</option>
+                </select>
+                </div>
+            </div>
         `;
 
         // Escuchar cambios en el select
@@ -1450,6 +1477,13 @@ class TVControlCardEditor extends HTMLElement {
             // Disparar evento para que HA guarde el nuevo config
             this.dispatchEvent(new CustomEvent('config-changed', {
                 detail: { config: { ...this._config, colorMode: e.target.value }}
+            }));
+        });
+
+        this.querySelector('#model-select').addEventListener('change', (e) => {
+            // Disparar evento para que HA guarde el nuevo config
+            this.dispatchEvent(new CustomEvent('config-changed', {
+                detail: { config: { ...this._config, modelConfig: e.target.value }}
             }));
         });
     }
