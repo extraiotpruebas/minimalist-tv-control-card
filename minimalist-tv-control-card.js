@@ -1,3 +1,28 @@
+const PREDEFINED_COMMANDS = [
+    { label: 'Subir volumen', actionLG: 'VOLUMEUP', actionSamsung: 'KEY_VOLUP' },
+    { label: 'Bajar volumen', actionLG: 'VOLUMEDOWN', actionSamsung: 'KEY_VOLDOWN' },
+    { label: 'Silenciar', actionLG: 'MUTE', actionSamsung: 'KEY_MUTE' },
+    { label: 'Inicio', actionLG: 'HOME', actionSamsung: 'KEY_HOME' },
+    { label: 'Atrás', actionLG: 'BACK', actionSamsung: 'KEY_RETURN' },
+    { label: 'Salir', actionLG: 'EXIT', actionSamsung: 'KEY_EXIT' },
+    { label: 'Menú', actionLG: 'MENU', actionSamsung: 'KEY_MENU' },
+    { label: 'Enter', actionLG: 'ENTER', actionSamsung: 'KEY_ENTER' },
+    { label: 'Arriba', actionLG: 'UP', actionSamsung: 'KEY_UP' },
+    { label: 'Abajo', actionLG: 'DOWN', actionSamsung: 'KEY_DOWN' },
+    { label: 'Izquierda', actionLG: 'LEFT', actionSamsung: 'KEY_LEFT' },
+    { label: 'Derecha', actionLG: 'RIGHT', actionSamsung: 'KEY_RIGHT' },
+    { label: 'Subir canal', actionLG: 'CHANNELUP', actionSamsung: 'KEY_CHUP' },
+    { label: 'Bajar canal', actionLG: 'CHANNELDOWN', actionSamsung: 'KEY_CHDOWN' },
+    { label: 'Info', actionLG: 'INFO', actionSamsung: 'KEY_INFO' },
+    { label: 'Guía', actionLG: 'GUIDE', actionSamsung: 'KEY_GUIDE' },
+    { label: 'Mis Apps', actionLG: 'MYAPPS', actionSamsung: 'KEY_APP_LIST' },
+    { label: 'Subtítulos', actionLG: 'CC', actionSamsung: null },
+    { label: 'Asterisco', actionLG: 'ASTERISK', actionSamsung: 'KEY_TOOLS' },
+    { label: 'HDMI 1', actionLG: 'source:HDMI 1', actionSamsung: 'KEY_SOURCE' },
+    { label: 'HDMI 2', actionLG: 'source:HDMI 2', actionSamsung: 'KEY_HDMI' },
+    { label: 'HDMI 3', actionLG: 'source:HDMI 3', actionSamsung: 'KEY_TV' },
+    { label: 'Selector de fuentes', actionLG: 'command:com.webos.surfacemanager/showInputPicker', actionSamsung: 'KEY_SOURCE' },
+];
 class TVControlCard extends HTMLElement {
 
     constructor() {
@@ -5,9 +30,11 @@ class TVControlCard extends HTMLElement {
         super();
         window.ygriega = 0;
         window.helperGlobal = 0;
-        window.iteracionAudio = 0;
-        window.iteracionBusq = 0;
-        window.iteracionNav = 0;
+        this.modeIterations = [
+            { count: 0 },
+            { count: 0 },
+            { count: 0 }
+        ];
         this.attachShadow({ mode: 'open' });
         this.state = {
             tvEntityId: null,
@@ -19,7 +46,7 @@ class TVControlCard extends HTMLElement {
             isConnected: false,
             defaultMode: null,
             tvMessage: null,
-            modelConfig: null,
+            modelConfig: 'LG TV',
             isSelectingSource: false,
         };
         this.elements = {};
@@ -157,11 +184,8 @@ class TVControlCard extends HTMLElement {
             { id: 'YouTube', name: 'YouTube', icon: 'mdi:youtube', service: 'YouTube' },
             { id: 'prime', name: 'Prime Video', icon: 'phu:prime-video', service: 'Prime Video' }
         ];
-        this.controlModes = [
-            { id: 'navegacion', icon: 'mdi:menu-open', label: 'Navegación' },
-            { id: 'busqueda', icon: 'mdi:television-classic', label: 'Búsqueda' },
-            { id: 'audio', icon: 'mdi:volume-high', label: 'Audio' }
-        ];
+
+
         
         this.bottomButtons = [
             { id: 'back', icon: 'mdi:undo-variant', actionLG: 'BACK', actionSamsung: 'KEY_RETURN', label: 'Atrás' },
@@ -179,7 +203,7 @@ class TVControlCard extends HTMLElement {
             },
             'busqueda': {
                 up: { icon: 'mdi:plus-box', actionLG: 'CHANNELUP', actionSamsung: 'KEY_CHUP', label: 'Subir canal' },
-                left: { icon: 'mdi:hdmi-port', actionLG: 'INFO', actionSamsung: 'KEY_INFO', label: 'Información' },
+                left: { icon: 'mdi:hdmi-port', actionLG: 'INFO', actionSamsung: 'KEY_SOURCE', label: 'Información' },
                 right: { icon: 'mdi:format-list-numbered', actionLG: 'GUIDE', actionSamsung: 'KEY_GUIDE', label: 'Guía' },
                 down: { icon: 'mdi:minus-box', actionLG: 'CHANNELDOWN', actionSamsung: 'KEY_CHDOWN', label: 'Bajar canal' }
             },
@@ -190,28 +214,28 @@ class TVControlCard extends HTMLElement {
                 down: { icon: 'mdi:volume-minus', actionLG: 'VOLUMEDOWN', actionSamsung: 'KEY_VOLDOWN', label: 'Bajar volumen' }
             },
             'text': {
-                up: { icon: 'mdi:comment-text-multiple', action: 'pendiente', label: 'Enviar mensaje a TV' },
-                left: { icon: 'mdi:keyboard-settings', action: 'SCREEN_REMOTE', label: 'Controles en Pantalla' },
-                right: { icon: 'mdi:backspace', action: 'pendiente', label: 'borrar texto' },
-                down: { icon: 'mdi:form-textbox', action: 'pendiente', label: 'escribir texto' }
+                up: { icon: 'mdi:comment-text-multiple', actionLG: 'pendiente', actionSamsung: 'pendiente', label: 'Enviar mensaje a TV' },
+                left: { icon: 'mdi:keyboard-settings', actionLG: 'SCREEN_REMOTE', actionSamsung: 'pendiente', label: 'Controles en Pantalla' },
+                right: { icon: 'mdi:backspace', actionLG: 'pendiente', actionSamsung: 'pendiente', label: 'borrar texto' },
+                down: { icon: 'mdi:form-textbox', actionLG: 'pendiente', actionSamsung: 'pendiente',  label: 'escribir texto' }
             },
             'amplificador': {
-                up: { icon: 'phu:dolby-atmos', action: 'pendiente', label: 'dolby' },
-                left: { icon: 'mdi:home-sound-out-outline', action: 'pendiente', label: 'sonido orange' },
-                right: { icon: 'mdi:television-play', action: 'pendiente', label: 'sonido TV' },
-                down: { icon: 'mdi:surround-sound-5-1', action: 'pendiente', label: 'surround' }
+                up: { icon: 'phu:dolby-atmos', actionLG: 'pendiente', label: 'dolby' },
+                left: { icon: 'mdi:home-sound-out-outline', actionLG: 'pendiente', label: 'sonido orange' },
+                right: { icon: 'mdi:television-play', actionLG: 'pendiente', label: 'sonido TV' },
+                down: { icon: 'mdi:surround-sound-5-1', actionLG: 'pendiente', label: 'surround' }
             },
             'fuentes': {
-                up: { icon: 'mdi:numeric-1-box-multiple-outline', action: 'pendiente', label: 'HDMI 1' },
-                left: { icon: 'mdi:numeric-2-box-multiple-outline', action: 'pendiente', label: 'HDMI 2' },
-                right: { icon: 'mdi:numeric-3-box-multiple-outline', action: 'pendiente', label: 'HDMI 3' },
-                down: { icon: 'mdi:numeric-4-box-multiple-outline', action: 'pendiente', label: 'HDMI 4' }
+                up: { icon: 'mdi:numeric-1-box-multiple-outline', actionLG: 'pendiente', actionSamsung: 'KEY_SOURCE', label: 'HDMI 1' },
+                left: { icon: 'mdi:numeric-2-box-multiple-outline', actionLG: 'pendiente', actionSamsung: 'KEY_HDMI', label: 'HDMI 2' },
+                right: { icon: 'mdi:numeric-3-box-multiple-outline', actionLG: 'pendiente', actionSamsung: 'KEY_TV', label: 'HDMI 3' },
+                down: { icon: 'mdi:numeric-4-box-multiple-outline', actionLG: 'pendiente', actionSamsung: 'KEY_AV1', label: 'HDMI 4' }
             },
             'info': {
-                up: { icon: 'mdi:television-guide', action: 'GUIDE', label: '' },
-                left: { icon: 'mdi:information-slab-circle-outline', action: 'INFO', label: '' },
-                right: { icon: 'mdi:apps', action: 'MYAPPS', label: '' },
-                down: { icon: 'mdi:book-information-variant', action: 'pendiente', label: '"com.webos.applicationManager/getForegroundAppInfo"' }
+                up: { icon: 'mdi:television-guide', actionLG: 'GUIDE', actionSamsung: 'KEY_CH_LIST', label: '' },
+                left: { icon: 'mdi:information-slab-circle-outline', actionLG: 'INFO', actionSamsung: 'KEY_INFO', label: '' },
+                right: { icon: 'mdi:apps', actionLG: 'MYAPPS', actionSamsung: 'KEY_APP_LIST', label: '' },
+                down: { icon: 'mdi:book-information-variant', actionLG: 'pendiente', actionSamsung: 'KEY_TOOLS', label: '"com.webos.applicationManager/getForegroundAppInfo"' }
             },
 /* AQUI FALTA VER COMO SE VA A IMPLEMENTAR, PORQUE LA RUEDA VA A CAMBIAR A 9 NUMEROS
             'keyboard': {
@@ -222,10 +246,10 @@ class TVControlCard extends HTMLElement {
             },
 */
             'default': {
-                up: { icon: 'mdi:circle-medium', action: 'UP', label: 'Arriba' },
-                left: { icon: 'mdi:circle-medium', action: 'LEFT', label: 'Izquierda' },
-                right: { icon: 'mdi:circle-medium', action: 'RIGHT', label: 'Derecha' },
-                down: { icon: 'mdi:circle-medium', action: 'DOWN', label: 'Abajo' }
+                up: { icon: 'mdi:circle-medium', actionLG: 'UP', actionSamsung: 'KEY_UP', label: 'Arriba' },
+                left: { icon: 'mdi:circle-medium', actionLG: 'LEFT', actionSamsung: 'KEY_LEFT', label: 'Izquierda' },
+                right: { icon: 'mdi:circle-medium', actionLG: 'RIGHT', actionSamsung: 'KEY_RIGHT', label: 'Derecha' },
+                down: { icon: 'mdi:circle-medium', actionLG: 'DOWN', actionSamsung: 'KEY_DOWN', label: 'Abajo' }
             }
         };
     }
@@ -236,6 +260,22 @@ class TVControlCard extends HTMLElement {
         }
         
         this._config = config;
+        this.displayOrder = [
+            config.mode_slot_1 || 'navegacion',  // valor por defecto si no está definido
+            config.mode_slot_2 || 'busqueda',
+            config.mode_slot_3 || 'audio'
+        ];
+        this.controlModes = [
+            { id: 'navegacion', icon: 'mdi:menu-open', label: 'Navegación' },
+            { id: 'busqueda', icon: 'mdi:television-classic', label: 'Búsqueda' },
+            { id: 'audio', icon: 'mdi:volume-high', label: 'Audio' },
+            { id: 'fuentes', icon: 'mdi:television-shimmer', label: 'Fuentes' },
+            { id: 'info', icon: 'mdi:information-variant-circle-outline', label: 'Información' },
+            { id: 'text', icon: 'mdi:text-account', label: 'Texto' },
+            { id: 'custom1', icon: config.custom1_mode_icon || 'mdi:numeric-1-circle-outline', label: config.custom1_label || 'Personalizado 1' },
+            { id: 'custom2', icon: config.custom2_mode_icon || 'mdi:numeric-2-circle-outline', label: config.custom2_label || 'Personalizado 2' },
+            { id: 'custom3', icon: config.custom3_mode_icon || 'mdi:numeric-3-circle-outline', label: config.custom3_label || 'Personalizado 3' }
+        ];
         this.state.defaultMode = config.colorMode;
         console.log("esto es la nueva propiedad YAML que estamos definiendo" + config.colorMode)
         this.state.tvEntityId = config.entity;
@@ -844,12 +884,18 @@ class TVControlCard extends HTMLElement {
                         
                         <div class="mode-buttons">
                             <div class="mode-grid">
-                                ${this.controlModes.map(mode => `
-                                    <div class="mode-button mode-${mode.id} ${this.state.controlMode === mode.id ? 'active' : ''}" 
-                                        data-mode="${mode.id}">
-                                        <ha-icon icon="${mode.icon}"></ha-icon>
-                                    </div>
-                                `).join('')}
+                                ${this.displayOrder.map(modeId => {
+                                    // Buscar el modo completo en controlModes
+                                    const mode = this.controlModes.find(m => m.id === modeId);
+                                    if (!mode) return ''; // Si no existe, no renderiza nada
+                                    
+                                    return `
+                                        <div class="mode-button mode-${mode.id} ${this.state.controlMode === mode.id ? 'active' : ''}" 
+                                            data-mode="${mode.id}">
+                                            <ha-icon icon="${mode.icon}"></ha-icon>
+                                        </div>
+                                    `;
+                                }).join('')}
                             </div>
                         </div>
                         
@@ -872,9 +918,9 @@ class TVControlCard extends HTMLElement {
         
         this.saveElementReferences();
         this.updateCardStyles();
-        this.listenerAudio();
-        this.listenerBusqueda();
-        this.listenerNavegacion();
+        this.listenerModo(this.displayOrder[0], this.modeIterations[0], [this.modeIterations[1], this.modeIterations[2]]);
+        this.listenerModo(this.displayOrder[1], this.modeIterations[1], [this.modeIterations[0], this.modeIterations[2]]);
+        this.listenerModo(this.displayOrder[2], this.modeIterations[2], [this.modeIterations[0], this.modeIterations[1]]);
         this.listenerPower();
         this.listenerExit();
         this.listenerStreaming();
@@ -892,11 +938,17 @@ class TVControlCard extends HTMLElement {
             this.elements[`${service.id}Button`] = this.shadowRoot.querySelector(`.${service.id}-button`);
         });
         
-        this.controlModes.forEach(mode => {
-            const selector = `.mode-${mode.id}`;
-            const button = this.shadowRoot.querySelector(selector);
-            const elementKey = `mode${mode.id.charAt(0).toUpperCase() + mode.id.slice(1)}Button`;
-            this.elements[elementKey] = button;
+        this.displayOrder.forEach(modeId => {
+            // Buscar el modo completo en controlModes
+            const mode = this.controlModes.find(m => m.id === modeId);
+            if (mode) {
+                const selector = `.mode-${mode.id}`;
+                const button = this.shadowRoot.querySelector(selector);
+                const elementKey = `mode${mode.id.charAt(0).toUpperCase() + mode.id.slice(1)}Button`;
+                this.elements[elementKey] = button;
+            } else {
+                console.warn(`Modo con id '${modeId}' no encontrado en controlModes`);
+            }
         });
         
         this.bottomButtons.forEach(button => {
@@ -913,9 +965,24 @@ class TVControlCard extends HTMLElement {
     
     renderTouchpadButtons() {
         const mode = this.state.controlMode;
-        const buttons = this.touchpadButtons[mode] || this.touchpadButtons['default'];
-        
-        const html = ['up', 'left', 'right', 'down'].map(direction => {
+    
+        let buttons;
+    
+        if (mode && mode.startsWith('custom')) {
+            const num = mode.replace('custom', '');
+            buttons = {};
+            ['up', 'left', 'right', 'down'].forEach(dir => {
+                buttons[dir] = {
+                    icon: this._config[`custom${num}_${dir}_icon`] || 'mdi:help',
+                    action: this._config[`custom${num}_${dir}_value`] || null,
+                    label: dir
+                };
+            });
+        } else {
+            buttons = this.touchpadButtons[mode] || this.touchpadButtons['default'];
+        }
+    
+        return ['up', 'left', 'right', 'down'].map(direction => {
             const button = buttons[direction];
             return `
                 <div class="touchpad-button touchpad-${direction}" 
@@ -925,7 +992,6 @@ class TVControlCard extends HTMLElement {
                 </div>
             `;
         }).join('');
-        return html;
     }
     getTvStatus() {
         if (!this._hass || !this.state.tvEntityId) return 'off';
@@ -1037,7 +1103,7 @@ class TVControlCard extends HTMLElement {
         this.dispatchEvent(event);
     }
     
-    listenerAudio(){
+    listenerModo(modeId, iteracion, otrasIteraciones) {
         function find(el, tag="TV-CONTROL-CARD") {
             if(el.tagName === tag) return el;
             if(el.shadowRoot) for(let child of el.shadowRoot.children) {
@@ -1050,171 +1116,44 @@ class TVControlCard extends HTMLElement {
             }
             return null;
         }
-        
-        function findAudioBtn() {
+    
+        function findBtn() {
             let tvCard = find(document.querySelector("home-assistant"));
             if(!tvCard?.shadowRoot) return null;
-        
+    
             let mainDiv = tvCard.shadowRoot.querySelector("div.tv-control-card") || tvCard.shadowRoot.querySelector("div");
             if(!mainDiv) return null;
-        
+    
             let searchArea = mainDiv.querySelector("div.card-grid") || mainDiv;
-            let btn = searchArea.querySelector('div[data-mode="audio"], div.mode-audio, div.mode-button.mode-audio');
-        
+            let btn = searchArea.querySelector(`div[data-mode="${modeId}"], div.mode-${modeId}, div.mode-button.mode-${modeId}`);
+    
             if(!btn) {
                 let allDivs = searchArea.querySelectorAll("div");
                 for(let div of allDivs) {
-                    if(div.getAttribute("data-mode") === "audio" || div.className?.includes("audio")) {
+                    if(div.getAttribute("data-mode") === modeId || div.className?.includes(modeId)) {
                         btn = div;
                         break;
                     }
                 }
             }
-        
+    
             return btn;
         }
-        
-        let audioBtn = findAudioBtn();
-        if(audioBtn) {
-            audioBtn.addEventListener("click", () => {
+    
+        let btn = findBtn();
+        if(btn) {
+            btn.addEventListener("click", () => {
                 this._dispararHaptic('light');
-                iteracionAudio++;
-                if(iteracionAudio % 2 === 0) {
+                iteracion.count++;
+                if(iteracion.count % 2 === 0) {
                     this.selectControlMode('seleccion');
                 } else {
-                    this.selectControlMode('audio');
-                    if(window.iteracionBusq % 2 === 1 || window.iteracionNav % 2 === 1){
-                        window.iteracionBusq = 0;
-                        window.iteracionNav = 0;
-                        this.estadoActual();
-                        console.log("ESTADO " + this.state.tvEntityId );
-                    }
-                        
+                    this.selectControlMode(modeId);
+                    otrasIteraciones.forEach(iter => iter.count = 0);
                 }
             });
-            
-            audioBtn.style.cursor = "pointer";
-            window.audioBtn = audioBtn;
-        } else {
-        }              
-
-
-    }
-    listenerBusqueda(){
-        function find(el, tag="TV-CONTROL-CARD") {
-            if(el.tagName === tag) return el;
-            if(el.shadowRoot) for(let child of el.shadowRoot.children) {
-                let found = find(child, tag);
-                if(found) return found;
-            }
-            for(let child of el.children) {
-                let found = find(child, tag);
-                if(found) return found;
-            }
-            return null;
+            btn.style.cursor = "pointer";
         }
-        
-        function findBusqBtn() {
-            let tvCard = find(document.querySelector("home-assistant"));
-            if(!tvCard?.shadowRoot) return null;
-        
-            let mainDiv = tvCard.shadowRoot.querySelector("div.tv-control-card") || tvCard.shadowRoot.querySelector("div");
-            if(!mainDiv) return null;
-        
-            let searchArea = mainDiv.querySelector("div.card-grid") || mainDiv;
-            let btn = searchArea.querySelector('div[data-mode="busqueda"], div.mode-busqueda, div.mode-button.mode-busqueda');
-        
-            if(!btn) {
-                let allDivs = searchArea.querySelectorAll("div");
-                for(let div of allDivs) {
-                    if(div.getAttribute("data-mode") === "busqueda" || div.className?.includes("busqueda")) {
-                        btn = div;
-                        break;
-                    }
-                }
-            }
-        
-            return btn;
-        }
-        
-        let busqBtn = findBusqBtn();
-        if(busqBtn) {
-            busqBtn.addEventListener("click", () => {
-                this._dispararHaptic('light');
-                iteracionBusq++;
-                if(iteracionBusq % 2 === 0) {
-                    this.selectControlMode('seleccion');
-                } else {
-                    this.selectControlMode('busqueda');
-                    if(window.iteracionAudio % 2 === 1 || window.iteracionNav % 2 === 1){
-                        window.iteracionAudio = 0;
-                        window.iteracionNav = 0;
-                    }
-                }
-            });
-            busqBtn.style.cursor = "pointer";
-            window.busqBtn = busqBtn;
-        } else {
-        }        
-
-
-    }    
-    listenerNavegacion(){
-        function find(el, tag="TV-CONTROL-CARD") {
-            if(el.tagName === tag) return el;
-            if(el.shadowRoot) for(let child of el.shadowRoot.children) {
-                let found = find(child, tag);
-                if(found) return found;
-            }
-            for(let child of el.children) {
-                let found = find(child, tag);
-                if(found) return found;
-            }
-            return null;
-        }
-        
-        function findNavBtn() {
-            let tvCard = find(document.querySelector("home-assistant"));
-            if(!tvCard?.shadowRoot) return null;
-        
-            let mainDiv = tvCard.shadowRoot.querySelector("div.tv-control-card") || tvCard.shadowRoot.querySelector("div");
-            if(!mainDiv) return null;
-        
-            let searchArea = mainDiv.querySelector("div.card-grid") || mainDiv;
-            let btn = searchArea.querySelector('div[data-mode="navegacion"], div.mode-navegacion, div.mode-button.mode-navegacion');
-        
-            if(!btn) {
-                let allDivs = searchArea.querySelectorAll("div");
-                for(let div of allDivs) {
-                    if(div.getAttribute("data-mode") === "navegacion" || div.className?.includes("navegacion")) {
-                        btn = div;
-                        break;
-                    }
-                }
-            }
-        
-            return btn;
-        }
-        
-        let navBtn = findNavBtn();
-        if(navBtn) {
-            navBtn.addEventListener("click", () => {
-                this._dispararHaptic('light');
-                iteracionNav++;
-                if(iteracionNav % 2 === 0) {
-                    this.selectControlMode('seleccion');
-                } else {
-                    this.selectControlMode('navegacion');
-                    if(window.iteracionBusq % 2 === 1 || window.iteracionAudio % 2 === 1){
-                        window.iteracionBusq = 0;
-                        window.iteracionAudio = 0;
-                    }
-                }
-            });
-            navBtn.style.cursor = "pointer";
-            window.navBtn = navBtn;
-        } else {
-        }        
     }
 
     listenerPower(){
@@ -1458,6 +1397,223 @@ class TVControlCardEditor extends HTMLElement {
                 </select>
                 </div>
             </div>
+
+            <!-- Selector de slots -->
+            <div style="padding: 16px;">
+                <div style="margin-bottom: 8px; font-weight: bold;">Modos de la rueda</div>
+                ${['1', '2', '3'].map(slot => `
+                    <div style="margin-bottom: 12px;">
+                        <label style="display: block; margin-bottom: 4px; font-size: 12px;">Slot ${slot}</label>
+                        <select id="slot-${slot}" style="width: 100%; padding: 8px; border-radius: 4px;">
+                            <option value="navegacion" ${this._config[`mode_slot_${slot}`] === 'navegacion' ? 'selected' : ''}>Navegación</option>
+                            <option value="busqueda" ${this._config[`mode_slot_${slot}`] === 'busqueda' ? 'selected' : ''}>Búsqueda</option>
+                            <option value="audio" ${this._config[`mode_slot_${slot}`] === 'audio' ? 'selected' : ''}>Audio</option>
+                            <option value="fuentes" ${this._config[`mode_slot_${slot}`] === 'fuentes' ? 'selected' : ''}>Fuentes</option>
+                            <option value="info" ${this._config[`mode_slot_${slot}`] === 'info' ? 'selected' : ''}>Información</option>
+                            <option value="text" ${this._config[`mode_slot_${slot}`] === 'text' ? 'selected' : ''}>Texto</option>
+                            <option value="custom1" ${this._config[`mode_slot_${slot}`] === 'custom1' ? 'selected' : ''}>Custom 1</option>
+                            <option value="custom2" ${this._config[`mode_slot_${slot}`] === 'custom2' ? 'selected' : ''}>Custom 2</option>
+                            <option value="custom3" ${this._config[`mode_slot_${slot}`] === 'custom3' ? 'selected' : ''}>Custom 3</option>
+                        </select>
+                    </div>
+                `).join('')}
+            </div> 
+            <div style="padding: 16px; border-top: 1px solid rgba(255,255,255,0.1);">
+                <div style="margin-bottom: 12px; font-weight: bold;">Custom 1</div>
+
+                <div style="margin-bottom: 8px;">
+                    <label style="display: block; margin-bottom: 4px; font-size: 12px;">Ícono del modo</label>
+                    <input id="custom1-mode-icon" type="text" placeholder="mdi:help"
+                        value="${this._config.custom1_mode_icon || ''}"
+                        style="width: 100%; padding: 6px; border-radius: 4px; box-sizing: border-box;">
+                </div>
+
+                <div style="margin-bottom: 12px;">
+                    <label style="display: block; margin-bottom: 4px; font-size: 12px;">Nombre del modo</label>
+                    <input id="custom1-label" type="text" placeholder="Mi modo"
+                        value="${this._config.custom1_label || ''}"
+                        style="width: 100%; padding: 6px; border-radius: 4px; box-sizing: border-box;">
+                </div>
+
+                ${['up', 'left', 'right', 'down'].map(dir => `
+                    <div style="margin-bottom: 12px; border-left: 3px solid rgba(255,255,255,0.2); padding-left: 10px;">
+                        <div style="margin-bottom: 4px; font-size: 11px; text-transform: uppercase; opacity: 0.7;">${dir}</div>
+
+                        <input id="custom1-${dir}-icon" type="text" placeholder="mdi:help"
+                            value="${this._config[`custom1_${dir}_icon`] || ''}"
+                            style="width: 100%; padding: 6px; border-radius: 4px; box-sizing: border-box; margin-bottom: 4px;">
+
+                        <select id="custom1-${dir}-type" style="width: 100%; padding: 6px; border-radius: 4px; margin-bottom: 4px;">
+                            <option value="button" ${this._config[`custom1_${dir}_type`] === 'button' ? 'selected' : ''}>Button</option>
+                            <option value="command" ${this._config[`custom1_${dir}_type`] === 'command' ? 'selected' : ''}>Command</option>
+                            <option value="script" ${this._config[`custom1_${dir}_type`] === 'script' ? 'selected' : ''}>Script</option>
+                        </select>
+
+                        <select id="custom1-${dir}-value-button" style="width: 100%; padding: 6px; border-radius: 4px; margin-bottom: 4px; ${this._config[`custom1_${dir}_type`] !== 'button' ? 'display:none;' : ''}">
+                            <option value="">-- Seleccionar --</option>
+                            ${PREDEFINED_COMMANDS.map(cmd => `
+                                <option value="${this._config.modelConfig === 'samsung' ? cmd.actionSamsung : cmd.actionLG}"
+                                    ${this._config[`custom1_${dir}_value`] === (this._config.modelConfig === 'samsung' ? cmd.actionSamsung : cmd.actionLG) ? 'selected' : ''}>
+                                    ${cmd.label}
+                                </option>
+                            `).join('')}
+                        </select>
+
+                        <select id="custom1-${dir}-value-command" style="width: 100%; padding: 6px; border-radius: 4px; margin-bottom: 4px; ${this._config[`custom1_${dir}_type`] !== 'command' ? 'display:none;' : ''}">
+                            <option value="">-- Seleccionar comando --</option>
+                            ${PREDEFINED_COMMANDS.map(cmd => `
+                                <option value="${this._config.modelConfig === 'samsung' ? cmd.actionSamsung : cmd.actionLG}"
+                                    ${this._config[`custom1_${dir}_value`] === (this._config.modelConfig === 'samsung' ? cmd.actionSamsung : cmd.actionLG) ? 'selected' : ''}>
+                                    ${cmd.label}
+                                </option>
+                            `).join('')}
+                        </select>
+
+                        <select id="custom1-${dir}-value-script" style="width: 100%; padding: 6px; border-radius: 4px; ${this._config[`custom1_${dir}_type`] !== 'script' ? 'display:none;' : ''}">
+                            <option value="">-- Seleccionar script --</option>
+                            ${Object.keys(this._hass.states)
+                                .filter(e => e.startsWith('script.'))
+                                .map(script => `
+                                    <option value="${script}" ${this._config[`custom1_${dir}_value`] === script ? 'selected' : ''}>
+                                        ${this._hass.states[script].attributes.friendly_name || script}
+                                    </option>
+                                `).join('')}
+                        </select>
+                    </div>
+                `).join('')}
+            </div>
+
+
+            <div style="padding: 16px; border-top: 1px solid rgba(255,255,255,0.1);">
+                <div style="margin-bottom: 12px; font-weight: bold;">Custom 2</div>
+
+                <div style="margin-bottom: 8px;">
+                    <label style="display: block; margin-bottom: 4px; font-size: 12px;">Ícono del modo</label>
+                    <input id="custom2-mode-icon" type="text" placeholder="mdi:help"
+                        value="${this._config.custom2_mode_icon || ''}"
+                        style="width: 100%; padding: 6px; border-radius: 4px; box-sizing: border-box;">
+                </div>
+
+                <div style="margin-bottom: 12px;">
+                    <label style="display: block; margin-bottom: 4px; font-size: 12px;">Nombre del modo</label>
+                    <input id="custom2-label" type="text" placeholder="Mi modo"
+                        value="${this._config.custom2_label || ''}"
+                        style="width: 100%; padding: 6px; border-radius: 4px; box-sizing: border-box;">
+                </div>
+
+                ${['up', 'left', 'right', 'down'].map(dir => `
+                    <div style="margin-bottom: 12px; border-left: 3px solid rgba(255,255,255,0.2); padding-left: 10px;">
+                        <div style="margin-bottom: 4px; font-size: 11px; text-transform: uppercase; opacity: 0.7;">${dir}</div>
+
+                        <input id="custom2-${dir}-icon" type="text" placeholder="mdi:help"
+                            value="${this._config[`custom2_${dir}_icon`] || ''}"
+                            style="width: 100%; padding: 6px; border-radius: 4px; box-sizing: border-box; margin-bottom: 4px;">
+
+                        <select id="custom2-${dir}-type" style="width: 100%; padding: 6px; border-radius: 4px; margin-bottom: 4px;">
+                            <option value="button" ${this._config[`custom2_${dir}_type`] === 'button' ? 'selected' : ''}>Button</option>
+                            <option value="command" ${this._config[`custom2_${dir}_type`] === 'command' ? 'selected' : ''}>Command</option>
+                            <option value="script" ${this._config[`custom2_${dir}_type`] === 'script' ? 'selected' : ''}>Script</option>
+                        </select>
+
+                        <select id="custom2-${dir}-value-button" style="width: 100%; padding: 6px; border-radius: 4px; margin-bottom: 4px; ${this._config[`custom2_${dir}_type`] !== 'button' ? 'display:none;' : ''}">
+                            <option value="">-- Seleccionar --</option>
+                            ${PREDEFINED_COMMANDS.map(cmd => `
+                                <option value="${this._config.modelConfig === 'samsung' ? cmd.actionSamsung : cmd.actionLG}"
+                                    ${this._config[`custom2_${dir}_value`] === (this._config.modelConfig === 'samsung' ? cmd.actionSamsung : cmd.actionLG) ? 'selected' : ''}>
+                                    ${cmd.label}
+                                </option>
+                            `).join('')}
+                        </select>
+
+                        <select id="custom2-${dir}-value-command" style="width: 100%; padding: 6px; border-radius: 4px; margin-bottom: 4px; ${this._config[`custom2_${dir}_type`] !== 'command' ? 'display:none;' : ''}">
+                            <option value="">-- Seleccionar comando --</option>
+                            ${PREDEFINED_COMMANDS.map(cmd => `
+                                <option value="${this._config.modelConfig === 'samsung' ? cmd.actionSamsung : cmd.actionLG}"
+                                    ${this._config[`custom2_${dir}_value`] === (this._config.modelConfig === 'samsung' ? cmd.actionSamsung : cmd.actionLG) ? 'selected' : ''}>
+                                    ${cmd.label}
+                                </option>
+                            `).join('')}
+                        </select>
+
+                        <select id="custom2-${dir}-value-script" style="width: 100%; padding: 6px; border-radius: 4px; ${this._config[`custom2_${dir}_type`] !== 'script' ? 'display:none;' : ''}">
+                            <option value="">-- Seleccionar script --</option>
+                            ${Object.keys(this._hass.states)
+                                .filter(e => e.startsWith('script.'))
+                                .map(script => `
+                                    <option value="${script}" ${this._config[`custom2_${dir}_value`] === script ? 'selected' : ''}>
+                                        ${this._hass.states[script].attributes.friendly_name || script}
+                                    </option>
+                                `).join('')}
+                        </select>
+                    </div>
+                `).join('')}
+            </div>
+            
+
+            <div style="padding: 16px; border-top: 1px solid rgba(255,255,255,0.1);">
+                <div style="margin-bottom: 12px; font-weight: bold;">Custom 3</div>
+
+                <div style="margin-bottom: 8px;">
+                    <label style="display: block; margin-bottom: 4px; font-size: 12px;">Ícono del modo</label>
+                    <input id="custom3-mode-icon" type="text" placeholder="mdi:help"
+                        value="${this._config.custom3_mode_icon || ''}"
+                        style="width: 100%; padding: 6px; border-radius: 4px; box-sizing: border-box;">
+                </div>
+
+                <div style="margin-bottom: 12px;">
+                    <label style="display: block; margin-bottom: 4px; font-size: 12px;">Nombre del modo</label>
+                    <input id="custom3-label" type="text" placeholder="Mi modo"
+                        value="${this._config.custom3_label || ''}"
+                        style="width: 100%; padding: 6px; border-radius: 4px; box-sizing: border-box;">
+                </div>
+
+                ${['up', 'left', 'right', 'down'].map(dir => `
+                    <div style="margin-bottom: 12px; border-left: 3px solid rgba(255,255,255,0.2); padding-left: 10px;">
+                        <div style="margin-bottom: 4px; font-size: 11px; text-transform: uppercase; opacity: 0.7;">${dir}</div>
+
+                        <input id="custom3-${dir}-icon" type="text" placeholder="mdi:help"
+                            value="${this._config[`custom3_${dir}_icon`] || ''}"
+                            style="width: 100%; padding: 6px; border-radius: 4px; box-sizing: border-box; margin-bottom: 4px;">
+
+                        <select id="custom3-${dir}-type" style="width: 100%; padding: 6px; border-radius: 4px; margin-bottom: 4px;">
+                            <option value="button" ${this._config[`custom3_${dir}_type`] === 'button' ? 'selected' : ''}>Button</option>
+                            <option value="command" ${this._config[`custom3_${dir}_type`] === 'command' ? 'selected' : ''}>Command</option>
+                            <option value="script" ${this._config[`custom3_${dir}_type`] === 'script' ? 'selected' : ''}>Script</option>
+                        </select>
+
+                        <select id="custom3-${dir}-value-button" style="width: 100%; padding: 6px; border-radius: 4px; margin-bottom: 4px; ${this._config[`custom3_${dir}_type`] !== 'button' ? 'display:none;' : ''}">
+                            <option value="">-- Seleccionar --</option>
+                            ${PREDEFINED_COMMANDS.map(cmd => `
+                                <option value="${this._config.modelConfig === 'samsung' ? cmd.actionSamsung : cmd.actionLG}"
+                                    ${this._config[`custom3_${dir}_value`] === (this._config.modelConfig === 'samsung' ? cmd.actionSamsung : cmd.actionLG) ? 'selected' : ''}>
+                                    ${cmd.label}
+                                </option>
+                            `).join('')}
+                        </select>
+
+                        <select id="custom3-${dir}-value-command" style="width: 100%; padding: 6px; border-radius: 4px; margin-bottom: 4px; ${this._config[`custom3_${dir}_type`] !== 'command' ? 'display:none;' : ''}">
+                            <option value="">-- Seleccionar comando --</option>
+                            ${PREDEFINED_COMMANDS.map(cmd => `
+                                <option value="${this._config.modelConfig === 'samsung' ? cmd.actionSamsung : cmd.actionLG}"
+                                    ${this._config[`custom3_${dir}_value`] === (this._config.modelConfig === 'samsung' ? cmd.actionSamsung : cmd.actionLG) ? 'selected' : ''}>
+                                    ${cmd.label}
+                                </option>
+                            `).join('')}
+                        </select>
+
+                        <select id="custom3-${dir}-value-script" style="width: 100%; padding: 6px; border-radius: 4px; ${this._config[`custom3_${dir}_type`] !== 'script' ? 'display:none;' : ''}">
+                            <option value="">-- Seleccionar script --</option>
+                            ${Object.keys(this._hass.states)
+                                .filter(e => e.startsWith('script.'))
+                                .map(script => `
+                                    <option value="${script}" ${this._config[`custom3_${dir}_value`] === script ? 'selected' : ''}>
+                                        ${this._hass.states[script].attributes.friendly_name || script}
+                                    </option>
+                                `).join('')}
+                        </select>
+                    </div>
+                `).join('')}
+            </div>            
         `;
 
         // Escuchar cambios en el select
@@ -1486,6 +1642,131 @@ class TVControlCardEditor extends HTMLElement {
                 detail: { config: { ...this._config, modelConfig: e.target.value }}
             }));
         });
+        // Slots
+        ['1', '2', '3'].forEach(slot => {
+            this.querySelector(`#slot-${slot}`).addEventListener('change', (e) => {
+                this.dispatchEvent(new CustomEvent('config-changed', {
+                    detail: { config: { ...this._config, [`mode_slot_${slot}`]: e.target.value }}
+                }));
+            });
+        });
+
+        this.querySelector('#custom1-mode-icon').addEventListener('change', (e) => {
+            this.dispatchEvent(new CustomEvent('config-changed', {
+                detail: { config: { ...this._config, custom1_mode_icon: e.target.value }}
+            }));
+        });
+        
+        this.querySelector('#custom1-label').addEventListener('change', (e) => {
+            this.dispatchEvent(new CustomEvent('config-changed', {
+                detail: { config: { ...this._config, custom1_label: e.target.value }}
+            }));
+        });
+        
+        ['up', 'left', 'right', 'down'].forEach(dir => {
+            this.querySelector(`#custom1-${dir}-icon`).addEventListener('change', (e) => {
+                this.dispatchEvent(new CustomEvent('config-changed', {
+                    detail: { config: { ...this._config, [`custom1_${dir}_icon`]: e.target.value }}
+                }));
+            });
+        
+            this.querySelector(`#custom1-${dir}-type`).addEventListener('change', (e) => {
+                const type = e.target.value;
+                this.querySelector(`#custom1-${dir}-value-button`).style.display = type === 'button' ? 'block' : 'none';
+                this.querySelector(`#custom1-${dir}-value-command`).style.display = type === 'command' ? 'block' : 'none';
+                this.querySelector(`#custom1-${dir}-value-script`).style.display = type === 'script' ? 'block' : 'none';
+                this.dispatchEvent(new CustomEvent('config-changed', {
+                    detail: { config: { ...this._config, [`custom1_${dir}_type`]: type }}
+                }));
+            });
+        
+            ['button', 'command', 'script'].forEach(valueType => {
+                this.querySelector(`#custom1-${dir}-value-${valueType}`).addEventListener('change', (e) => {
+                    this.dispatchEvent(new CustomEvent('config-changed', {
+                        detail: { config: { ...this._config, [`custom1_${dir}_value`]: e.target.value }}
+                    }));
+                });
+            });
+        });
+        
+        /////////////////
+        this.querySelector('#custom2-mode-icon').addEventListener('change', (e) => {
+            this.dispatchEvent(new CustomEvent('config-changed', {
+                detail: { config: { ...this._config, custom2_mode_icon: e.target.value }}
+            }));
+        });
+        
+        this.querySelector('#custom2-label').addEventListener('change', (e) => {
+            this.dispatchEvent(new CustomEvent('config-changed', {
+                detail: { config: { ...this._config, custom2_label: e.target.value }}
+            }));
+        });
+
+        ['up', 'left', 'right', 'down'].forEach(dir => {
+            this.querySelector(`#custom2-${dir}-icon`).addEventListener('change', (e) => {
+                this.dispatchEvent(new CustomEvent('config-changed', {
+                    detail: { config: { ...this._config, [`custom2_${dir}_icon`]: e.target.value }}
+                }));
+            });
+        
+            this.querySelector(`#custom2-${dir}-type`).addEventListener('change', (e) => {
+                const type = e.target.value;
+                this.querySelector(`#custom2-${dir}-value-button`).style.display = type === 'button' ? 'block' : 'none';
+                this.querySelector(`#custom2-${dir}-value-command`).style.display = type === 'command' ? 'block' : 'none';
+                this.querySelector(`#custom2-${dir}-value-script`).style.display = type === 'script' ? 'block' : 'none';
+                this.dispatchEvent(new CustomEvent('config-changed', {
+                    detail: { config: { ...this._config, [`custom2_${dir}_type`]: type }}
+                }));
+            });
+        
+            ['button', 'command', 'script'].forEach(valueType => {
+                this.querySelector(`#custom2-${dir}-value-${valueType}`).addEventListener('change', (e) => {
+                    this.dispatchEvent(new CustomEvent('config-changed', {
+                        detail: { config: { ...this._config, [`custom2_${dir}_value`]: e.target.value }}
+                    }));
+                });
+            });
+        });
+        
+////////////////
+        this.querySelector('#custom3-mode-icon').addEventListener('change', (e) => {
+            this.dispatchEvent(new CustomEvent('config-changed', {
+                detail: { config: { ...this._config, custom3_mode_icon: e.target.value }}
+            }));
+        });
+        
+        this.querySelector('#custom3-label').addEventListener('change', (e) => {
+            this.dispatchEvent(new CustomEvent('config-changed', {
+                detail: { config: { ...this._config, custom3_label: e.target.value }}
+            }));
+        });
+
+        ['up', 'left', 'right', 'down'].forEach(dir => {
+            this.querySelector(`#custom3-${dir}-icon`).addEventListener('change', (e) => {
+                this.dispatchEvent(new CustomEvent('config-changed', {
+                    detail: { config: { ...this._config, [`custom3_${dir}_icon`]: e.target.value }}
+                }));
+            });
+        
+            this.querySelector(`#custom3-${dir}-type`).addEventListener('change', (e) => {
+                const type = e.target.value;
+                this.querySelector(`#custom3-${dir}-value-button`).style.display = type === 'button' ? 'block' : 'none';
+                this.querySelector(`#custom3-${dir}-value-command`).style.display = type === 'command' ? 'block' : 'none';
+                this.querySelector(`#custom3-${dir}-value-script`).style.display = type === 'script' ? 'block' : 'none';
+                this.dispatchEvent(new CustomEvent('config-changed', {
+                    detail: { config: { ...this._config, [`custom3_${dir}_type`]: type }}
+                }));
+            });
+        
+            ['button', 'command', 'script'].forEach(valueType => {
+                this.querySelector(`#custom3-${dir}-value-${valueType}`).addEventListener('change', (e) => {
+                    this.dispatchEvent(new CustomEvent('config-changed', {
+                        detail: { config: { ...this._config, [`custom3_${dir}_value`]: e.target.value }}
+                    }));
+                });
+            });
+        });
+
     }
 }
 
