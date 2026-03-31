@@ -1104,12 +1104,11 @@ class TVControlCard extends HTMLElement {
         this.render();
     }
         // Función para disparar feedback háptico
-    _dispararHaptic(tipo = 'light') {
-        // Tipos comunes: 'light', 'medium', 'heavy', 'selection', 'success', 'warning', 'failure'
+    _dispararHaptic(tipo = 'medium') {
         const event = new CustomEvent('haptic', {
-        detail: tipo,
-        bubbles: true,
-        composed: true, // Importante para que atraviese el Shadow DOM
+            detail: tipo,
+            bubbles: true,
+            composed: true,
         });
         this.dispatchEvent(event);
     }
@@ -1154,7 +1153,7 @@ class TVControlCard extends HTMLElement {
         let btn = findBtn();
         if(btn) {
             btn.addEventListener("click", () => {
-                this._dispararHaptic('light');
+                this._dispararHaptic('medium');
                 iteracion.count++;
                 if(iteracion.count % 2 === 0) {
                     this.selectControlMode('seleccion');
@@ -1171,22 +1170,17 @@ class TVControlCard extends HTMLElement {
         let botonPower = this.shadowRoot.querySelector('.power-button');
         botonPower.addEventListener('click', () => this.togglePower());
     }
-
+    
     listenerExit() {
         let botonExit = this.shadowRoot.querySelector('.exit-button');
         if (!botonExit) return;
         botonExit.addEventListener('click', () => {
-            this._dispararHaptic('light');
-            const type = this._config.exit_type || 'button';
             const value = this._config.exit_value || null;
+            if (!value) return;
     
-            if (type === 'script' && value) {
-                this.sendButtonAction(value);
-                return;
-            }
-    
-            const action = value || (this._config.modelConfig === 'samsung' ? 'KEY_EXIT' : 'EXIT');
-            this.sendButtonAction(action);
+            this._dispararHaptic('medium');
+            console.log("HOLA AQUI ESTA EL VALOR DE EXIT " + value);
+            this.sendButtonAction(value);
         });
     }
 
@@ -1195,7 +1189,7 @@ class TVControlCard extends HTMLElement {
             let botonStreaming = this.shadowRoot.querySelector(`.${service.id}-button`);
             if (botonStreaming) {
                 botonStreaming.addEventListener('click', async () => {
-                    this._dispararHaptic('light');
+                    this._dispararHaptic('medium');
                     if (this.getTvStatus() === 'off') {
                         this.state.tvMessage = 'Encendiendo TV...';
                         this.render();
@@ -1231,7 +1225,7 @@ class TVControlCard extends HTMLElement {
             let botonGral = this.shadowRoot.querySelector(`.${button.id}-button`);
             if (botonGral) {
                 botonGral.addEventListener('click', () => {
-                    this._dispararHaptic('light');
+                    this._dispararHaptic('medium');
                     const action = this._config.modelConfig === 'samsung' ? button.actionSamsung : button.actionLG;
                     this.sendButtonAction(action);
                 });
@@ -1243,7 +1237,7 @@ class TVControlCard extends HTMLElement {
             let botonTouchpad = this.shadowRoot.querySelector(`.touchpad-${direction}`);
             if (botonTouchpad) {
                 botonTouchpad.addEventListener('click', () => {
-                    this._dispararHaptic('light');
+                    this._dispararHaptic('medium');
                     this.handleTouchpadButton(direction);
                 });
             }
@@ -1257,7 +1251,7 @@ class TVControlCard extends HTMLElement {
         }
     }
     togglePower() {
-        this._dispararHaptic('light');
+        this._dispararHaptic('medium');
         if (this._hass && this.state.tvEntityId) {
             this._hass.callService('media_player', 'toggle', {
                 entity_id: this.state.tvEntityId
@@ -1266,7 +1260,7 @@ class TVControlCard extends HTMLElement {
     }
     async sendPass() {
         if (this._config.modelConfig === 'samsung') return;
-        this._dispararHaptic('light');
+        this._dispararHaptic('medium');
         if (this._hass && this.state.tvEntityId) {
             const buttons = ['1', '1', '0', '2'];
             for (const button of buttons) {
@@ -1333,6 +1327,7 @@ class TVControlCard extends HTMLElement {
     
     handleCenterButton() {
         const action = this._config.modelConfig === 'samsung' ? 'KEY_ENTER' : 'ENTER';
+        this._dispararHaptic('medium');
         this.sendButtonAction(action);
     }
     
@@ -1393,11 +1388,14 @@ class TVControlCardEditor extends HTMLElement {
     }
 
     set hass(hass) {
-        this._hass = hass;
-        // Re-renderizar para tener las entidades disponibles
-        if (this._config) {
-            this.render();
+        if (!this._hass) {
+            this._hass = hass;
+            if (this._config) {
+                this.render();
+            }
+            return;
         }
+        this._hass = hass;
     }
 
     render() {
