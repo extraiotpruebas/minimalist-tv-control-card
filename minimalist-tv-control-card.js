@@ -1222,6 +1222,7 @@ class TVControlCard extends HTMLElement {
 
     listenerBottomButtons() {
         this.bottomButtons.forEach(button => {
+            if (button.id === 'exit') return;
             let botonGral = this.shadowRoot.querySelector(`.${button.id}-button`);
             if (botonGral) {
                 botonGral.addEventListener('click', () => {
