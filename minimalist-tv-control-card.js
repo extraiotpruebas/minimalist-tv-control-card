@@ -250,14 +250,14 @@ class TVControlCard extends HTMLElement {
                 right: { icon: 'mdi:apps', actionLG: 'MYAPPS', actionSamsung: 'KEY_APP_LIST', label: '' },
                 down: { icon: 'mdi:book-information-variant', actionLG: 'pendiente', actionSamsung: 'KEY_TOOLS', label: '"com.webos.applicationManager/getForegroundAppInfo"' }
             },
-/* AQUI FALTA VER COMO SE VA A IMPLEMENTAR, PORQUE LA RUEDA VA A CAMBIAR A 9 NUMEROS
+    /* AQUI FALTA VER COMO SE VA A IMPLEMENTAR, PORQUE LA RUEDA VA A CAMBIAR A 9 NUMEROS
             'keyboard': {
                 up: { icon: '', action: 'pendiente', label: '' },
                 left: { icon: '', action: 'pendiente', label: '' },
                 right: { icon: '', action: 'pendiente', label: '' },
                 down: { icon: '', action: 'pendiente', label: '' }
             },
-*/
+    */
             'default': {
                 up: { icon: 'mdi:circle-medium', actionLG: 'UP', actionSamsung: 'KEY_UP', label: 'Arriba' },
                 left: { icon: 'mdi:circle-medium', actionLG: 'LEFT', actionSamsung: 'KEY_LEFT', label: 'Izquierda' },
@@ -290,13 +290,13 @@ class TVControlCard extends HTMLElement {
             { id: 'custom3', icon: config.custom3_mode_icon || 'mdi:numeric-3-circle-outline', label: config.custom3_label || 'Personalizado 3' }
         ];
         this.state.defaultMode = config.colorMode;
-        //console.log("esto es la nueva propiedad YAML que estamos definiendo" + config.colorMode)
+        console.log("esto es la nueva propiedad YAML que estamos definiendo" + config.colorMode)
         this.state.tvEntityId = config.entity;
-        //console.log("esto es tvEntityID que deberia ser la entidad que defines" + config.entity)
+        console.log("esto es tvEntityID que deberia ser la entidad que defines" + config.entity)
         this.state.modelConfig = config.modelConfig;
-        //console.log("modelConfig recibido: " + config.modelConfig);
+        console.log("modelConfig recibido: " + config.modelConfig);
         let ejemplo = this.getTvSource()
-        //console.log("ESTE ES EL ESTADO DE SOURCE " + ejemplo)
+        console.log("ESTE ES EL ESTADO DE SOURCE " + ejemplo)
         this.state.controlModeId = config.control_mode_entity || null;
         if (this.state.isConnected) {
             this.render();
@@ -570,6 +570,7 @@ class TVControlCard extends HTMLElement {
                     transition: all 0.3s ease;
                     box-shadow: ${styles.centerShadow};
                     z-index: 99;
+                    -webkit-tap-highlight-color: transparent;
                 }
                 
                 .mode-buttons {
@@ -885,6 +886,7 @@ class TVControlCard extends HTMLElement {
                         <div class="spacer spacer2"></div>
                         
                         <div class="touchpad-section">
+                            ${this.renderSVGOverlay()}
                             <div class="touchpad-grid">
                                 ${this.renderTouchpadButtons()}
                                 <div class="touchpad-center-button touchpad-center touchpad-button" data-action="center"></div>
@@ -972,7 +974,51 @@ class TVControlCard extends HTMLElement {
         });
 
     }
-
+    renderSVGOverlay() {
+        // Centro y radio del círculo
+        const cx = 115, cy = 115, r = 115, rInner = 45;
+    
+        // Función para calcular un path de sector
+        // Cada sector va de un ángulo a otro, con "dona" interior para respetar el botón central
+        const sector = (startDeg, endDeg) => {
+            const toRad = deg => (deg * Math.PI) / 180;
+            const x1 = cx + r * Math.cos(toRad(startDeg));
+            const y1 = cy + r * Math.sin(toRad(startDeg));
+            const x2 = cx + r * Math.cos(toRad(endDeg));
+            const y2 = cy + r * Math.sin(toRad(endDeg));
+            const ix1 = cx + rInner * Math.cos(toRad(startDeg));
+            const iy1 = cy + rInner * Math.sin(toRad(startDeg));
+            const ix2 = cx + rInner * Math.cos(toRad(endDeg));
+            const iy2 = cy + rInner * Math.sin(toRad(endDeg));
+    
+            return `M ${ix1} ${iy1} L ${x1} ${y1} A ${r} ${r} 0 0 1 ${x2} ${y2} L ${ix2} ${iy2} A ${rInner} ${rInner} 0 0 0 ${ix1} ${iy1} Z`;
+        };
+    
+        // UP: -135° a -45° | RIGHT: -45° a 45° | DOWN: 45° a 135° | LEFT: 135° a 225°
+        const sectors = [
+            { direction: 'up',    path: sector(-135, -45)  },
+            { direction: 'right', path: sector(-45,   45)  },
+            { direction: 'down',  path: sector( 45,  135)  },
+            { direction: 'left',  path: sector(135,  225)  },
+        ];
+    
+        return `
+            <svg class="touchpad-svg-overlay"
+                viewBox="0 0 230 230"
+                xmlns="http://www.w3.org/2000/svg"
+                style="position:absolute;top:0;left:0;width:100%;height:100%;border-radius:50%;z-index:10;-webkit-tap-highlight-color:transparent;">
+                ${sectors.map(s => `
+                    <path
+                        data-direction="${s.direction}"
+                        d="${s.path}"
+                        fill="transparent"
+                        stroke="none"
+                        style="cursor:pointer;-webkit-tap-highlight-color:transparent;">
+                    </path>
+                `).join('')}
+            </svg>
+        `;
+    }
     
     renderTouchpadButtons() {
         const mode = this.state.controlMode;
@@ -1201,7 +1247,7 @@ class TVControlCard extends HTMLElement {
                         return;
                     }
                     if (this.state.isSelectingSource) return;
-                    //console.log("quiero el estado del tv status " + this.getTvStatus());                
+                    console.log("quiero el estado del tv status " + this.getTvStatus());                
                     this.state.isSelectingSource = true;
                     const haIcon = botonStreaming.querySelector('ha-icon');
                     haIcon.setAttribute('icon', 'mdi:dots-circle');
@@ -1215,7 +1261,7 @@ class TVControlCard extends HTMLElement {
     powerWhenStreaming(){
         this.togglePower();
         setTimeout(() => {
-            //console.log("Esto se ejecuta después de 15 segundos");
+            console.log("Esto se ejecuta después de 15 segundos");
             this.selectSource(service.service);
           }, 15000); // 2000 ms = 2 segundos
     }
@@ -1235,19 +1281,35 @@ class TVControlCard extends HTMLElement {
     }
     listenerTouchpad() {
         ['up', 'left', 'right', 'down'].forEach(direction => {
-            let botonTouchpad = this.shadowRoot.querySelector(`.touchpad-${direction}`);
-            if (botonTouchpad) {
-                botonTouchpad.addEventListener('click', () => {
+            const sector = this.shadowRoot.querySelector(
+                `.touchpad-svg-overlay [data-direction="${direction}"]`
+            );
+            if (sector) {
+                // Iluminación al presionar
+                sector.addEventListener('pointerdown', () => {
+                    sector.setAttribute('fill', 'rgba(255, 255, 255, 0.15)');
+                });
+    
+                // Apagar iluminación al soltar o salir
+                sector.addEventListener('pointerup', () => {
+                    sector.setAttribute('fill', 'transparent');
+                });
+                sector.addEventListener('pointerleave', () => {
+                    sector.setAttribute('fill', 'transparent');
+                });
+    
+                // Acción
+                sector.addEventListener('click', () => {
                     this._dispararHaptic('medium');
                     this.handleTouchpadButton(direction);
                 });
             }
         });
-        
-        let botonCentral = this.shadowRoot.querySelector('.touchpad-center-button');
+    
+        const botonCentral = this.shadowRoot.querySelector('.touchpad-center-button');
         if (botonCentral) {
             botonCentral.addEventListener('click', () => {
-                this.handleCenterButton(); // Esta función ya existe
+                this.handleCenterButton();
             });
         }
     }
@@ -1309,7 +1371,7 @@ class TVControlCard extends HTMLElement {
         if (mode && mode.startsWith('custom')) {
             const num = mode.replace('custom', '');
             const action = this._config[`custom${num}_${direction}_value`];
-            //console.log(`[custom mode] direction: ${direction}, action: ${action}`);
+            console.log(`[custom mode] direction: ${direction}, action: ${action}`);
             if (action) {
                 this.sendButtonAction(action);
             }
@@ -1319,7 +1381,7 @@ class TVControlCard extends HTMLElement {
         const buttons = this.touchpadButtons[mode] || this.touchpadButtons['default'];
         const button = buttons[direction];
         const action = this._config.modelConfig === 'samsung' ? button.actionSamsung : button.actionLG;
-        //console.log(`[normal mode] direction: ${direction}, action: ${action}`);
+        console.log(`[normal mode] direction: ${direction}, action: ${action}`);
     
         if (button && action) {
             this.sendButtonAction(action);
