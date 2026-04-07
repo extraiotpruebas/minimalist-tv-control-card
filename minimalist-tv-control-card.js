@@ -1280,35 +1280,72 @@ class TVControlCard extends HTMLElement {
         });
     }
     listenerTouchpad() {
+        const HOLD_ACTIONS = ['UP', 'DOWN', 'LEFT', 'RIGHT', 'KEY_UP', 'KEY_DOWN', 'KEY_LEFT', 'KEY_RIGHT'];
+
         ['up', 'left', 'right', 'down'].forEach(direction => {
             const sector = this.shadowRoot.querySelector(
                 `.touchpad-svg-overlay [data-direction="${direction}"]`
             );
             if (sector) {
-                // Iluminación al presionar
-                sector.addEventListener('pointerdown', () => {
+                let holdTimeout = null;
+                let holdInterval = null;
+                let isHold = false;
+
+                const getAction = () => {
+                    const mode = this.state.controlMode;
+                    if (mode && mode.startsWith('custom')) {
+                        const num = mode.replace('custom', '');
+                        return this._config[`custom${num}_${direction}_value`] || null;
+                    }
+                    const buttons = this.touchpadButtons[mode] || this.touchpadButtons['default'];
+                    const button = buttons[direction];
+                    return this._config.modelConfig === 'samsung' ? button.actionSamsung : button.actionLG;
+                };
+
+                const startHold = () => {
                     sector.setAttribute('fill', 'rgba(255, 255, 255, 0.15)');
-                });
-    
-                // Apagar iluminación al soltar o salir
-                sector.addEventListener('pointerup', () => {
+                    isHold = false;
+
+                    holdTimeout = setTimeout(() => {
+                        const action = getAction();
+                        if (!action || !HOLD_ACTIONS.includes(action)) return;
+                        isHold = true;
+                        console.log(`[touchpad] hold start - direction: ${direction}, action: ${action}`);
+                        holdInterval = setInterval(() => {
+                            this.handleTouchpadButton(direction);
+                        }, 10);
+                    }, 500);
+                };
+
+                const stopHold = () => {
                     sector.setAttribute('fill', 'transparent');
-                });
-                sector.addEventListener('pointerleave', () => {
-                    sector.setAttribute('fill', 'transparent');
-                });
-    
-                // Acción
+                    clearTimeout(holdTimeout);
+                    clearInterval(holdInterval);
+                    holdTimeout = null;
+                    holdInterval = null;
+                };
+
+                sector.addEventListener('pointerdown', startHold);
+                sector.addEventListener('pointerup', stopHold);
+                sector.addEventListener('pointerleave', stopHold);
+
                 sector.addEventListener('click', () => {
+                    if (isHold) {
+                        console.log(`[touchpad] click ignorado - fue hold - direction: ${direction}`);
+                        isHold = false;
+                        return;
+                    }
+                    console.log(`[touchpad] click simple - direction: ${direction}, action: ${getAction()}`);
                     this._dispararHaptic('medium');
                     this.handleTouchpadButton(direction);
                 });
             }
         });
-    
-        const botonCentral = this.shadowRoot.querySelector('.touchpad-center-button');
+
+        let botonCentral = this.shadowRoot.querySelector('.touchpad-center-button');
         if (botonCentral) {
             botonCentral.addEventListener('click', () => {
+                this._dispararHaptic('medium');
                 this.handleCenterButton();
             });
         }
