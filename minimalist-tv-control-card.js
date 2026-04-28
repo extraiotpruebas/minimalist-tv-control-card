@@ -1313,7 +1313,7 @@ class TVControlCard extends HTMLElement {
                         console.log(`[touchpad] hold start - direction: ${direction}, action: ${action}`);
                         holdInterval = setInterval(() => {
                             this.handleTouchpadButton(direction);
-                        }, 10);
+                        }, 250);
                     }, 500);
                 };
 
@@ -1328,7 +1328,8 @@ class TVControlCard extends HTMLElement {
                 sector.addEventListener('pointerdown', startHold);
                 sector.addEventListener('pointerup', stopHold);
                 sector.addEventListener('pointerleave', stopHold);
-
+                sector.addEventListener('pointercancel', stopHold);
+                
                 sector.addEventListener('click', () => {
                     if (isHold) {
                         console.log(`[touchpad] click ignorado - fue hold - direction: ${direction}`);
