@@ -270,7 +270,6 @@ class TVControlCard extends HTMLElement {
         const userId = this._hass.user?.id || 'default';
         const key = `tv-card__${this._cardId}__${userId}`;
         localStorage.setItem(key, index);
-        console.log(`[tv-card] guardado index ${index} para key: ${key}`);
     }
     
     _loadActiveTv() {
@@ -279,7 +278,6 @@ class TVControlCard extends HTMLElement {
         const key = `tv-card__${this._cardId}__${userId}`;
         const saved = localStorage.getItem(key);
         const index = saved !== null ? parseInt(saved) : null;
-        console.log(`[tv-card] cargado index ${index} para key: ${key}`);
         return index;
     }
     
@@ -306,10 +304,7 @@ class TVControlCard extends HTMLElement {
         // --- FIN NUEVO ---
     
         this._saveActiveTv(index);
-        this._dispararHaptic('medium');
-    
-        console.log(`[tv-card] TV cambiada a: ${tv.name} | ${tv.entity} | ${tv.type}`);
-    
+        this._dispararHaptic('medium');    
         this.render();
     }  
 
@@ -343,18 +338,13 @@ class TVControlCard extends HTMLElement {
             this.state.activeTvName   = firstTv.name;
             this.state.tvEntityId     = firstTv.entity;
             this.state.modelConfig    = firstTv.type;            
-            console.log(`[tv-card] card_id: ${this._cardId}, TVs cargadas:`, this._tvList);
-            console.log(`[tv-card] estado activo: ${this.state.tvEntityId} | ${this.state.activeTvName} | ${this.state.modelConfig}`);
         } else {
-            // Modo legacy: config.entity directa, sin lista
             this._tvList = null;
             this._cardId = null;
             this.state.tvEntityId   = config.entity;
             this.state.modelConfig  = config.modelConfig;
-            this.state.activeTvName = config.entity; // fallback al entity id            
-            console.log('[tv-card] modo legacy: entidad única', config.entity);
+            this.state.activeTvName = config.entity;       
         }
-        // --- FIN NUEVO ---
     
         this.displayOrder = [
             config.mode_slot_1 || 'navegacion',
@@ -382,7 +372,6 @@ class TVControlCard extends HTMLElement {
         }
     }
 
-    //ESTA ES LA CONFIG DEL UI///////////
     static getConfigElement() {
         return document.createElement('tv-control-card-editor');
     }
@@ -1085,9 +1074,8 @@ class TVControlCard extends HTMLElement {
                         <div class="mode-buttons">
                             <div class="mode-grid">
                                 ${this.displayOrder.map(modeId => {
-                                    // Buscar el modo completo en controlModes
                                     const mode = this.controlModes.find(m => m.id === modeId);
-                                    if (!mode) return ''; // Si no existe, no renderiza nada
+                                    if (!mode) return ''; 
                                     
                                     return `
                                         <div class="mode-button mode-${mode.id} ${this.state.controlMode === mode.id ? 'active' : ''}" 
@@ -1164,7 +1152,6 @@ class TVControlCard extends HTMLElement {
         });
         
         this.displayOrder.forEach(modeId => {
-            // Buscar el modo completo en controlModes
             const mode = this.controlModes.find(m => m.id === modeId);
             if (mode) {
                 const selector = `.mode-${mode.id}`;
@@ -1187,11 +1174,8 @@ class TVControlCard extends HTMLElement {
 
     }
     renderSVGOverlay() {
-        // Centro y radio del círculo
         const cx = 115, cy = 115, r = 115, rInner = 45;
     
-        // Función para calcular un path de sector
-        // Cada sector va de un ángulo a otro, con "dona" interior para respetar el botón central
         const sector = (startDeg, endDeg) => {
             const toRad = deg => (deg * Math.PI) / 180;
             const x1 = cx + r * Math.cos(toRad(startDeg));
@@ -1206,7 +1190,6 @@ class TVControlCard extends HTMLElement {
             return `M ${ix1} ${iy1} L ${x1} ${y1} A ${r} ${r} 0 0 1 ${x2} ${y2} L ${ix2} ${iy2} A ${rInner} ${rInner} 0 0 0 ${ix1} ${iy1} Z`;
         };
     
-        // UP: -135° a -45° | RIGHT: -45° a 45° | DOWN: 45° a 135° | LEFT: 135° a 225°
         const sectors = [
             { direction: 'up',    path: sector(-135, -45)  },
             { direction: 'right', path: sector(-45,   45)  },
@@ -1266,7 +1249,6 @@ class TVControlCard extends HTMLElement {
         if (!this._hass || !this.state.tvEntityId) return 'off';
         const tvState = this._hass.states[this.state.tvEntityId];
         if (!tvState) return 'off';
-        // 'off' y 'unavailable' = apagado; cualquier otro estado = encendido
         return (tvState.state === 'off' || tvState.state === 'unavailable') ? 'off' : 'on';
     }
 
@@ -1343,7 +1325,6 @@ class TVControlCard extends HTMLElement {
             this.selectSource(targetSource);
     
             if (this.state.source === targetSource) {
-                // Termina por éxito
                 this.state.isSelectingSource = false;
                 haIcon.setAttribute('icon', originalIcon);
                 haIcon.style.animation = '';
@@ -1351,7 +1332,6 @@ class TVControlCard extends HTMLElement {
             }
         }
     
-        // Termina por agotar reintentos
         this.state.isSelectingSource = false;
         haIcon.setAttribute('icon', originalIcon);
         haIcon.style.animation = '';
@@ -1409,7 +1389,6 @@ class TVControlCard extends HTMLElement {
         this.state.controlMode = mode;
         this.render();
     }
-        // Función para disparar feedback háptico
     _dispararHaptic(tipo = 'medium') {
         const event = new CustomEvent('haptic', {
             detail: tipo,
@@ -1486,7 +1465,6 @@ class TVControlCard extends HTMLElement {
             const action = configValue
                 ? configValue
                 : (this.state.modelConfig === 'samsung' ? 'KEY_EXIT' : 'EXIT');
-            console.log('[tv-card] exit command:', action);
             this.sendButtonAction(action);
         });
     }
@@ -1498,7 +1476,6 @@ class TVControlCard extends HTMLElement {
                 botonStreaming.addEventListener('click', async () => {
                     this._dispararHaptic('medium');
 
-                    // Obtener acción configurada (si existe) o caer al comportamiento original
                     const configValue = this._config[`${service.id}_value`] || null;
 
                     if (this.getTvStatus() === 'off') {
@@ -1516,7 +1493,6 @@ class TVControlCard extends HTMLElement {
                         return;
                     }
                     if (this.state.isSelectingSource) return;
-                    console.log("quiero el estado del tv status " + this.getTvStatus());
                     this.state.isSelectingSource = true;
                     const haIcon = botonStreaming.querySelector('ha-icon');
                     haIcon.setAttribute('icon', 'mdi:dots-circle');
@@ -1537,7 +1513,6 @@ class TVControlCard extends HTMLElement {
     powerWhenStreaming(){
         this.togglePower();
         setTimeout(() => {
-            console.log("Esto se ejecuta después de 15 segundos");
             this.selectSource(service.service);
           }, 15000); // 2000 ms = 2 segundos
     }
@@ -1590,7 +1565,6 @@ class TVControlCard extends HTMLElement {
                         const action = getAction();
                         if (!action || !HOLD_ACTIONS.includes(action)) return;
                         isHold = true;
-                        console.log(`[touchpad] hold start - direction: ${direction}, action: ${action}`);
                         holdInterval = setInterval(() => {
                             this.handleTouchpadButton(direction);
                         }, 10);
@@ -1611,11 +1585,9 @@ class TVControlCard extends HTMLElement {
     
                 sector.addEventListener('click', () => {
                     if (isHold) {
-                        console.log(`[touchpad] click ignorado - fue hold - direction: ${direction}`);
                         isHold = false;
                         return;
                     }
-                    console.log(`[touchpad] click simple - direction: ${direction}, action: ${getAction()}`);
                     this._dispararHaptic('medium');
                     this.handleTouchpadButton(direction);
                 });
@@ -1702,14 +1674,12 @@ class TVControlCard extends HTMLElement {
     
         if (this.state.tvEntityId) {
             if (this.state.modelConfig === 'samsung') {
-                console.log(`[tv-card] samsung command: ${button} → ${this.state.tvEntityId}`);
                 this._hass.callService('media_player', 'play_media', {
                     entity_id: this.state.tvEntityId,
                     media_content_type: 'send_key',
                     media_content_id: button
                 });
             } else {
-                console.log(`[tv-card] LG command: ${button} → ${this.state.tvEntityId}`);
                 this._hass.callService('webostv', 'button', {
                     entity_id: this.state.tvEntityId,
                     button: button
@@ -1724,7 +1694,6 @@ class TVControlCard extends HTMLElement {
         if (mode && mode.startsWith('custom')) {
             const num = mode.replace('custom', '');
             const action = this._config[`custom${num}_${direction}_value`];
-            console.log(`[custom mode] direction: ${direction}, action: ${action}`);
             if (action) {
                 this.sendButtonAction(action);
             }
@@ -1734,7 +1703,6 @@ class TVControlCard extends HTMLElement {
         const buttons = this.touchpadButtons[mode] || this.touchpadButtons['default'];
         const button = buttons[direction];
         const action = this.state.modelConfig === 'samsung' ? button.actionSamsung : button.actionLG;
-        console.log(`[normal mode] direction: ${direction}, action: ${action}`);
     
         if (button && action) {
             this.sendButtonAction(action);
@@ -1764,7 +1732,6 @@ class TVControlCard extends HTMLElement {
                     this.state.activeTvName  = tv.name;
                     this.state.tvEntityId    = tv.entity;
                     this.state.modelConfig   = tv.type;
-                    console.log(`[tv-card] TV restaurada: ${tv.name}`);
                 }
             }
             // --- FIN NUEVO ---
