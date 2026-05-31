@@ -61,10 +61,10 @@ class TVControlCard extends HTMLElement {
             tvMessage: null,
             modelConfig: 'LG TV',
             isSelectingSource: false,
+            activeTvIndex: 0,
+            activeTvName: null,            
         };
         this.elements = {};
-
-        
         this.sourceStyles = {
             'Netflix': {
                 cardBackground: `
@@ -195,10 +195,8 @@ class TVControlCard extends HTMLElement {
             { id: 'netflix', name: 'Netflix', icon: 'mdi:netflix', service: 'Netflix' },
             { id: 'disney', name: 'Disney+', icon: 'phu:disney-plus', service: 'Disney+' },
             { id: 'YouTube', name: 'YouTube', icon: 'mdi:youtube', service: 'YouTube' },
-            { id: 'prime', name: 'Prime Video', icon: 'phu:prime-video', service: 'Prime Video' }
+            { id: 'appletv', name: 'AppleTV', icon: 'phu:apple-tv', service: 'Netflix' },
         ];
-
-
         
         this.bottomButtons = [
             { id: 'back', icon: 'mdi:undo-variant', actionLG: 'BACK', actionSamsung: 'KEY_RETURN', label: 'Atrás' },
@@ -267,14 +265,99 @@ class TVControlCard extends HTMLElement {
         };
     }
     
-    setConfig(config) {
-        if (!config.entity) {
-            throw new Error('Por favor define una entidad (entity)');
+    _saveActiveTv(index) {
+        if (!this._cardId || !this._hass) return;
+        const userId = this._hass.user?.id || 'default';
+        const key = `tv-card__${this._cardId}__${userId}`;
+        localStorage.setItem(key, index);
+        console.log(`[tv-card] guardado index ${index} para key: ${key}`);
+    }
+    
+    _loadActiveTv() {
+        if (!this._cardId || !this._hass) return null;
+        const userId = this._hass.user?.id || 'default';
+        const key = `tv-card__${this._cardId}__${userId}`;
+        const saved = localStorage.getItem(key);
+        const index = saved !== null ? parseInt(saved) : null;
+        console.log(`[tv-card] cargado index ${index} para key: ${key}`);
+        return index;
+    }
+    
+    _switchTv(index) {
+        if (!this._tvList || index < 0 || index >= this._tvList.length) return;
+        if (index === this.state.activeTvIndex) return;
+    
+        const tv = this._tvList[index];
+        this.state.activeTvIndex = index;
+        this.state.activeTvName  = tv.name;
+        this.state.tvEntityId    = tv.entity;
+        this.state.modelConfig   = tv.type;
+        this.state.tvState       = null;
+    
+        // --- NUEVO: leer estado real de la nueva entidad inmediatamente ---
+        if (this._hass && this._hass.states[tv.entity]) {
+            const newTvState = this._hass.states[tv.entity];
+            this.state.source   = newTvState.attributes?.source || null;
+            this.state.tvStatus = newTvState.state;
+        } else {
+            this.state.source   = null;
+            this.state.tvStatus = null;
         }
-        
+        // --- FIN NUEVO ---
+    
+        this._saveActiveTv(index);
+        this._dispararHaptic('medium');
+    
+        console.log(`[tv-card] TV cambiada a: ${tv.name} | ${tv.entity} | ${tv.type}`);
+    
+        this.render();
+    }  
+
+    setConfig(config) {
+        // Validación original
+        if (!config.entity && (!config.tvs || config.tvs.length === 0)) {
+            throw new Error('Por favor define una entidad (entity) o una lista de TVs (tvs)');
+        }
+    
+        // Validación nueva: si hay tvs[], card_id es obligatorio
+        if (config.tvs && config.tvs.length > 0 && !config.card_id) {
+            throw new Error('Por favor define un card_id cuando usas una lista de TVs (tvs)');
+        }
+    
         this._config = config;
+    
+        // --- NUEVO: leer y validar tvs[] ---
+        if (config.tvs && config.tvs.length > 0) {
+            this._tvList = config.tvs.map((tv, index) => {
+                if (!tv.entity) throw new Error(`TV en posición ${index} no tiene entidad definida`);
+                if (!tv.name)   throw new Error(`TV en posición ${index} no tiene nombre definido`);
+                return {
+                    name:   tv.name,
+                    entity: tv.entity,
+                    type:   tv.type || 'LG TV'   // fallback al default existente
+                };
+            });
+            this._cardId = config.card_id;
+            const firstTv = this._tvList[0];
+            this.state.activeTvIndex  = 0;
+            this.state.activeTvName   = firstTv.name;
+            this.state.tvEntityId     = firstTv.entity;
+            this.state.modelConfig    = firstTv.type;            
+            console.log(`[tv-card] card_id: ${this._cardId}, TVs cargadas:`, this._tvList);
+            console.log(`[tv-card] estado activo: ${this.state.tvEntityId} | ${this.state.activeTvName} | ${this.state.modelConfig}`);
+        } else {
+            // Modo legacy: config.entity directa, sin lista
+            this._tvList = null;
+            this._cardId = null;
+            this.state.tvEntityId   = config.entity;
+            this.state.modelConfig  = config.modelConfig;
+            this.state.activeTvName = config.entity; // fallback al entity id            
+            console.log('[tv-card] modo legacy: entidad única', config.entity);
+        }
+        // --- FIN NUEVO ---
+    
         this.displayOrder = [
-            config.mode_slot_1 || 'navegacion',  // valor por defecto si no está definido
+            config.mode_slot_1 || 'navegacion',
             config.mode_slot_2 || 'busqueda',
             config.mode_slot_3 || 'audio'
         ];
@@ -289,14 +372,10 @@ class TVControlCard extends HTMLElement {
             { id: 'custom2', icon: config.custom2_mode_icon || 'mdi:numeric-2-circle-outline', label: config.custom2_label || 'Personalizado 2' },
             { id: 'custom3', icon: config.custom3_mode_icon || 'mdi:numeric-3-circle-outline', label: config.custom3_label || 'Personalizado 3' }
         ];
+    
         this.state.defaultMode = config.colorMode;
-        console.log("esto es la nueva propiedad YAML que estamos definiendo" + config.colorMode)
-        this.state.tvEntityId = config.entity;
-        console.log("esto es tvEntityID que deberia ser la entidad que defines" + config.entity)
+        this.state.tvEntityId  = config.entity;
         this.state.modelConfig = config.modelConfig;
-        console.log("modelConfig recibido: " + config.modelConfig);
-        let ejemplo = this.getTvSource()
-        console.log("ESTE ES EL ESTADO DE SOURCE " + ejemplo)
         this.state.controlModeId = config.control_mode_entity || null;
         if (this.state.isConnected) {
             this.render();
@@ -311,14 +390,20 @@ class TVControlCard extends HTMLElement {
     static getStubConfig() {
         return {
             type: 'custom:tv-control-card',
-            entity: 'media_player.tv',
+            card_id: 'mi_tv',
             colorMode: 'dark',
-            modelConfig: 'samsung',
             mode_slot_1: 'navegacion',
             mode_slot_2: 'busqueda',
-            mode_slot_3: 'audio'
+            mode_slot_3: 'audio',
+            tvs: [
+                {
+                    name: 'Mi TV',
+                    entity: 'media_player.tv',
+                    type: 'LG TV'
+                }
+            ]
         };
-    }    
+    }   
     ////////////////////////////////////
 
     delay(ms) {
@@ -389,9 +474,10 @@ class TVControlCard extends HTMLElement {
                         "spacer3 spacer3 spacer3"
                         "mode-buttons mode-buttons mode-buttons"
                         "spacer4 spacer4 spacer4"
-                        "botones botones botones";
+                        "botones botones botones"
+                        "tv-selector tv-selector tv-selector";  /* NUEVA FILA */
                     grid-template-columns: 1fr 1fr 1fr;
-                    grid-template-rows: auto auto 15px 20px auto 20px auto 30px auto;
+                    grid-template-rows: auto auto 15px 20px auto 20px auto 30px auto 28px;
                     gap: 15px;
                     justify-items: center;
                     align-items: center;
@@ -402,6 +488,27 @@ class TVControlCard extends HTMLElement {
                     position: relative;
                     top: 100px;
                 }
+                .tv-selector-trigger {
+                    grid-area: tv-selector;
+                    justify-self: center;
+                    align-self: center;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    width: 100%;              /* ocupa todo el ancho de la celda */
+                    cursor: pointer;
+                    color: rgba(255, 255, 255, 0.4);
+                    transition: all 0.3s ease;
+                    padding: 4px;
+                }
+
+                .tv-selector-trigger:hover {
+                    color: rgba(255, 255, 255, 0.8);
+                }
+
+                .tv-selector-trigger ha-icon {
+                    --mdc-icon-size: 20px;
+                }               
                 
                 .top-section {
                     grid-area: top-section;
@@ -442,19 +549,40 @@ class TVControlCard extends HTMLElement {
                 .tv-status-label {
                     justify-self: center;
                     display: flex;
+                    flex-direction: column;
                     align-items: center;
-                    gap: 6px;
-                    font-size: 11px;
-                    font-weight: 600;
-                    letter-spacing: 1.5px;
-                    text-transform: uppercase;
+                    gap: 2px;
                     padding: 4px 12px;
                     border-radius: 20px;
                     transition: all 0.4s ease;
-                    max-width: 120px;
+                    max-width: 140px;
+                    min-width: 0;
+                    overflow: hidden;
+                }
+
+                .tv-name {
+                    font-size: 11px;      /* era 9px */
+                    font-weight: 700;
+                    letter-spacing: 1px;
+                    text-transform: uppercase;
                     white-space: nowrap;
                     overflow: hidden;
-                    text-overflow: ellipsis;                    
+                    text-overflow: ellipsis;
+                    width: 100%;
+                    text-align: center;
+                    opacity: 0.7;
+                }
+
+                .tv-state {
+                    font-size: 10px;      /* era 11px, lo bajamos un poco para dar protagonismo al nombre */
+                    font-weight: 600;
+                    letter-spacing: 1.5px;
+                    text-transform: uppercase;
+                    white-space: nowrap;
+                    overflow: hidden;
+                    text-overflow: ellipsis;
+                    width: 100%;
+                    text-align: center;
                 }
 
                 .tv-status-label.on {
@@ -690,7 +818,61 @@ class TVControlCard extends HTMLElement {
                     border-radius: 20px;
                     font-size: 12px;
                     z-index: 100;
-                }                        
+                }
+                .tv-selector-popup {
+                    position: absolute;
+                    bottom: 70px;
+                    left: 50%;
+                    transform: translateX(-50%);
+                    background: rgba(20, 20, 30, 0.97);
+                    border: 1px solid rgba(255, 255, 255, 0.12);
+                    border-radius: 16px;
+                    padding: 8px;
+                    min-width: 200px;
+                    max-width: 280px;
+                    z-index: 200;
+                    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
+                    backdrop-filter: blur(12px);
+                }
+
+                .tv-selector-list {
+                    display: flex;
+                    flex-direction: column;
+                    gap: 4px;
+                }
+
+                .tv-selector-item {
+                    display: flex;
+                    align-items: center;
+                    gap: 10px;
+                    padding: 10px 12px;
+                    border-radius: 10px;
+                    cursor: pointer;
+                    color: rgba(255, 255, 255, 0.7);
+                    font-size: 13px;
+                    font-weight: 500;
+                    transition: all 0.2s ease;
+                }
+
+                .tv-selector-item:hover {
+                    background: rgba(255, 255, 255, 0.08);
+                    color: rgba(255, 255, 255, 1);
+                }
+
+                .tv-selector-item.active {
+                    background: rgba(255, 255, 255, 0.1);
+                    color: rgba(255, 255, 255, 1);
+                }
+
+                .tv-selector-item ha-icon {
+                    --mdc-icon-size: 18px;
+                    flex-shrink: 0;
+                }
+
+                .tv-check-icon {
+                    margin-left: auto;
+                    opacity: 0.7;
+                }                                            
 
                 @media (min-width: 601px){
                     .tv-control-card {
@@ -859,7 +1041,12 @@ class TVControlCard extends HTMLElement {
                                 <ha-icon icon="${this._config.exit_icon || 'mdi:alert-decagram'}"></ha-icon>
                             </div>
                             <div class="tv-status-label ${this.getTvStatus() === 'on' ? 'on' : 'off'}">
-                                ${this.getTvStatus() === 'on' ? `ON - ${this.state.source || ''}` : 'OFF'}
+                                ${this._tvList ? `
+                                    <span class="tv-name">${this.state.activeTvName}</span>
+                                ` : ''}
+                                <span class="tv-state">
+                                    ${this.getTvStatus() === 'on' ? `ON${this.state.source ? ` - ${this.state.source}` : ''}` : 'OFF'}
+                                </span>
                             </div>
 
                             <div class="top-button power-button" data-action="power">
@@ -923,6 +1110,30 @@ class TVControlCard extends HTMLElement {
                                 `).join('')}
                             </div>
                         </div>
+
+                        <!-- NUEVO: botón selector de TV -->
+                        ${this._tvList ? `
+                            <div class="tv-selector-trigger">
+                                <ha-icon icon="mdi:chevron-down"></ha-icon>
+                            </div>
+                        ` : ''}
+
+                    </div> <!-- cierre card-grid -->
+                    <!-- NUEVO: popup selector de TV -->
+                    ${this._tvList ? `
+                        <div class="tv-selector-popup" style="display:none;">
+                            <div class="tv-selector-list">
+                                ${this._tvList.map((tv, index) => `
+                                    <div class="tv-selector-item ${index === this.state.activeTvIndex ? 'active' : ''}" 
+                                        data-index="${index}">
+                                        <ha-icon icon="${tv.type === 'samsung' ? 'mdi:television' : 'mdi:television-play'}"></ha-icon>
+                                        <span>${tv.name}</span>
+                                        ${index === this.state.activeTvIndex ? '<ha-icon icon="mdi:check" class="tv-check-icon"></ha-icon>' : ''}
+                                    </div>
+                                `).join('')}
+                            </div>
+                        </div>
+                    ` : ''}                                            
                     </div>
                 </div>
             </ha-card>
@@ -939,6 +1150,7 @@ class TVControlCard extends HTMLElement {
         this.listenerStreaming();
         this.listenerBottomButtons();
         this.listenerTouchpad();
+        this.listenerTvSelector();
     }
     
     saveElementReferences() {
@@ -1076,7 +1288,7 @@ class TVControlCard extends HTMLElement {
     
     getStreamingButtonBackground(service) {
         const source = this.state.source;
-        if (source === 'Netflix') return 'rgba(40, 20, 20, 0.6)';
+        if (source === 'Netflix') return 'rgba(22, 22, 22, 0.6)';
         if (source === 'Disney+') return 'rgba(6, 19, 31, 0.8)';
         if (source === 'Prime Video') return 'rgba(30, 30, 30, 0.6)';
         return 'rgba(30, 30, 30, 0.6)';
@@ -1144,6 +1356,54 @@ class TVControlCard extends HTMLElement {
         haIcon.setAttribute('icon', originalIcon);
         haIcon.style.animation = '';
     }
+
+    _nuevoMetodo(element, holdDuration = 500, onHoldCallback){
+        this.element = element;
+        this.holdDuration = holdDuration;
+        this.onHold = onHoldCallback;
+        this.timeoutId = null;
+
+        this._onTouchStart = this._onTouchStart.bind(this);
+        this._onTouchMove = this._onTouchMove.bind(this);
+        this._onTouchEnd = this._onTouchEnd.bind(this);
+
+        this._addEvents();
+    }    
+
+    _onTouchStart(event) {
+        event.preventDefault();
+        this.timeoutId = setTimeout(() => {
+            this.onHold(event);
+            this.timeoutId = null;
+        }, this.holdDuration);    
+    }
+
+    _onTouchMove() {
+        if(this.timeoutId) {
+            clearTimeout(this.timeoutId);
+            this.timeoutId = null;
+        }    
+    } 
+
+    _onTouchEnd() {
+        if (this.timeoutId) {
+            clearTimeout(this.timeoutId);
+            this.timeoutId = null;
+        }
+    }   
+    
+    _addEvents() {
+        this.element.addEventListener("touchstart", this._onTouchStart);
+        this.element.addEventListener("touchmove", this._onTouchMove);
+        this.element.addEventListener("touchend", this._onTouchEnd);
+    }
+    
+    destroy() {
+        this.element.removeEventListener("touchstart", this._onTouchStart);
+        this.element.removeEventListener("touchmove", this._onTouchMove);
+        this.element.removeEventListener("touchend", this._onTouchEnd);
+        if (this.timeoutId) clearTimeout(this.timeoutId);
+    }     
     
     selectControlMode(mode) {
         this.state.controlMode = mode;
@@ -1218,15 +1478,16 @@ class TVControlCard extends HTMLElement {
     }
     
     listenerExit() {
-        let botonExit = this.shadowRoot.querySelector('.exit-button');
+        let botonExit = this.shadowRoot.querySelector('.bottom-section .exit-button');
         if (!botonExit) return;
         botonExit.addEventListener('click', () => {
-            const value = this._config.exit_value || null;
-            if (!value) return;
-    
             this._dispararHaptic('medium');
-            console.log("HOLA AQUI ESTA EL VALOR DE EXIT " + value);
-            this.sendButtonAction(value);
+            const configValue = this._config.exit_value || null;
+            const action = configValue
+                ? configValue
+                : (this.state.modelConfig === 'samsung' ? 'KEY_EXIT' : 'EXIT');
+            console.log('[tv-card] exit command:', action);
+            this.sendButtonAction(action);
         });
     }
 
@@ -1236,24 +1497,39 @@ class TVControlCard extends HTMLElement {
             if (botonStreaming) {
                 botonStreaming.addEventListener('click', async () => {
                     this._dispararHaptic('medium');
+
+                    // Obtener acción configurada (si existe) o caer al comportamiento original
+                    const configValue = this._config[`${service.id}_value`] || null;
+
                     if (this.getTvStatus() === 'off') {
                         this.state.tvMessage = 'Encendiendo TV...';
                         this.render();
                         this.togglePower();
                         await this.delay(15000);
-                        this.selectSource(service.service);
+                        if (configValue) {
+                            this.sendButtonAction(configValue);
+                        } else {
+                            this.selectSource(service.service);
+                        }
                         this.state.tvMessage = null;
                         this.render();
                         return;
                     }
                     if (this.state.isSelectingSource) return;
-                    console.log("quiero el estado del tv status " + this.getTvStatus());                
+                    console.log("quiero el estado del tv status " + this.getTvStatus());
                     this.state.isSelectingSource = true;
                     const haIcon = botonStreaming.querySelector('ha-icon');
                     haIcon.setAttribute('icon', 'mdi:dots-circle');
                     haIcon.style.animation = 'spin 0.5s steps(5) infinite';
-                
-                    this.selectSourceWithRetry(service.service, haIcon, service.icon);
+
+                    if (configValue) {
+                        this.sendButtonAction(configValue);
+                        haIcon.setAttribute('icon', service.icon);
+                        haIcon.style.animation = '';
+                        this.state.isSelectingSource = false;
+                    } else {
+                        this.selectSourceWithRetry(service.service, haIcon, service.icon);
+                    }
                 });
             }
         });
@@ -1273,15 +1549,19 @@ class TVControlCard extends HTMLElement {
             if (botonGral) {
                 botonGral.addEventListener('click', () => {
                     this._dispararHaptic('medium');
-                    const action = this._config.modelConfig === 'samsung' ? button.actionSamsung : button.actionLG;
+                    const configValue = this._config[`${button.id}_value`] || null;
+                    const action = configValue
+                        ? configValue
+                        : (this.state.modelConfig === 'samsung' ? button.actionSamsung : button.actionLG);                    
                     this.sendButtonAction(action);
                 });
             }
         });
     }
+    
     listenerTouchpad() {
         const HOLD_ACTIONS = ['UP', 'DOWN', 'LEFT', 'RIGHT', 'KEY_UP', 'KEY_DOWN', 'KEY_LEFT', 'KEY_RIGHT'];
-
+    
         ['up', 'left', 'right', 'down'].forEach(direction => {
             const sector = this.shadowRoot.querySelector(
                 `.touchpad-svg-overlay [data-direction="${direction}"]`
@@ -1290,7 +1570,7 @@ class TVControlCard extends HTMLElement {
                 let holdTimeout = null;
                 let holdInterval = null;
                 let isHold = false;
-
+    
                 const getAction = () => {
                     const mode = this.state.controlMode;
                     if (mode && mode.startsWith('custom')) {
@@ -1301,11 +1581,11 @@ class TVControlCard extends HTMLElement {
                     const button = buttons[direction];
                     return this._config.modelConfig === 'samsung' ? button.actionSamsung : button.actionLG;
                 };
-
+    
                 const startHold = () => {
                     sector.setAttribute('fill', 'rgba(255, 255, 255, 0.15)');
                     isHold = false;
-
+    
                     holdTimeout = setTimeout(() => {
                         const action = getAction();
                         if (!action || !HOLD_ACTIONS.includes(action)) return;
@@ -1316,7 +1596,7 @@ class TVControlCard extends HTMLElement {
                         }, 10);
                     }, 500);
                 };
-
+    
                 const stopHold = () => {
                     sector.setAttribute('fill', 'transparent');
                     clearTimeout(holdTimeout);
@@ -1324,11 +1604,11 @@ class TVControlCard extends HTMLElement {
                     holdTimeout = null;
                     holdInterval = null;
                 };
-
+    
                 sector.addEventListener('pointerdown', startHold);
                 sector.addEventListener('pointerup', stopHold);
                 sector.addEventListener('pointerleave', stopHold);
-
+    
                 sector.addEventListener('click', () => {
                     if (isHold) {
                         console.log(`[touchpad] click ignorado - fue hold - direction: ${direction}`);
@@ -1341,7 +1621,7 @@ class TVControlCard extends HTMLElement {
                 });
             }
         });
-
+    
         let botonCentral = this.shadowRoot.querySelector('.touchpad-center-button');
         if (botonCentral) {
             botonCentral.addEventListener('click', () => {
@@ -1350,6 +1630,40 @@ class TVControlCard extends HTMLElement {
             });
         }
     }
+
+    listenerTvSelector() {
+        const trigger = this.shadowRoot.querySelector('.tv-selector-trigger');
+        const popup = this.shadowRoot.querySelector('.tv-selector-popup');
+        if (!trigger || !popup) return;
+    
+        // Abrir/cerrar al click en la flecha
+        trigger.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const isOpen = popup.style.display === 'block';
+            popup.style.display = isOpen ? 'none' : 'block';
+            trigger.style.color = isOpen ? 'rgba(255,255,255,0.4)' : 'rgba(255,255,255,0.9)';
+        });
+    
+        // Cerrar al click fuera del popup
+        document.addEventListener('click', (e) => {
+            if (!this.shadowRoot.contains(e.target)) {
+                popup.style.display = 'none';
+                trigger.style.color = 'rgba(255,255,255,0.4)';
+            }
+        }, { once: true });
+    
+        // Click en un item de la lista
+        popup.querySelectorAll('.tv-selector-item').forEach(item => {
+            item.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const index = parseInt(item.dataset.index);
+                this._switchTv(index);
+                popup.style.display = 'none';
+                trigger.style.color = 'rgba(255,255,255,0.4)';
+            });
+        });
+    }    
+
     togglePower() {
         this._dispararHaptic('medium');
         if (this._hass && this.state.tvEntityId) {
@@ -1387,13 +1701,15 @@ class TVControlCard extends HTMLElement {
         }
     
         if (this.state.tvEntityId) {
-            if (this._config.modelConfig === 'samsung') {
+            if (this.state.modelConfig === 'samsung') {
+                console.log(`[tv-card] samsung command: ${button} → ${this.state.tvEntityId}`);
                 this._hass.callService('media_player', 'play_media', {
                     entity_id: this.state.tvEntityId,
                     media_content_type: 'send_key',
                     media_content_id: button
                 });
             } else {
+                console.log(`[tv-card] LG command: ${button} → ${this.state.tvEntityId}`);
                 this._hass.callService('webostv', 'button', {
                     entity_id: this.state.tvEntityId,
                     button: button
@@ -1417,7 +1733,7 @@ class TVControlCard extends HTMLElement {
     
         const buttons = this.touchpadButtons[mode] || this.touchpadButtons['default'];
         const button = buttons[direction];
-        const action = this._config.modelConfig === 'samsung' ? button.actionSamsung : button.actionLG;
+        const action = this.state.modelConfig === 'samsung' ? button.actionSamsung : button.actionLG;
         console.log(`[normal mode] direction: ${direction}, action: ${action}`);
     
         if (button && action) {
@@ -1426,8 +1742,11 @@ class TVControlCard extends HTMLElement {
     }
     
     handleCenterButton() {
-        const action = this._config.modelConfig === 'samsung' ? 'KEY_ENTER' : 'ENTER';
         this._dispararHaptic('medium');
+        const configValue = this._config.center_value || null;
+        const action = configValue
+            ? configValue
+            : (this.state.modelConfig === 'samsung' ? 'KEY_ENTER' : 'ENTER');
         this.sendButtonAction(action);
     }
     
@@ -1436,6 +1755,19 @@ class TVControlCard extends HTMLElement {
         const oldHass = this._hass;
         this._hass = hass;
         if (!oldHass) {
+            // --- NUEVO: primera vez que llega hass, restaurar TV guardada ---
+            if (this._tvList) {
+                const savedIndex = this._loadActiveTv();
+                if (savedIndex !== null && savedIndex < this._tvList.length) {
+                    const tv = this._tvList[savedIndex];
+                    this.state.activeTvIndex = savedIndex;
+                    this.state.activeTvName  = tv.name;
+                    this.state.tvEntityId    = tv.entity;
+                    this.state.modelConfig   = tv.type;
+                    console.log(`[tv-card] TV restaurada: ${tv.name}`);
+                }
+            }
+            // --- FIN NUEVO ---
             if (this.state.isConnected) {
                 this.render();
             }
@@ -1511,6 +1843,85 @@ class TVControlCardEditor extends HTMLElement {
         const custom3InUse = ['1','2','3'].some(s => this._config[`mode_slot_${s}`] === 'custom3');
 
         this.innerHTML = `
+            <div style="padding: 16px;">
+                <div style="margin-bottom: 16px;">
+                    <label style="display: block; margin-bottom: 8px; font-weight: bold;">
+                        Card ID
+                    </label>
+                    <input id="card-id-input" type="text" 
+                        placeholder="ej: tv_sala"
+                        value="${this._config.card_id || ''}"
+                        style="width: 100%; padding: 8px; border-radius: 4px; box-sizing: border-box;">
+                    <div style="font-size: 11px; opacity: 0.5; margin-top: 4px;">
+                        Identificador único para esta tarjeta. Necesario para usar la lista de TVs.
+                    </div>
+                </div>
+            </div>
+
+            <div style="padding: 16px; border-top: 1px solid rgba(255,255,255,0.1);">
+                <div style="margin-bottom: 12px; font-weight: bold;">Lista de TVs</div>
+                
+                ${(this._config.tvs && this._config.tvs.length > 0) ? `
+                    ${this._config.tvs.map((tv, index) => `
+                        <div class="tv-item" style="
+                            display: grid;
+                            grid-template-columns: 1fr 1fr auto auto;
+                            gap: 6px;
+                            align-items: center;
+                            margin-bottom: 8px;
+                            padding: 8px;
+                            border-radius: 8px;
+                            background: rgba(255,255,255,0.05);
+                            border: 1px solid rgba(255,255,255,0.08);">
+                            <input class="tv-name-input" data-index="${index}" type="text" 
+                                placeholder="Nombre" value="${tv.name || ''}"
+                                style="padding: 6px; border-radius: 4px; box-sizing: border-box; width: 100%;">
+                            <select class="tv-entity-select" data-index="${index}"
+                                style="padding: 6px; border-radius: 4px; width: 100%;">
+                                ${mediaPlayers.map(entity => `
+                                    <option value="${entity}" ${entity === tv.entity ? 'selected' : ''}>
+                                        ${this._hass.states[entity].attributes.friendly_name || entity}
+                                    </option>
+                                `).join('')}
+                            </select>
+                            <select class="tv-type-select" data-index="${index}"
+                                style="padding: 6px; border-radius: 4px;">
+                                <option value="LG TV" ${tv.type === 'LG TV' ? 'selected' : ''}>LG</option>
+                                <option value="samsung" ${tv.type === 'samsung' ? 'selected' : ''}>Samsung</option>
+                            </select>
+                            <div class="tv-remove-btn" data-index="${index}" style="
+                                cursor: pointer;
+                                padding: 6px;
+                                border-radius: 4px;
+                                background: rgba(255,60,60,0.15);
+                                color: rgba(255,100,100,0.9);
+                                font-size: 16px;
+                                text-align: center;
+                                border: 1px solid rgba(255,60,60,0.2);">✕</div>
+                        </div>
+                    `).join('')}
+                ` : `
+                    <div style="font-size: 12px; opacity: 0.5; font-style: italic; margin-bottom: 12px;">
+                        No hay TVs configuradas. Agrega una con el botón de abajo.
+                    </div>
+                `}
+
+                <div id="tv-add-btn" style="
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    gap: 6px;
+                    padding: 8px;
+                    border-radius: 8px;
+                    cursor: pointer;
+                    border: 1px dashed rgba(255,255,255,0.2);
+                    color: rgba(255,255,255,0.5);
+                    font-size: 13px;
+                    margin-top: 4px;
+                    transition: all 0.2s ease;">
+                    + Agregar TV
+                </div>
+            </div>        
             <div style="padding: 16px;">
                 <div style="margin-bottom: 16px;">
                     <label style="display: block; margin-bottom: 8px; font-weight: bold;">
@@ -1760,7 +2171,194 @@ class TVControlCardEditor extends HTMLElement {
                     </div>
                 `}
             </div>
+            <div style="padding: 16px; border-top: 1px solid rgba(255,255,255,0.1);">
+                <div style="margin-bottom: 12px; font-weight: bold;">Botón Netflix</div>
 
+                <div style="margin-bottom: 8px;">
+                    <label style="display: block; margin-bottom: 4px; font-size: 12px;">Ícono</label>
+                    <input id="netflix-icon" type="text" placeholder="mdi:netflix"
+                        value="${this._config.netflix_icon || ''}" 
+                        style="width: 100%; padding: 6px; border-radius: 4px; box-sizing: border-box;">
+                </div>
+
+                <select id="netflix-type" style="width: 100%; padding: 8px; border-radius: 4px; margin-bottom: 8px;">
+                    <option value="button" ${this._config.netflix_type === 'button' ? 'selected' : ''}>Button</option>
+                    <option value="command" ${this._config.netflix_type === 'command' ? 'selected' : ''}>Command</option>
+                    <option value="script" ${this._config.netflix_type === 'script' ? 'selected' : ''}>Script</option>
+                </select>
+
+                <select id="netflix-value-button" style="width: 100%; padding: 8px; border-radius: 4px; margin-bottom: 8px; ${this._config.netflix_type !== 'button' && this._config.netflix_type ? 'display:none;' : ''}">
+                    <option value="">-- Default (Netflix) --</option>
+                    ${PREDEFINED_COMMANDS.map(cmd => `
+                        <option value="${this._config.modelConfig === 'samsung' ? cmd.actionSamsung : cmd.actionLG}"
+                            ${this._config.netflix_value === (this._config.modelConfig === 'samsung' ? cmd.actionSamsung : cmd.actionLG) ? 'selected' : ''}>
+                            ${cmd.label}
+                        </option>
+                    `).join('')}
+                </select>
+
+                <select id="netflix-value-command" style="width: 100%; padding: 8px; border-radius: 4px; margin-bottom: 8px; ${this._config.netflix_type !== 'command' ? 'display:none;' : ''}">
+                    <option value="">-- Default (Netflix) --</option>
+                    ${PREDEFINED_COMMANDS.map(cmd => `
+                        <option value="${this._config.modelConfig === 'samsung' ? cmd.actionSamsung : cmd.actionLG}"
+                            ${this._config.netflix_value === (this._config.modelConfig === 'samsung' ? cmd.actionSamsung : cmd.actionLG) ? 'selected' : ''}>
+                            ${cmd.label}
+                        </option>
+                    `).join('')}
+                </select>
+
+                <select id="netflix-value-script" style="width: 100%; padding: 8px; border-radius: 4px; ${this._config.netflix_type !== 'script' ? 'display:none;' : ''}">
+                    <option value="">-- Seleccionar script --</option>
+                    ${Object.keys(this._hass.states)
+                        .filter(e => e.startsWith('script.'))
+                        .map(script => `
+                            <option value="${script}" ${this._config.netflix_value === script ? 'selected' : ''}>
+                                ${this._hass.states[script].attributes.friendly_name || script}
+                            </option>
+                        `).join('')}
+                </select>
+            </div>
+            <div style="padding: 16px; border-top: 1px solid rgba(255,255,255,0.1);">
+                <div style="margin-bottom: 12px; font-weight: bold;">Botón Disney+</div>
+
+                <div style="margin-bottom: 8px;">
+                    <label style="display: block; margin-bottom: 4px; font-size: 12px;">Ícono</label>
+                    <input id="disney-icon" type="text" placeholder="phu:disney-plus"
+                        value="${this._config.disney_icon || ''}" 
+                        style="width: 100%; padding: 6px; border-radius: 4px; box-sizing: border-box;">
+                </div>
+
+                <select id="disney-type" style="width: 100%; padding: 8px; border-radius: 4px; margin-bottom: 8px;">
+                    <option value="button" ${this._config.disney_type === 'button' ? 'selected' : ''}>Button</option>
+                    <option value="command" ${this._config.disney_type === 'command' ? 'selected' : ''}>Command</option>
+                    <option value="script" ${this._config.disney_type === 'script' ? 'selected' : ''}>Script</option>
+                </select>
+
+                <select id="disney-value-button" style="width: 100%; padding: 8px; border-radius: 4px; margin-bottom: 8px; ${this._config.disney_type !== 'button' && this._config.disney_type ? 'display:none;' : ''}">
+                    <option value="">-- Default (Disney+) --</option>
+                    ${PREDEFINED_COMMANDS.map(cmd => `
+                        <option value="${this._config.modelConfig === 'samsung' ? cmd.actionSamsung : cmd.actionLG}"
+                            ${this._config.disney_value === (this._config.modelConfig === 'samsung' ? cmd.actionSamsung : cmd.actionLG) ? 'selected' : ''}>
+                            ${cmd.label}
+                        </option>
+                    `).join('')}
+                </select>
+
+                <select id="disney-value-command" style="width: 100%; padding: 8px; border-radius: 4px; margin-bottom: 8px; ${this._config.disney_type !== 'command' ? 'display:none;' : ''}">
+                    <option value="">-- Default (Disney+) --</option>
+                    ${PREDEFINED_COMMANDS.map(cmd => `
+                        <option value="${this._config.modelConfig === 'samsung' ? cmd.actionSamsung : cmd.actionLG}"
+                            ${this._config.disney_value === (this._config.modelConfig === 'samsung' ? cmd.actionSamsung : cmd.actionLG) ? 'selected' : ''}>
+                            ${cmd.label}
+                        </option>
+                    `).join('')}
+                </select>
+
+                <select id="disney-value-script" style="width: 100%; padding: 8px; border-radius: 4px; ${this._config.disney_type !== 'script' ? 'display:none;' : ''}">
+                    <option value="">-- Seleccionar script --</option>
+                    ${Object.keys(this._hass.states)
+                        .filter(e => e.startsWith('script.'))
+                        .map(script => `
+                            <option value="${script}" ${this._config.disney_value === script ? 'selected' : ''}>
+                                ${this._hass.states[script].attributes.friendly_name || script}
+                            </option>
+                        `).join('')}
+                </select>
+            </div>
+            <div style="padding: 16px; border-top: 1px solid rgba(255,255,255,0.1);">
+                <div style="margin-bottom: 12px; font-weight: bold;">Botón YouTube</div>
+
+                <div style="margin-bottom: 8px;">
+                    <label style="display: block; margin-bottom: 4px; font-size: 12px;">Ícono</label>
+                    <input id="YouTube-icon" type="text" placeholder="mdi:youtube"
+                        value="${this._config.YouTube_icon || ''}" 
+                        style="width: 100%; padding: 6px; border-radius: 4px; box-sizing: border-box;">
+                </div>
+
+                <select id="YouTube-type" style="width: 100%; padding: 8px; border-radius: 4px; margin-bottom: 8px;">
+                    <option value="button" ${this._config.YouTube_type === 'button' ? 'selected' : ''}>Button</option>
+                    <option value="command" ${this._config.YouTube_type === 'command' ? 'selected' : ''}>Command</option>
+                    <option value="script" ${this._config.YouTube_type === 'script' ? 'selected' : ''}>Script</option>
+                </select>
+
+                <select id="YouTube-value-button" style="width: 100%; padding: 8px; border-radius: 4px; margin-bottom: 8px; ${this._config.YouTube_type !== 'button' && this._config.YouTube_type ? 'display:none;' : ''}">
+                    <option value="">-- Default (YouTube) --</option>
+                    ${PREDEFINED_COMMANDS.map(cmd => `
+                        <option value="${this._config.modelConfig === 'samsung' ? cmd.actionSamsung : cmd.actionLG}"
+                            ${this._config.YouTube_value === (this._config.modelConfig === 'samsung' ? cmd.actionSamsung : cmd.actionLG) ? 'selected' : ''}>
+                            ${cmd.label}
+                        </option>
+                    `).join('')}
+                </select>
+
+                <select id="YouTube-value-command" style="width: 100%; padding: 8px; border-radius: 4px; margin-bottom: 8px; ${this._config.YouTube_type !== 'command' ? 'display:none;' : ''}">
+                    <option value="">-- Default (YouTube) --</option>
+                    ${PREDEFINED_COMMANDS.map(cmd => `
+                        <option value="${this._config.modelConfig === 'samsung' ? cmd.actionSamsung : cmd.actionLG}"
+                            ${this._config.YouTube_value === (this._config.modelConfig === 'samsung' ? cmd.actionSamsung : cmd.actionLG) ? 'selected' : ''}>
+                            ${cmd.label}
+                        </option>
+                    `).join('')}
+                </select>
+
+                <select id="YouTube-value-script" style="width: 100%; padding: 8px; border-radius: 4px; ${this._config.YouTube_type !== 'script' ? 'display:none;' : ''}">
+                    <option value="">-- Seleccionar script --</option>
+                    ${Object.keys(this._hass.states)
+                        .filter(e => e.startsWith('script.'))
+                        .map(script => `
+                            <option value="${script}" ${this._config.YouTube_value === script ? 'selected' : ''}>
+                                ${this._hass.states[script].attributes.friendly_name || script}
+                            </option>
+                        `).join('')}
+                </select>
+            </div>
+            <div style="padding: 16px; border-top: 1px solid rgba(255,255,255,0.1);">
+                <div style="margin-bottom: 12px; font-weight: bold;">Botón Prime Video</div>
+
+                <div style="margin-bottom: 8px;">
+                    <label style="display: block; margin-bottom: 4px; font-size: 12px;">Ícono</label>
+                    <input id="prime-icon" type="text" placeholder="phu:prime-video"
+                        value="${this._config.prime_icon || ''}" 
+                        style="width: 100%; padding: 6px; border-radius: 4px; box-sizing: border-box;">
+                </div>
+
+                <select id="prime-type" style="width: 100%; padding: 8px; border-radius: 4px; margin-bottom: 8px;">
+                    <option value="button" ${this._config.prime_type === 'button' ? 'selected' : ''}>Button</option>
+                    <option value="command" ${this._config.prime_type === 'command' ? 'selected' : ''}>Command</option>
+                    <option value="script" ${this._config.prime_type === 'script' ? 'selected' : ''}>Script</option>
+                </select>
+
+                <select id="prime-value-button" style="width: 100%; padding: 8px; border-radius: 4px; margin-bottom: 8px; ${this._config.prime_type !== 'button' && this._config.prime_type ? 'display:none;' : ''}">
+                    <option value="">-- Default (Prime Video) --</option>
+                    ${PREDEFINED_COMMANDS.map(cmd => `
+                        <option value="${this._config.modelConfig === 'samsung' ? cmd.actionSamsung : cmd.actionLG}"
+                            ${this._config.prime_value === (this._config.modelConfig === 'samsung' ? cmd.actionSamsung : cmd.actionLG) ? 'selected' : ''}>
+                            ${cmd.label}
+                        </option>
+                    `).join('')}
+                </select>
+
+                <select id="prime-value-command" style="width: 100%; padding: 8px; border-radius: 4px; margin-bottom: 8px; ${this._config.prime_type !== 'command' ? 'display:none;' : ''}">
+                    <option value="">-- Default (Prime Video) --</option>
+                    ${PREDEFINED_COMMANDS.map(cmd => `
+                        <option value="${this._config.modelConfig === 'samsung' ? cmd.actionSamsung : cmd.actionLG}"
+                            ${this._config.prime_value === (this._config.modelConfig === 'samsung' ? cmd.actionSamsung : cmd.actionLG) ? 'selected' : ''}>
+                            ${cmd.label}
+                        </option>
+                    `).join('')}
+                </select>
+
+                <select id="prime-value-script" style="width: 100%; padding: 8px; border-radius: 4px; ${this._config.prime_type !== 'script' ? 'display:none;' : ''}">
+                    <option value="">-- Seleccionar script --</option>
+                    ${Object.keys(this._hass.states)
+                        .filter(e => e.startsWith('script.'))
+                        .map(script => `
+                            <option value="${script}" ${this._config.prime_value === script ? 'selected' : ''}>
+                                ${this._hass.states[script].attributes.friendly_name || script}
+                            </option>
+                        `).join('')}
+                </select>
+            </div>
             <div style="padding: 16px; border-top: 1px solid rgba(255,255,255,0.1);">
                 <div style="margin-bottom: 12px; font-weight: bold;">Botón Exit</div>
 
@@ -1809,6 +2407,81 @@ class TVControlCardEditor extends HTMLElement {
                 </select>
             </div>                        
         `;
+
+        // Card ID
+        this.querySelector('#card-id-input').addEventListener('change', (e) => {
+            this.dispatchEvent(new CustomEvent('config-changed', {
+                detail: { config: { ...this._config, card_id: e.target.value }}
+            }));
+        });
+        // Editar nombre de TV
+        this.querySelectorAll('.tv-name-input').forEach(input => {
+            input.addEventListener('change', (e) => {
+                const index = parseInt(e.target.dataset.index);
+                const newTvs = [...(this._config.tvs || [])];
+                newTvs[index] = { ...newTvs[index], name: e.target.value };
+                const { entity, modelConfig, ...cleanConfig } = this._config;
+                this.dispatchEvent(new CustomEvent('config-changed', {
+                    detail: { config: { ...cleanConfig, tvs: newTvs }}
+                }));
+            });
+        });
+
+        // Editar entidad de TV
+        this.querySelectorAll('.tv-entity-select').forEach(select => {
+            select.addEventListener('change', (e) => {
+                const index = parseInt(e.target.dataset.index);
+                const newTvs = [...(this._config.tvs || [])];
+                newTvs[index] = { ...newTvs[index], entity: e.target.value };
+                const { entity, modelConfig, ...cleanConfig } = this._config;
+                this.dispatchEvent(new CustomEvent('config-changed', {
+                    detail: { config: { ...cleanConfig, tvs: newTvs }}
+                }));
+            });
+        });
+
+        // Editar tipo de TV
+        this.querySelectorAll('.tv-type-select').forEach(select => {
+            select.addEventListener('change', (e) => {
+                const index = parseInt(e.target.dataset.index);
+                const newTvs = [...(this._config.tvs || [])];
+                newTvs[index] = { ...newTvs[index], type: e.target.value };
+                const { entity, modelConfig, ...cleanConfig } = this._config;
+                this.dispatchEvent(new CustomEvent('config-changed', {
+                    detail: { config: { ...cleanConfig, tvs: newTvs }}
+                }));
+            });
+        });
+
+        // Eliminar TV
+        this.querySelectorAll('.tv-remove-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const index = parseInt(e.target.dataset.index);
+                const newTvs = [...(this._config.tvs || [])];
+                newTvs.splice(index, 1);
+                const { entity, modelConfig, ...cleanConfig } = this._config;
+                this.dispatchEvent(new CustomEvent('config-changed', {
+                    detail: { config: { ...cleanConfig, tvs: newTvs }}
+                }));
+            });
+        });
+
+        // Agregar TV
+        this.querySelector('#tv-add-btn').addEventListener('click', () => {
+            const mediaPlayers = Object.keys(this._hass.states).filter(
+                e => e.startsWith('media_player.')
+            );
+            const newTvs = [...(this._config.tvs || [])];
+            newTvs.push({
+                name: `TV ${newTvs.length + 1}`,
+                entity: mediaPlayers[0] || 'media_player.tv',
+                type: 'LG TV'
+            });
+            const { entity, modelConfig, ...cleanConfig } = this._config;
+            this.dispatchEvent(new CustomEvent('config-changed', {
+                detail: { config: { ...cleanConfig, tvs: newTvs }}
+            }));
+        });
 
         // Escuchar cambios en el select
         this.querySelector('#entity-select').addEventListener('change', (e) => {
@@ -1963,6 +2636,105 @@ class TVControlCardEditor extends HTMLElement {
                 });
             });
         }
+        ///// EDITOR UI DE BOTON NETFLIX
+        this.querySelector('#netflix-icon').addEventListener('change', (e) => {
+            this.dispatchEvent(new CustomEvent('config-changed', {
+                detail: { config: { ...this._config, netflix_icon: e.target.value }}
+            }));
+        });
+        
+        this.querySelector('#netflix-type').addEventListener('change', (e) => {
+            const type = e.target.value;
+            this.querySelector('#netflix-value-button').style.display = type === 'button' ? 'block' : 'none';
+            this.querySelector('#netflix-value-command').style.display = type === 'command' ? 'block' : 'none';
+            this.querySelector('#netflix-value-script').style.display = type === 'script' ? 'block' : 'none';
+            this.dispatchEvent(new CustomEvent('config-changed', {
+                detail: { config: { ...this._config, netflix_type: type, netflix_value: '' }}
+            }));
+        });
+        
+        ['button', 'command', 'script'].forEach(valueType => {
+            this.querySelector(`#netflix-value-${valueType}`).addEventListener('change', (e) => {
+                this.dispatchEvent(new CustomEvent('config-changed', {
+                    detail: { config: { ...this._config, netflix_value: e.target.value }}
+                }));
+            });
+        });
+
+        ///// EDITOR UI DE BOTON DISNEY
+        this.querySelector('#disney-icon').addEventListener('change', (e) => {
+            this.dispatchEvent(new CustomEvent('config-changed', {
+                detail: { config: { ...this._config, disney_icon: e.target.value }}
+            }));
+        });
+        
+        this.querySelector('#disney-type').addEventListener('change', (e) => {
+            const type = e.target.value;
+            this.querySelector('#disney-value-button').style.display = type === 'button' ? 'block' : 'none';
+            this.querySelector('#disney-value-command').style.display = type === 'command' ? 'block' : 'none';
+            this.querySelector('#disney-value-script').style.display = type === 'script' ? 'block' : 'none';
+            this.dispatchEvent(new CustomEvent('config-changed', {
+                detail: { config: { ...this._config, disney_type: type, disney_value: '' }}
+            }));
+        });
+        
+        ['button', 'command', 'script'].forEach(valueType => {
+            this.querySelector(`#disney-value-${valueType}`).addEventListener('change', (e) => {
+                this.dispatchEvent(new CustomEvent('config-changed', {
+                    detail: { config: { ...this._config, disney_value: e.target.value }}
+                }));
+            });
+        });
+
+        ///// EDITOR UI DE BOTON YOUTUBE
+        this.querySelector('#YouTube-icon').addEventListener('change', (e) => {
+            this.dispatchEvent(new CustomEvent('config-changed', {
+                detail: { config: { ...this._config, YouTube_icon: e.target.value }}
+            }));
+        });
+        
+        this.querySelector('#YouTube-type').addEventListener('change', (e) => {
+            const type = e.target.value;
+            this.querySelector('#YouTube-value-button').style.display = type === 'button' ? 'block' : 'none';
+            this.querySelector('#YouTube-value-command').style.display = type === 'command' ? 'block' : 'none';
+            this.querySelector('#YouTube-value-script').style.display = type === 'script' ? 'block' : 'none';
+            this.dispatchEvent(new CustomEvent('config-changed', {
+                detail: { config: { ...this._config, YouTube_type: type, YouTube_value: '' }}
+            }));
+        });
+        
+        ['button', 'command', 'script'].forEach(valueType => {
+            this.querySelector(`#YouTube-value-${valueType}`).addEventListener('change', (e) => {
+                this.dispatchEvent(new CustomEvent('config-changed', {
+                    detail: { config: { ...this._config, YouTube_value: e.target.value }}
+                }));
+            });
+        });
+
+        ///// EDITOR UI DE BOTON PRIME
+        this.querySelector('#prime-icon').addEventListener('change', (e) => {
+            this.dispatchEvent(new CustomEvent('config-changed', {
+                detail: { config: { ...this._config, prime_icon: e.target.value }}
+            }));
+        });
+        
+        this.querySelector('#prime-type').addEventListener('change', (e) => {
+            const type = e.target.value;
+            this.querySelector('#prime-value-button').style.display = type === 'button' ? 'block' : 'none';
+            this.querySelector('#prime-value-command').style.display = type === 'command' ? 'block' : 'none';
+            this.querySelector('#prime-value-script').style.display = type === 'script' ? 'block' : 'none';
+            this.dispatchEvent(new CustomEvent('config-changed', {
+                detail: { config: { ...this._config, prime_type: type, prime_value: '' }}
+            }));
+        });
+        
+        ['button', 'command', 'script'].forEach(valueType => {
+            this.querySelector(`#prime-value-${valueType}`).addEventListener('change', (e) => {
+                this.dispatchEvent(new CustomEvent('config-changed', {
+                    detail: { config: { ...this._config, prime_value: e.target.value }}
+                }));
+            });
+        });        
         ///// EDITOR UI DE BOTON EXIT
         this.querySelector('#exit-icon').addEventListener('change', (e) => {
             this.dispatchEvent(new CustomEvent('config-changed', {
