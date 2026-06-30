@@ -36,6 +36,26 @@ const PREDEFINED_COMMANDS = [
     { label: 'Avance rápido', actionLG: 'FASTFORWARD', actionSamsung: 'KEY_FF' },
     { label: 'Grabar', actionLG: 'RECORD', actionSamsung: 'KEY_REC' },
 ];
+const PREDEFINED_SOURCES = [
+    { id: 'netflix',     name: 'Netflix',     icon: 'mdi:netflix',        service: 'Netflix',     roku_source: 'Netflix' },
+    { id: 'disney',      name: 'Disney+',     icon: 'phu:disney-plus',    service: 'Disney+',     roku_source: 'Disney Plus' },
+    { id: 'prime',       name: 'Prime Video', icon: 'phu:prime-video',    service: 'Prime Video', roku_source: 'Prime Video' },
+    { id: 'YouTube',     name: 'YouTube',     icon: 'mdi:youtube',        service: 'YouTube',     roku_source: null },
+    { id: 'appletv',     name: 'Apple TV',    icon: 'phu:apple-tv',       service: 'Apple TV',    roku_source: 'Apple TV' },
+    { id: 'hbomax',      name: 'Max',         icon: 'phu:hbo-max',        service: 'Max',         roku_source: 'Max' },
+    { id: 'paramount',   name: 'Paramount+',  icon: 'phu:paramount-plus', service: 'Paramount+',  roku_source: 'Paramount Plus' },
+    { id: 'dazn',        name: 'DAZN',        icon: 'phu:dazn',           service: 'DAZN',        roku_source: 'DAZN Live Sports Streaming' },
+    { id: 'universal',   name: 'Universal+',  icon: 'mdi:earth',          service: 'Universal+',  roku_source: 'Universal+' },
+    { id: 'spotify',     name: 'Spotify',     icon: 'mdi:spotify',        service: 'Spotify',     roku_source: 'Spotify' },
+    { id: 'crunchyroll', name: 'Crunchyroll', icon: 'mdi:alpha-c-circle', service: 'Crunchyroll', roku_source: 'Crunchyroll' },
+    { id: 'twitch',      name: 'Twitch',      icon: 'mdi:twitch',         service: 'Twitch',      roku_source: 'Twitch' },
+    { id: 'fubo',        name: 'Fubo',        icon: 'mdi:alpha-f-circle', service: null,          roku_source: 'Fubo: Watch Live TV & Sports' },
+    { id: 'roku',        name: 'Roku',        icon: 'phu:roku-ultra',     service: 'Roku OTT',    serviceAlternates: ['Roku OTT', 'Roku'], roku_source: null },    
+    { id: 'hdmi1',       name: 'HDMI 1',      icon: 'mdi:hdmi-port',      service: 'HDMI 1',      roku_source: null },
+    { id: 'hdmi2',       name: 'HDMI 2',      icon: 'mdi:hdmi-port',      service: 'HDMI 2',      roku_source: null },
+    { id: 'hdmi3',       name: 'HDMI 3',      icon: 'mdi:hdmi-port',      service: 'HDMI 3',      roku_source: null },
+    { id: 'hdmi4',       name: 'HDMI 4',      icon: 'mdi:hdmi-port',      service: 'HDMI 4',      roku_source: null },
+];
 class TVControlCard extends HTMLElement {
 
     constructor() {
@@ -62,6 +82,7 @@ class TVControlCard extends HTMLElement {
             modelConfig: 'LG TV',
             isSelectingSource: false,
             activeTvIndex: 0,
+            isRokuMode: false,
             activeTvName: null,            
         };
         this.elements = {};
@@ -191,32 +212,32 @@ class TVControlCard extends HTMLElement {
             }
         };
         
-        this.streamingServices = [
-            { id: 'netflix', name: 'Netflix', icon: 'mdi:netflix', service: 'Netflix' },
-            { id: 'disney', name: 'Disney+', icon: 'phu:disney-plus', service: 'Disney+' },
-            { id: 'YouTube', name: 'YouTube', icon: 'mdi:youtube', service: 'YouTube' },
-            { id: 'appletv', name: 'AppleTV', icon: 'phu:apple-tv', service: 'Netflix' },
+        this.streamingSlots = [
+            { id: 'netflix',  defaultSourceId: 'netflix' },
+            { id: 'disney',   defaultSourceId: 'disney' },
+            { id: 'YouTube',  defaultSourceId: 'YouTube' },
+            { id: 'appletv',  defaultSourceId: 'appletv' },
         ];
         
         this.bottomButtons = [
-            { id: 'back', icon: 'mdi:undo-variant', actionLG: 'BACK', actionSamsung: 'KEY_RETURN', label: 'Atrás' },
-            { id: 'home', icon: 'mdi:home', actionLG: 'HOME', actionSamsung: 'KEY_HOME', label: 'Inicio' },
-            { id: 'exit', icon: 'mdi:exit-to-app', actionLG: 'EXIT', actionSamsung: 'KEY_EXIT', label: 'Salir' },
-            { id: 'menu', icon: 'mdi:menu', actionLG: 'MENU', actionSamsung: 'KEY_MENU', label: 'Menú' }
+            { id: 'back', icon: 'mdi:undo-variant', actionLG: 'BACK', actionSamsung: 'KEY_RETURN', actionRoku: 'back', label: 'Atrás' },
+            { id: 'home', icon: 'mdi:home', actionLG: 'HOME', actionSamsung: 'KEY_HOME', actionRoku: 'home', label: 'Inicio' },
+            { id: 'exit', icon: 'mdi:exit-to-app', actionLG: 'EXIT', actionSamsung: 'KEY_EXIT', actionRoku: null, label: 'Salir' },
+            { id: 'menu', icon: 'mdi:menu', actionLG: 'MENU', actionSamsung: 'KEY_MENU', actionRoku: null, label: 'Menú' }
         ];
         
         this.touchpadButtons = {
             'navegacion': {
-                up: { icon: 'mdi:menorah', actionLG: 'HOME', actionSamsung: 'KEY_HOME', label: 'Inicio' },
-                left: { icon: 'mdi:movie-star', actionLG: 'MENU', actionSamsung: 'KEY_MENU', label: 'Menú' },
-                right: { icon: 'mdi:lightbulb-group-outline', actionLG: 'EXIT', actionSamsung: 'KEY_EXIT', label: 'Salir' },
-                down: { icon: 'mdi:home-thermometer', actionLG: 'BACK', actionSamsung: 'KEY_RETURN', label: 'Atrás' }
+                up: { icon: 'mdi:menorah', actionLG: 'HOME', actionSamsung: 'KEY_HOME', actionRoku: 'home', label: 'Inicio' },
+                left: { icon: 'mdi:movie-star', actionLG: 'MENU', actionSamsung: 'KEY_MENU', actionRoku: 'back', label: 'Menú' },
+                right: { icon: 'mdi:lightbulb-group-outline', actionLG: 'EXIT', actionSamsung: 'KEY_EXIT', actionRoku: null, label: 'Salir' },
+                down: { icon: 'mdi:home-thermometer', actionLG: 'BACK', actionSamsung: 'KEY_RETURN', actionRoku: 'back', label: 'Atrás' }
             },
             'busqueda': {
-                up: { icon: 'mdi:plus-box', actionLG: 'CHANNELUP', actionSamsung: 'KEY_CHUP', label: 'Subir canal' },
-                left: { icon: 'mdi:hdmi-port', actionLG: 'INFO', actionSamsung: 'KEY_SOURCE', label: 'Información' },
-                right: { icon: 'mdi:format-list-numbered', actionLG: 'GUIDE', actionSamsung: 'KEY_GUIDE', label: 'Guía' },
-                down: { icon: 'mdi:minus-box', actionLG: 'CHANNELDOWN', actionSamsung: 'KEY_CHDOWN', label: 'Bajar canal' }
+                up: { icon: 'mdi:plus-box', actionLG: 'CHANNELUP', actionSamsung: 'KEY_CHUP', actionRoku: 'channel_up', label: 'Subir canal' },
+                left: { icon: 'mdi:hdmi-port', actionLG: 'INFO', actionSamsung: 'KEY_SOURCE', actionRoku: null, label: 'Información' },
+                right: { icon: 'mdi:format-list-numbered', actionLG: 'GUIDE', actionSamsung: 'KEY_GUIDE', actionRoku: null, label: 'Guía' },
+                down: { icon: 'mdi:minus-box', actionLG: 'CHANNELDOWN', actionSamsung: 'KEY_CHDOWN', actionRoku: 'channel_down', label: 'Bajar canal' }
             },
             'audio': {
                 up: { icon: 'mdi:volume-plus', actionLG: 'VOLUMEUP', actionSamsung: 'KEY_VOLUP', label: 'Subir volumen' },
@@ -243,10 +264,10 @@ class TVControlCard extends HTMLElement {
                 down: { icon: 'mdi:numeric-4-box-multiple-outline', actionLG: 'pendiente', actionSamsung: 'KEY_AV1', label: 'HDMI 4' }
             },
             'info': {
-                up: { icon: 'mdi:television-guide', actionLG: 'GUIDE', actionSamsung: 'KEY_CH_LIST', label: '' },
-                left: { icon: 'mdi:information-slab-circle-outline', actionLG: 'INFO', actionSamsung: 'KEY_INFO', label: '' },
-                right: { icon: 'mdi:apps', actionLG: 'MYAPPS', actionSamsung: 'KEY_APP_LIST', label: '' },
-                down: { icon: 'mdi:book-information-variant', actionLG: 'pendiente', actionSamsung: 'KEY_TOOLS', label: '"com.webos.applicationManager/getForegroundAppInfo"' }
+                up: { icon: 'mdi:television-guide', actionLG: 'GUIDE', actionSamsung: 'KEY_CH_LIST', actionRoku: null, label: '' },
+                left: { icon: 'mdi:information-slab-circle-outline', actionLG: 'INFO', actionSamsung: 'KEY_INFO', actionRoku: 'info', label: '' },
+                right: { icon: 'mdi:apps', actionLG: 'MYAPPS', actionSamsung: 'KEY_APP_LIST', actionRoku: null, label: '' },
+                down: { icon: 'mdi:book-information-variant', actionLG: 'pendiente', actionSamsung: 'KEY_TOOLS', actionRoku: null, label: '"com.webos.applicationManager/getForegroundAppInfo"' }
             },
     /* AQUI FALTA VER COMO SE VA A IMPLEMENTAR, PORQUE LA RUEDA VA A CAMBIAR A 9 NUMEROS
             'keyboard': {
@@ -257,10 +278,10 @@ class TVControlCard extends HTMLElement {
             },
     */
             'default': {
-                up: { icon: 'mdi:circle-medium', actionLG: 'UP', actionSamsung: 'KEY_UP', label: 'Arriba' },
-                left: { icon: 'mdi:circle-medium', actionLG: 'LEFT', actionSamsung: 'KEY_LEFT', label: 'Izquierda' },
-                right: { icon: 'mdi:circle-medium', actionLG: 'RIGHT', actionSamsung: 'KEY_RIGHT', label: 'Derecha' },
-                down: { icon: 'mdi:circle-medium', actionLG: 'DOWN', actionSamsung: 'KEY_DOWN', label: 'Abajo' }
+                up: { icon: 'mdi:circle-medium', actionLG: 'UP', actionSamsung: 'KEY_UP', actionRoku: 'up', label: 'Arriba' },
+                left: { icon: 'mdi:circle-medium', actionLG: 'LEFT', actionSamsung: 'KEY_LEFT', actionRoku: 'left', label: 'Izquierda' },
+                right: { icon: 'mdi:circle-medium', actionLG: 'RIGHT', actionSamsung: 'KEY_RIGHT', actionRoku: 'right', label: 'Derecha' },
+                down: { icon: 'mdi:circle-medium', actionLG: 'DOWN', actionSamsung: 'KEY_DOWN', actionRoku: 'down', label: 'Abajo' }
             }
         };
     }
@@ -281,6 +302,23 @@ class TVControlCard extends HTMLElement {
         return index;
     }
     
+    _saveRokuMode() {
+        if (!this._cardId || !this._hass) return;
+        const userId = this._hass.user?.id || 'default';
+        const entity = this.state.tvEntityId || 'default';
+        const key = `tv-card__roku__${this._cardId}__${userId}__${entity}`;
+        localStorage.setItem(key, this.state.isRokuMode ? '1' : '0');
+    }
+    
+    _loadRokuMode() {
+        if (!this._cardId || !this._hass) return false;
+        const userId = this._hass.user?.id || 'default';
+        const entity = this.state.tvEntityId || 'default';
+        const key = `tv-card__roku__${this._cardId}__${userId}__${entity}`;
+        const saved = localStorage.getItem(key);
+        return saved === null ? true : saved === '1';
+    }    
+    
     _switchTv(index) {
         if (!this._tvList || index < 0 || index >= this._tvList.length) return;
         if (index === this.state.activeTvIndex) return;
@@ -291,6 +329,7 @@ class TVControlCard extends HTMLElement {
         this.state.tvEntityId    = tv.entity;
         this.state.modelConfig   = tv.type;
         this.state.tvState       = null;
+        this.state.isRokuMode = this._loadRokuMode();
     
         // --- NUEVO: leer estado real de la nueva entidad inmediatamente ---
         if (this._hass && this._hass.states[tv.entity]) {
@@ -306,7 +345,24 @@ class TVControlCard extends HTMLElement {
         this._saveActiveTv(index);
         this._dispararHaptic('medium');    
         this.render();
-    }  
+    }
+    get streamingServices() {
+        const result = this.streamingSlots.map(slot => {
+            const chosenSourceId = (this._config && this._config[`${slot.id}_source`]) || slot.defaultSourceId;
+            const source = PREDEFINED_SOURCES.find(s => s.id === chosenSourceId) || PREDEFINED_SOURCES[0];
+            const customIcon = this._config && this._config[`${slot.id}_icon`];
+            return {
+                id: slot.id,
+                name: source.name,
+                service: source.service,
+                icon: customIcon || source.icon,
+                roku_source: source.roku_source,
+                serviceAlternates: source.serviceAlternates || null,
+            };
+        });
+        console.log('[StreamingServices] resolved:', result);
+        return result;
+    }    
 
     setConfig(config) {
         // Validación original
@@ -329,7 +385,8 @@ class TVControlCard extends HTMLElement {
                 return {
                     name:   tv.name,
                     entity: tv.entity,
-                    type:   tv.type || 'LG TV'   // fallback al default existente
+                    type:   tv.type || 'LG TV',   // fallback al default existente
+                    roku:   tv.roku || null
                 };
             });
             this._cardId = config.card_id;
@@ -343,7 +400,8 @@ class TVControlCard extends HTMLElement {
             this._cardId = null;
             this.state.tvEntityId   = config.entity;
             this.state.modelConfig  = config.modelConfig;
-            this.state.activeTvName = config.entity;       
+            this.state.activeTvName = config.entity;
+            this._rokuConfig = config.roku || null;       
         }
     
         this.displayOrder = [
@@ -364,13 +422,22 @@ class TVControlCard extends HTMLElement {
         ];
     
         this.state.defaultMode = config.colorMode;
-        this.state.tvEntityId  = config.entity;
-        this.state.modelConfig = config.modelConfig;
         this.state.controlModeId = config.control_mode_entity || null;
         if (this.state.isConnected) {
             this.render();
         }
     }
+
+    get activeRokuConfig() {
+        if (this._tvList) {
+            return this._tvList[this.state.activeTvIndex]?.roku || null;
+        }
+        return this._rokuConfig || null;
+    }
+    
+    get activeStreamingSources() {
+        return this._config.selected_sources || this.streamingServices;
+    }        
 
     static getConfigElement() {
         return document.createElement('tv-control-card-editor');
@@ -1026,8 +1093,12 @@ class TVControlCard extends HTMLElement {
                     ` : ''}
                     <div class="card-grid">
                         <div class="top-section">
-                            <div class="top-button exit-button" data-action="exit">
-                                <ha-icon icon="${this._config.exit_icon || 'mdi:alert-decagram'}"></ha-icon>
+                            <div class="top-button exit-button" data-action="exit" style="${this.state.isRokuMode 
+                                ? 'border: 1px solid rgba(147, 51, 234, 0.7); box-shadow: 0 0 12px rgba(147, 51, 234, 0.6), inset 0 0 8px rgba(147, 51, 234, 0.15);' 
+                                : ''}">
+                                <ha-icon icon="mdi:remote-tv" style="${this.state.isRokuMode 
+                                    ? 'color: rgba(196, 147, 255, 0.95); --mdc-icon-size: 26px;' 
+                                    : '--mdc-icon-size: 26px;'}"></ha-icon>
                             </div>
                             <div class="tv-status-label ${this.getTvStatus() === 'on' ? 'on' : 'off'}">
                                 ${this._tvList ? `
@@ -1046,13 +1117,13 @@ class TVControlCard extends HTMLElement {
                         <div class="streaming-section">
                             <div class="streaming-grid">
                                 <div class="streaming-title"></div>
-                                ${this.streamingServices.map(service => `
-                                    <div class="streaming-button ${service.id}-button ${this.state.source === service.service ? 'active' : ''}" 
+                                ${this.activeStreamingSources.map(service => `
+                                    <div class="streaming-button ${service.id}-button ${this.getEffectiveSource() === service.service ? 'active' : ''}" 
                                         data-service="${service.service}"
                                         style="background: ${this.getStreamingButtonBackground(service.service)}; 
                                                 border: ${this.getStreamingButtonBorder(service.service)};
                                                 color: ${this.getStreamingButtonColor(service.service)};">
-                                        <ha-icon icon="${service.icon}"></ha-icon>
+                                        <ha-icon icon="${this._config[`${service.id}_icon`] || service.icon}"></ha-icon>
                                     </div>
                                 `).join('')}
                             </div>
@@ -1259,17 +1330,31 @@ class TVControlCard extends HTMLElement {
     
         return tvState.attributes.source ?? null;
 
-
     }
-
+    
+    getEffectiveSource() {
+        if (this.state.isRokuMode && this.activeRokuConfig) {
+            const rokuState = this._hass?.states[this.activeRokuConfig.media_entity];
+            const rokuApp = rokuState?.attributes?.app_name || rokuState?.attributes?.source || null;
+            if (rokuApp) {
+                const match = this.streamingServices.find(s =>
+                    s.roku_source && s.roku_source.toLowerCase() === rokuApp.toLowerCase()
+                );
+                if (match) return match.service;
+            }
+            return null;
+        }
+        return this.state.source;
+    }    
+    
     getCurrentStyles() {
-        const source = this.state.source;
+        const source = this.getEffectiveSource();
         const modo = this.state.defaultMode;
         return this.sourceStyles[source] || this.sourceStyles[modo];
     }
     
     getStreamingButtonBackground(service) {
-        const source = this.state.source;
+        const source = this.getEffectiveSource();
         if (source === 'Netflix') return 'rgba(22, 22, 22, 0.6)';
         if (source === 'Disney+') return 'rgba(6, 19, 31, 0.8)';
         if (source === 'Prime Video') return 'rgba(30, 30, 30, 0.6)';
@@ -1277,7 +1362,7 @@ class TVControlCard extends HTMLElement {
     }
     
     getStreamingButtonBorder(service) {
-        const source = this.state.source;
+        const source = this.getEffectiveSource();
         const isActive = this.state.source === service;
         
         if (isActive && service === 'Prime Video') {
@@ -1293,7 +1378,7 @@ class TVControlCard extends HTMLElement {
     }
     
     getStreamingButtonColor(service) {
-        const source = this.state.source;
+        const source = this.getEffectiveSource();
         if (source === 'Netflix' && service === 'Netflix') return 'rgba(255, 255, 255, 1)';
         if (source === 'Disney+' && service === 'Disney+') return 'rgba(255, 255, 255, 1)';
         if (source === 'Prime Video' && service === 'Prime Video') return 'rgba(255, 255, 255, 0.85)';
@@ -1309,22 +1394,43 @@ class TVControlCard extends HTMLElement {
         }
     }
     
-    selectSource(source) {
-            if (this._hass && this.state.tvEntityId) {
-                this._hass.callService('media_player', 'select_source', {
-                    entity_id: this.state.tvEntityId,
-                    source: source
-                });
-            }     
-
+    selectSource(source, alternates = []) {
+        if (!this._hass || !this.state.tvEntityId) return;
+    
+        const candidates = (alternates && alternates.length) ? alternates : [source];
+        const tvState = this._hass.states[this.state.tvEntityId];
+        const sourceList = tvState?.attributes?.source_list || [];
+        const norm = s => (s || '').trim().toLowerCase();
+    
+        // Si el TV expone su source_list real, usamos el nombre exacto que aparece ahí
+        let resolvedSource = null;
+        for (const candidate of candidates) {
+            const match = sourceList.find(s => norm(s) === norm(candidate));
+            if (match) { resolvedSource = match; break; }
+        }
+    
+        // Si no hay source_list o ninguno coincide, usamos el primer candidato como fallback
+        if (!resolvedSource) {
+            resolvedSource = candidates[0];
+        }
+    
+        console.log('[SelectSource] candidates:', candidates, '→ resolved:', resolvedSource, 'source_list disponible:', sourceList.length > 0);
+    
+        this._hass.callService('media_player', 'select_source', {
+            entity_id: this.state.tvEntityId,
+            source: resolvedSource
+        });
     }
 
-    async selectSourceWithRetry(targetSource, haIcon, originalIcon, maxRetries = 3) {
+    async selectSourceWithRetry(targetSource, haIcon, originalIcon, maxRetries = 3, alternates = []) {
+        const candidates = (alternates && alternates.length) ? alternates : [targetSource];
+        const norm = s => (s || '').trim().toLowerCase();
+    
         for (let attempt = 1; attempt <= maxRetries; attempt++) {
             await this.delay(5000);
-            this.selectSource(targetSource);
+            this.selectSource(targetSource, alternates);
     
-            if (this.state.source === targetSource) {
+            if (candidates.some(c => norm(c) === norm(this.state.source))) {
                 this.state.isSelectingSource = false;
                 haIcon.setAttribute('icon', originalIcon);
                 haIcon.style.animation = '';
@@ -1457,28 +1563,46 @@ class TVControlCard extends HTMLElement {
     }
     
     listenerExit() {
-        let botonExit = this.shadowRoot.querySelector('.bottom-section .exit-button');
+        let botonExit = this.shadowRoot.querySelector('.top-section .exit-button');
         if (!botonExit) return;
         botonExit.addEventListener('click', () => {
             this._dispararHaptic('medium');
-            const configValue = this._config.exit_value || null;
-            const action = configValue
-                ? configValue
-                : (this.state.modelConfig === 'samsung' ? 'KEY_EXIT' : 'EXIT');
-            this.sendButtonAction(action);
+    
+            if (this.activeRokuConfig) {
+                // Toggle modo Roku
+                this.state.isRokuMode = !this.state.isRokuMode;
+                this._saveRokuMode();
+                this.render();
+            } else {
+                // Sin config Roku: comportamiento original (EXIT/KEY_EXIT)
+                const configValue = this._config.exit_value || null;
+                const action = configValue
+                    ? configValue
+                    : (this.state.modelConfig === 'samsung' ? 'KEY_EXIT' : 'EXIT');
+                this.sendButtonAction(action);
+            }
         });
     }
 
     listenerStreaming() {
-        this.streamingServices.forEach(service => {
+        this.activeStreamingSources.forEach(service => {
             let botonStreaming = this.shadowRoot.querySelector(`.${service.id}-button`);
             if (botonStreaming) {
                 botonStreaming.addEventListener('click', async () => {
                     this._dispararHaptic('medium');
-
+    
                     const configValue = this._config[`${service.id}_value`] || null;
-
-                    if (this.getTvStatus() === 'off') {
+                    const rokuConfig = this.activeRokuConfig;
+    
+                    console.log('[Streaming] click:', {
+                        slotId: service.id,
+                        service,
+                        isRokuMode: this.state.isRokuMode,
+                        rokuConfig,
+                        configValue
+                    });
+    
+                    if (this.getTvStatus() === 'off' && !this.state.isRokuMode) {
                         this.state.tvMessage = 'Encendiendo TV...';
                         this.render();
                         this.togglePower();
@@ -1486,25 +1610,42 @@ class TVControlCard extends HTMLElement {
                         if (configValue) {
                             this.sendButtonAction(configValue);
                         } else {
-                            this.selectSource(service.service);
+                            this.selectSource(service.service, service.serviceAlternates);
                         }
                         this.state.tvMessage = null;
                         this.render();
                         return;
                     }
+    
                     if (this.state.isSelectingSource) return;
                     this.state.isSelectingSource = true;
                     const haIcon = botonStreaming.querySelector('ha-icon');
                     haIcon.setAttribute('icon', 'mdi:dots-circle');
                     haIcon.style.animation = 'spin 0.5s steps(5) infinite';
-
-                    if (configValue) {
+    
+                    const resolvedIcon = service.icon;
+    
+                    if (this.state.isRokuMode && rokuConfig && service.roku_source) {
+                        console.log('[Streaming] Roku mode → select_source:', {
+                            entity: rokuConfig.media_entity,
+                            source: service.roku_source
+                        });
+                        this._hass.callService('media_player', 'select_source', {
+                            entity_id: rokuConfig.media_entity,
+                            source: service.roku_source
+                        });
+                        haIcon.setAttribute('icon', resolvedIcon);
+                        haIcon.style.animation = '';
+                        this.state.isSelectingSource = false;
+                    } else if (configValue) {
+                        console.log('[Streaming] configValue mode →', configValue);
                         this.sendButtonAction(configValue);
-                        haIcon.setAttribute('icon', service.icon);
+                        haIcon.setAttribute('icon', resolvedIcon);
                         haIcon.style.animation = '';
                         this.state.isSelectingSource = false;
                     } else {
-                        this.selectSourceWithRetry(service.service, haIcon, service.icon);
+                        console.log('[Streaming] selectSourceWithRetry →', service.service);
+                        this.selectSourceWithRetry(service.service, haIcon, resolvedIcon, 3, service.serviceAlternates);
                     }
                 });
             }
@@ -1518,6 +1659,7 @@ class TVControlCard extends HTMLElement {
     }
 
     listenerBottomButtons() {
+        console.log('listenerBottomButtons version: 2', this.bottomButtons);
         this.bottomButtons.forEach(button => {
             if (button.id === 'exit') return;
             let botonGral = this.shadowRoot.querySelector(`.${button.id}-button`);
@@ -1525,9 +1667,12 @@ class TVControlCard extends HTMLElement {
                 botonGral.addEventListener('click', () => {
                     this._dispararHaptic('medium');
                     const configValue = this._config[`${button.id}_value`] || null;
+                    const isRoku = this.state.isRokuMode && this.activeRokuConfig;
                     const action = configValue
                         ? configValue
-                        : (this.state.modelConfig === 'samsung' ? button.actionSamsung : button.actionLG);                    
+                        : isRoku && button.actionRoku
+                            ? button.actionRoku
+                            : (this.state.modelConfig === 'samsung' ? button.actionSamsung : button.actionLG);
                     this.sendButtonAction(action);
                 });
             }
@@ -1554,7 +1699,7 @@ class TVControlCard extends HTMLElement {
                     }
                     const buttons = this.touchpadButtons[mode] || this.touchpadButtons['default'];
                     const button = buttons[direction];
-                    return this._config.modelConfig === 'samsung' ? button.actionSamsung : button.actionLG;
+                    return this.state.modelConfig === 'samsung' ? button.actionSamsung : button.actionLG;
                 };
     
                 const startHold = () => {
@@ -1567,7 +1712,7 @@ class TVControlCard extends HTMLElement {
                         isHold = true;
                         holdInterval = setInterval(() => {
                             this.handleTouchpadButton(direction);
-                        }, 10);
+                        }, 200);
                     }, 500);
                 };
     
@@ -1657,7 +1802,16 @@ class TVControlCard extends HTMLElement {
     }
     
     sendButtonAction(button) {
+        console.log('sendButtonAction called:', {
+            button,
+            isRokuMode: this.state.isRokuMode,
+            rokuConfig: this.activeRokuConfig,
+            controlMode: this.state.controlMode,
+            modelConfig: this.state.modelConfig
+        });        
+        console.trace('sendButtonAction stack');
         if (!this._hass || !button) return;
+        console.log('[sendButtonAction]', { button, isRokuMode: this.state.isRokuMode, controlMode: this.state.controlMode, hasRokuConfig: !!this.activeRokuConfig });
     
         if (button.startsWith('script.')) {
             this._hass.callService('script', 'turn_on', {
@@ -1671,6 +1825,17 @@ class TVControlCard extends HTMLElement {
             this.selectSource(source);
             return;
         }
+
+        const rokuConfig = this.activeRokuConfig;
+        const VOLUME_COMMANDS = ['VOLUMEUP', 'VOLUMEDOWN', 'MUTE', 'KEY_VOLUP', 'KEY_VOLDOWN', 'KEY_MUTE'];
+        const audioModes = ['audio', 'amplificador', 'fuentes'];
+        if (this.state.isRokuMode && rokuConfig && !audioModes.includes(this.state.controlMode) && !VOLUME_COMMANDS.includes(button)) {
+            this._hass.callService('remote', 'send_command', {
+                entity_id: rokuConfig.remote_entity,
+                command: button
+            });
+            return;
+        }      
     
         if (this.state.tvEntityId) {
             if (this.state.modelConfig === 'samsung') {
@@ -1693,7 +1858,10 @@ class TVControlCard extends HTMLElement {
     
         if (mode && mode.startsWith('custom')) {
             const num = mode.replace('custom', '');
-            const action = this._config[`custom${num}_${direction}_value`];
+            const isSamsung = this.state.modelConfig === 'samsung';
+            const action = isSamsung
+                ? (this._config[`custom${num}_${direction}_value_samsung`] || this._config[`custom${num}_${direction}_value`])
+                : (this._config[`custom${num}_${direction}_value_lg`]      || this._config[`custom${num}_${direction}_value`]);
             if (action) {
                 this.sendButtonAction(action);
             }
@@ -1702,19 +1870,36 @@ class TVControlCard extends HTMLElement {
     
         const buttons = this.touchpadButtons[mode] || this.touchpadButtons['default'];
         const button = buttons[direction];
+        console.log('handleTouchpadButton:', {
+            direction,
+            mode,
+            button,
+            isRokuMode: this.state.isRokuMode,
+            modelConfig: this.state.modelConfig
+        });        
+        const audioModes = ['audio', 'amplificador', 'fuentes'];
+        const isRoku = this.state.isRokuMode && this.activeRokuConfig && !audioModes.includes(mode);
+        if (isRoku) {
+            if (button.actionRoku) {
+                this.sendButtonAction(button.actionRoku);
+            }
+            return;
+        }
         const action = this.state.modelConfig === 'samsung' ? button.actionSamsung : button.actionLG;
-    
         if (button && action) {
             this.sendButtonAction(action);
-        }
+        }        
     }
     
     handleCenterButton() {
         this._dispararHaptic('medium');
         const configValue = this._config.center_value || null;
+        const isRoku = this.state.isRokuMode && this.activeRokuConfig;
         const action = configValue
             ? configValue
-            : (this.state.modelConfig === 'samsung' ? 'KEY_ENTER' : 'ENTER');
+            : isRoku
+                ? 'select'
+                : (this.state.modelConfig === 'samsung' ? 'KEY_ENTER' : 'ENTER');
         this.sendButtonAction(action);
     }
     
@@ -1726,6 +1911,7 @@ class TVControlCard extends HTMLElement {
             // --- NUEVO: primera vez que llega hass, restaurar TV guardada ---
             if (this._tvList) {
                 const savedIndex = this._loadActiveTv();
+                this.state.isRokuMode = this._loadRokuMode();
                 if (savedIndex !== null && savedIndex < this._tvList.length) {
                     const tv = this._tvList[savedIndex];
                     this.state.activeTvIndex = savedIndex;
@@ -2139,23 +2325,34 @@ class TVControlCardEditor extends HTMLElement {
                 `}
             </div>
             <div style="padding: 16px; border-top: 1px solid rgba(255,255,255,0.1);">
-                <div style="margin-bottom: 12px; font-weight: bold;">Botón Netflix</div>
-
+                <div style="margin-bottom: 12px; font-weight: bold;">Botón Streaming 1 (Netflix)</div>
+            
                 <div style="margin-bottom: 8px;">
-                    <label style="display: block; margin-bottom: 4px; font-size: 12px;">Ícono</label>
-                    <input id="netflix-icon" type="text" placeholder="mdi:netflix"
+                    <label style="display: block; margin-bottom: 4px; font-size: 12px;">Source</label>
+                    <select id="netflix-source" style="width: 100%; padding: 8px; border-radius: 4px; margin-bottom: 8px;">
+                        ${PREDEFINED_SOURCES.map(src => `
+                            <option value="${src.id}" ${(this._config.netflix_source || 'netflix') === src.id ? 'selected' : ''}>
+                                ${src.name}
+                            </option>
+                        `).join('')}
+                    </select>
+                </div>
+            
+                <div style="margin-bottom: 8px;">
+                    <label style="display: block; margin-bottom: 4px; font-size: 12px;">Ícono (opcional)</label>
+                    <input id="netflix-icon" type="text" placeholder="Dejar vacío para usar el ícono del source"
                         value="${this._config.netflix_icon || ''}" 
                         style="width: 100%; padding: 6px; border-radius: 4px; box-sizing: border-box;">
                 </div>
-
+            
                 <select id="netflix-type" style="width: 100%; padding: 8px; border-radius: 4px; margin-bottom: 8px;">
                     <option value="button" ${this._config.netflix_type === 'button' ? 'selected' : ''}>Button</option>
                     <option value="command" ${this._config.netflix_type === 'command' ? 'selected' : ''}>Command</option>
                     <option value="script" ${this._config.netflix_type === 'script' ? 'selected' : ''}>Script</option>
                 </select>
-
+            
                 <select id="netflix-value-button" style="width: 100%; padding: 8px; border-radius: 4px; margin-bottom: 8px; ${this._config.netflix_type !== 'button' && this._config.netflix_type ? 'display:none;' : ''}">
-                    <option value="">-- Default (Netflix) --</option>
+                    <option value="">-- Default (source) --</option>
                     ${PREDEFINED_COMMANDS.map(cmd => `
                         <option value="${this._config.modelConfig === 'samsung' ? cmd.actionSamsung : cmd.actionLG}"
                             ${this._config.netflix_value === (this._config.modelConfig === 'samsung' ? cmd.actionSamsung : cmd.actionLG) ? 'selected' : ''}>
@@ -2163,9 +2360,9 @@ class TVControlCardEditor extends HTMLElement {
                         </option>
                     `).join('')}
                 </select>
-
+            
                 <select id="netflix-value-command" style="width: 100%; padding: 8px; border-radius: 4px; margin-bottom: 8px; ${this._config.netflix_type !== 'command' ? 'display:none;' : ''}">
-                    <option value="">-- Default (Netflix) --</option>
+                    <option value="">-- Default (source) --</option>
                     ${PREDEFINED_COMMANDS.map(cmd => `
                         <option value="${this._config.modelConfig === 'samsung' ? cmd.actionSamsung : cmd.actionLG}"
                             ${this._config.netflix_value === (this._config.modelConfig === 'samsung' ? cmd.actionSamsung : cmd.actionLG) ? 'selected' : ''}>
@@ -2173,7 +2370,7 @@ class TVControlCardEditor extends HTMLElement {
                         </option>
                     `).join('')}
                 </select>
-
+            
                 <select id="netflix-value-script" style="width: 100%; padding: 8px; border-radius: 4px; ${this._config.netflix_type !== 'script' ? 'display:none;' : ''}">
                     <option value="">-- Seleccionar script --</option>
                     ${Object.keys(this._hass.states)
@@ -2186,23 +2383,34 @@ class TVControlCardEditor extends HTMLElement {
                 </select>
             </div>
             <div style="padding: 16px; border-top: 1px solid rgba(255,255,255,0.1);">
-                <div style="margin-bottom: 12px; font-weight: bold;">Botón Disney+</div>
-
+                <div style="margin-bottom: 12px; font-weight: bold;">Botón Streaming 2 (Disney+)</div>
+            
                 <div style="margin-bottom: 8px;">
-                    <label style="display: block; margin-bottom: 4px; font-size: 12px;">Ícono</label>
-                    <input id="disney-icon" type="text" placeholder="phu:disney-plus"
+                    <label style="display: block; margin-bottom: 4px; font-size: 12px;">Source</label>
+                    <select id="disney-source" style="width: 100%; padding: 8px; border-radius: 4px; margin-bottom: 8px;">
+                        ${PREDEFINED_SOURCES.map(src => `
+                            <option value="${src.id}" ${(this._config.disney_source || 'disney') === src.id ? 'selected' : ''}>
+                                ${src.name}
+                            </option>
+                        `).join('')}
+                    </select>
+                </div>
+            
+                <div style="margin-bottom: 8px;">
+                    <label style="display: block; margin-bottom: 4px; font-size: 12px;">Ícono (opcional)</label>
+                    <input id="disney-icon" type="text" placeholder="Dejar vacío para usar el ícono del source"
                         value="${this._config.disney_icon || ''}" 
                         style="width: 100%; padding: 6px; border-radius: 4px; box-sizing: border-box;">
                 </div>
-
+            
                 <select id="disney-type" style="width: 100%; padding: 8px; border-radius: 4px; margin-bottom: 8px;">
                     <option value="button" ${this._config.disney_type === 'button' ? 'selected' : ''}>Button</option>
                     <option value="command" ${this._config.disney_type === 'command' ? 'selected' : ''}>Command</option>
                     <option value="script" ${this._config.disney_type === 'script' ? 'selected' : ''}>Script</option>
                 </select>
-
+            
                 <select id="disney-value-button" style="width: 100%; padding: 8px; border-radius: 4px; margin-bottom: 8px; ${this._config.disney_type !== 'button' && this._config.disney_type ? 'display:none;' : ''}">
-                    <option value="">-- Default (Disney+) --</option>
+                    <option value="">-- Default (source) --</option>
                     ${PREDEFINED_COMMANDS.map(cmd => `
                         <option value="${this._config.modelConfig === 'samsung' ? cmd.actionSamsung : cmd.actionLG}"
                             ${this._config.disney_value === (this._config.modelConfig === 'samsung' ? cmd.actionSamsung : cmd.actionLG) ? 'selected' : ''}>
@@ -2210,9 +2418,9 @@ class TVControlCardEditor extends HTMLElement {
                         </option>
                     `).join('')}
                 </select>
-
+            
                 <select id="disney-value-command" style="width: 100%; padding: 8px; border-radius: 4px; margin-bottom: 8px; ${this._config.disney_type !== 'command' ? 'display:none;' : ''}">
-                    <option value="">-- Default (Disney+) --</option>
+                    <option value="">-- Default (source) --</option>
                     ${PREDEFINED_COMMANDS.map(cmd => `
                         <option value="${this._config.modelConfig === 'samsung' ? cmd.actionSamsung : cmd.actionLG}"
                             ${this._config.disney_value === (this._config.modelConfig === 'samsung' ? cmd.actionSamsung : cmd.actionLG) ? 'selected' : ''}>
@@ -2220,7 +2428,7 @@ class TVControlCardEditor extends HTMLElement {
                         </option>
                     `).join('')}
                 </select>
-
+            
                 <select id="disney-value-script" style="width: 100%; padding: 8px; border-radius: 4px; ${this._config.disney_type !== 'script' ? 'display:none;' : ''}">
                     <option value="">-- Seleccionar script --</option>
                     ${Object.keys(this._hass.states)
@@ -2233,23 +2441,34 @@ class TVControlCardEditor extends HTMLElement {
                 </select>
             </div>
             <div style="padding: 16px; border-top: 1px solid rgba(255,255,255,0.1);">
-                <div style="margin-bottom: 12px; font-weight: bold;">Botón YouTube</div>
-
+                <div style="margin-bottom: 12px; font-weight: bold;">Botón Streaming 3 (YouTube)</div>
+            
                 <div style="margin-bottom: 8px;">
-                    <label style="display: block; margin-bottom: 4px; font-size: 12px;">Ícono</label>
-                    <input id="YouTube-icon" type="text" placeholder="mdi:youtube"
+                    <label style="display: block; margin-bottom: 4px; font-size: 12px;">Source</label>
+                    <select id="YouTube-source" style="width: 100%; padding: 8px; border-radius: 4px; margin-bottom: 8px;">
+                        ${PREDEFINED_SOURCES.map(src => `
+                            <option value="${src.id}" ${(this._config.YouTube_source || 'YouTube') === src.id ? 'selected' : ''}>
+                                ${src.name}
+                            </option>
+                        `).join('')}
+                    </select>
+                </div>
+            
+                <div style="margin-bottom: 8px;">
+                    <label style="display: block; margin-bottom: 4px; font-size: 12px;">Ícono (opcional)</label>
+                    <input id="YouTube-icon" type="text" placeholder="Dejar vacío para usar el ícono del source"
                         value="${this._config.YouTube_icon || ''}" 
                         style="width: 100%; padding: 6px; border-radius: 4px; box-sizing: border-box;">
                 </div>
-
+            
                 <select id="YouTube-type" style="width: 100%; padding: 8px; border-radius: 4px; margin-bottom: 8px;">
                     <option value="button" ${this._config.YouTube_type === 'button' ? 'selected' : ''}>Button</option>
                     <option value="command" ${this._config.YouTube_type === 'command' ? 'selected' : ''}>Command</option>
                     <option value="script" ${this._config.YouTube_type === 'script' ? 'selected' : ''}>Script</option>
                 </select>
-
+            
                 <select id="YouTube-value-button" style="width: 100%; padding: 8px; border-radius: 4px; margin-bottom: 8px; ${this._config.YouTube_type !== 'button' && this._config.YouTube_type ? 'display:none;' : ''}">
-                    <option value="">-- Default (YouTube) --</option>
+                    <option value="">-- Default (source) --</option>
                     ${PREDEFINED_COMMANDS.map(cmd => `
                         <option value="${this._config.modelConfig === 'samsung' ? cmd.actionSamsung : cmd.actionLG}"
                             ${this._config.YouTube_value === (this._config.modelConfig === 'samsung' ? cmd.actionSamsung : cmd.actionLG) ? 'selected' : ''}>
@@ -2257,9 +2476,9 @@ class TVControlCardEditor extends HTMLElement {
                         </option>
                     `).join('')}
                 </select>
-
+            
                 <select id="YouTube-value-command" style="width: 100%; padding: 8px; border-radius: 4px; margin-bottom: 8px; ${this._config.YouTube_type !== 'command' ? 'display:none;' : ''}">
-                    <option value="">-- Default (YouTube) --</option>
+                    <option value="">-- Default (source) --</option>
                     ${PREDEFINED_COMMANDS.map(cmd => `
                         <option value="${this._config.modelConfig === 'samsung' ? cmd.actionSamsung : cmd.actionLG}"
                             ${this._config.YouTube_value === (this._config.modelConfig === 'samsung' ? cmd.actionSamsung : cmd.actionLG) ? 'selected' : ''}>
@@ -2267,7 +2486,7 @@ class TVControlCardEditor extends HTMLElement {
                         </option>
                     `).join('')}
                 </select>
-
+            
                 <select id="YouTube-value-script" style="width: 100%; padding: 8px; border-radius: 4px; ${this._config.YouTube_type !== 'script' ? 'display:none;' : ''}">
                     <option value="">-- Seleccionar script --</option>
                     ${Object.keys(this._hass.states)
@@ -2280,47 +2499,58 @@ class TVControlCardEditor extends HTMLElement {
                 </select>
             </div>
             <div style="padding: 16px; border-top: 1px solid rgba(255,255,255,0.1);">
-                <div style="margin-bottom: 12px; font-weight: bold;">Botón Prime Video</div>
-
+                <div style="margin-bottom: 12px; font-weight: bold;">Botón Streaming 4 (Apple TV)</div>
+            
                 <div style="margin-bottom: 8px;">
-                    <label style="display: block; margin-bottom: 4px; font-size: 12px;">Ícono</label>
-                    <input id="prime-icon" type="text" placeholder="phu:prime-video"
-                        value="${this._config.prime_icon || ''}" 
+                    <label style="display: block; margin-bottom: 4px; font-size: 12px;">Source</label>
+                    <select id="appletv-source" style="width: 100%; padding: 8px; border-radius: 4px; margin-bottom: 8px;">
+                        ${PREDEFINED_SOURCES.map(src => `
+                            <option value="${src.id}" ${(this._config.appletv_source || 'appletv') === src.id ? 'selected' : ''}>
+                                ${src.name}
+                            </option>
+                        `).join('')}
+                    </select>
+                </div>
+            
+                <div style="margin-bottom: 8px;">
+                    <label style="display: block; margin-bottom: 4px; font-size: 12px;">Ícono (opcional)</label>
+                    <input id="appletv-icon" type="text" placeholder="Dejar vacío para usar el ícono del source"
+                        value="${this._config.appletv_icon || ''}" 
                         style="width: 100%; padding: 6px; border-radius: 4px; box-sizing: border-box;">
                 </div>
-
-                <select id="prime-type" style="width: 100%; padding: 8px; border-radius: 4px; margin-bottom: 8px;">
-                    <option value="button" ${this._config.prime_type === 'button' ? 'selected' : ''}>Button</option>
-                    <option value="command" ${this._config.prime_type === 'command' ? 'selected' : ''}>Command</option>
-                    <option value="script" ${this._config.prime_type === 'script' ? 'selected' : ''}>Script</option>
+            
+                <select id="appletv-type" style="width: 100%; padding: 8px; border-radius: 4px; margin-bottom: 8px;">
+                    <option value="button" ${this._config.appletv_type === 'button' ? 'selected' : ''}>Button</option>
+                    <option value="command" ${this._config.appletv_type === 'command' ? 'selected' : ''}>Command</option>
+                    <option value="script" ${this._config.appletv_type === 'script' ? 'selected' : ''}>Script</option>
                 </select>
-
-                <select id="prime-value-button" style="width: 100%; padding: 8px; border-radius: 4px; margin-bottom: 8px; ${this._config.prime_type !== 'button' && this._config.prime_type ? 'display:none;' : ''}">
-                    <option value="">-- Default (Prime Video) --</option>
+            
+                <select id="appletv-value-button" style="width: 100%; padding: 8px; border-radius: 4px; margin-bottom: 8px; ${this._config.appletv_type !== 'button' && this._config.appletv_type ? 'display:none;' : ''}">
+                    <option value="">-- Default (source) --</option>
                     ${PREDEFINED_COMMANDS.map(cmd => `
                         <option value="${this._config.modelConfig === 'samsung' ? cmd.actionSamsung : cmd.actionLG}"
-                            ${this._config.prime_value === (this._config.modelConfig === 'samsung' ? cmd.actionSamsung : cmd.actionLG) ? 'selected' : ''}>
+                            ${this._config.appletv_value === (this._config.modelConfig === 'samsung' ? cmd.actionSamsung : cmd.actionLG) ? 'selected' : ''}>
                             ${cmd.label}
                         </option>
                     `).join('')}
                 </select>
-
-                <select id="prime-value-command" style="width: 100%; padding: 8px; border-radius: 4px; margin-bottom: 8px; ${this._config.prime_type !== 'command' ? 'display:none;' : ''}">
-                    <option value="">-- Default (Prime Video) --</option>
+            
+                <select id="appletv-value-command" style="width: 100%; padding: 8px; border-radius: 4px; margin-bottom: 8px; ${this._config.appletv_type !== 'command' ? 'display:none;' : ''}">
+                    <option value="">-- Default (source) --</option>
                     ${PREDEFINED_COMMANDS.map(cmd => `
                         <option value="${this._config.modelConfig === 'samsung' ? cmd.actionSamsung : cmd.actionLG}"
-                            ${this._config.prime_value === (this._config.modelConfig === 'samsung' ? cmd.actionSamsung : cmd.actionLG) ? 'selected' : ''}>
+                            ${this._config.appletv_value === (this._config.modelConfig === 'samsung' ? cmd.actionSamsung : cmd.actionLG) ? 'selected' : ''}>
                             ${cmd.label}
                         </option>
                     `).join('')}
                 </select>
-
-                <select id="prime-value-script" style="width: 100%; padding: 8px; border-radius: 4px; ${this._config.prime_type !== 'script' ? 'display:none;' : ''}">
+            
+                <select id="appletv-value-script" style="width: 100%; padding: 8px; border-radius: 4px; ${this._config.appletv_type !== 'script' ? 'display:none;' : ''}">
                     <option value="">-- Seleccionar script --</option>
                     ${Object.keys(this._hass.states)
                         .filter(e => e.startsWith('script.'))
                         .map(script => `
-                            <option value="${script}" ${this._config.prime_value === script ? 'selected' : ''}>
+                            <option value="${script}" ${this._config.appletv_value === script ? 'selected' : ''}>
                                 ${this._hass.states[script].attributes.friendly_name || script}
                             </option>
                         `).join('')}
@@ -2516,8 +2746,19 @@ class TVControlCardEditor extends HTMLElement {
             
                 ['button', 'command', 'script'].forEach(valueType => {
                     this.querySelector(`#custom1-${dir}-value-${valueType}`).addEventListener('change', (e) => {
+                        const selectedValue = e.target.value;
+                        const cmd = PREDEFINED_COMMANDS.find(c =>
+                            c.actionLG === selectedValue || c.actionSamsung === selectedValue
+                        );
+                        const lgValue      = cmd ? cmd.actionLG      : selectedValue;
+                        const samsungValue = cmd ? cmd.actionSamsung  : selectedValue;
                         this.dispatchEvent(new CustomEvent('config-changed', {
-                            detail: { config: { ...this._config, [`custom1_${dir}_value`]: e.target.value }}
+                            detail: { config: {
+                                ...this._config,
+                                [`custom1_${dir}_value`]:         selectedValue, // backwards compat
+                                [`custom1_${dir}_value_lg`]:      lgValue,
+                                [`custom1_${dir}_value_samsung`]: samsungValue
+                            }}
                         }));
                     });
                 });
@@ -2556,8 +2797,19 @@ class TVControlCardEditor extends HTMLElement {
             
                 ['button', 'command', 'script'].forEach(valueType => {
                     this.querySelector(`#custom2-${dir}-value-${valueType}`).addEventListener('change', (e) => {
+                        const selectedValue = e.target.value;
+                        const cmd = PREDEFINED_COMMANDS.find(c =>
+                            c.actionLG === selectedValue || c.actionSamsung === selectedValue
+                        );
+                        const lgValue      = cmd ? cmd.actionLG      : selectedValue;
+                        const samsungValue = cmd ? cmd.actionSamsung  : selectedValue;
                         this.dispatchEvent(new CustomEvent('config-changed', {
-                            detail: { config: { ...this._config, [`custom2_${dir}_value`]: e.target.value }}
+                            detail: { config: {
+                                ...this._config,
+                                [`custom2_${dir}_value`]:         selectedValue, // backwards compat
+                                [`custom2_${dir}_value_lg`]:      lgValue,
+                                [`custom2_${dir}_value_samsung`]: samsungValue
+                            }}
                         }));
                     });
                 });
@@ -2596,20 +2848,35 @@ class TVControlCardEditor extends HTMLElement {
             
                 ['button', 'command', 'script'].forEach(valueType => {
                     this.querySelector(`#custom3-${dir}-value-${valueType}`).addEventListener('change', (e) => {
+                        const selectedValue = e.target.value;
+                        const cmd = PREDEFINED_COMMANDS.find(c =>
+                            c.actionLG === selectedValue || c.actionSamsung === selectedValue
+                        );
+                        const lgValue      = cmd ? cmd.actionLG      : selectedValue;
+                        const samsungValue = cmd ? cmd.actionSamsung  : selectedValue;
                         this.dispatchEvent(new CustomEvent('config-changed', {
-                            detail: { config: { ...this._config, [`custom3_${dir}_value`]: e.target.value }}
+                            detail: { config: {
+                                ...this._config,
+                                [`custom3_${dir}_value`]:         selectedValue, // backwards compat
+                                [`custom3_${dir}_value_lg`]:      lgValue,
+                                [`custom3_${dir}_value_samsung`]: samsungValue
+                            }}
                         }));
                     });
                 });
             });
         }
-        ///// EDITOR UI DE BOTON NETFLIX
+        ///// EDITOR UI DE BOTON STREAMING 1 (netflix slot)
+        this.querySelector('#netflix-source').addEventListener('change', (e) => {
+            this.dispatchEvent(new CustomEvent('config-changed', {
+                detail: { config: { ...this._config, netflix_source: e.target.value }}
+            }));
+        });
         this.querySelector('#netflix-icon').addEventListener('change', (e) => {
             this.dispatchEvent(new CustomEvent('config-changed', {
                 detail: { config: { ...this._config, netflix_icon: e.target.value }}
             }));
         });
-        
         this.querySelector('#netflix-type').addEventListener('change', (e) => {
             const type = e.target.value;
             this.querySelector('#netflix-value-button').style.display = type === 'button' ? 'block' : 'none';
@@ -2619,7 +2886,6 @@ class TVControlCardEditor extends HTMLElement {
                 detail: { config: { ...this._config, netflix_type: type, netflix_value: '' }}
             }));
         });
-        
         ['button', 'command', 'script'].forEach(valueType => {
             this.querySelector(`#netflix-value-${valueType}`).addEventListener('change', (e) => {
                 this.dispatchEvent(new CustomEvent('config-changed', {
@@ -2627,14 +2893,18 @@ class TVControlCardEditor extends HTMLElement {
                 }));
             });
         });
-
-        ///// EDITOR UI DE BOTON DISNEY
+        
+        ///// EDITOR UI DE BOTON STREAMING 2 (disney slot)
+        this.querySelector('#disney-source').addEventListener('change', (e) => {
+            this.dispatchEvent(new CustomEvent('config-changed', {
+                detail: { config: { ...this._config, disney_source: e.target.value }}
+            }));
+        });
         this.querySelector('#disney-icon').addEventListener('change', (e) => {
             this.dispatchEvent(new CustomEvent('config-changed', {
                 detail: { config: { ...this._config, disney_icon: e.target.value }}
             }));
         });
-        
         this.querySelector('#disney-type').addEventListener('change', (e) => {
             const type = e.target.value;
             this.querySelector('#disney-value-button').style.display = type === 'button' ? 'block' : 'none';
@@ -2644,7 +2914,6 @@ class TVControlCardEditor extends HTMLElement {
                 detail: { config: { ...this._config, disney_type: type, disney_value: '' }}
             }));
         });
-        
         ['button', 'command', 'script'].forEach(valueType => {
             this.querySelector(`#disney-value-${valueType}`).addEventListener('change', (e) => {
                 this.dispatchEvent(new CustomEvent('config-changed', {
@@ -2652,14 +2921,18 @@ class TVControlCardEditor extends HTMLElement {
                 }));
             });
         });
-
-        ///// EDITOR UI DE BOTON YOUTUBE
+        
+        ///// EDITOR UI DE BOTON STREAMING 3 (YouTube slot)
+        this.querySelector('#YouTube-source').addEventListener('change', (e) => {
+            this.dispatchEvent(new CustomEvent('config-changed', {
+                detail: { config: { ...this._config, YouTube_source: e.target.value }}
+            }));
+        });
         this.querySelector('#YouTube-icon').addEventListener('change', (e) => {
             this.dispatchEvent(new CustomEvent('config-changed', {
                 detail: { config: { ...this._config, YouTube_icon: e.target.value }}
             }));
         });
-        
         this.querySelector('#YouTube-type').addEventListener('change', (e) => {
             const type = e.target.value;
             this.querySelector('#YouTube-value-button').style.display = type === 'button' ? 'block' : 'none';
@@ -2669,7 +2942,6 @@ class TVControlCardEditor extends HTMLElement {
                 detail: { config: { ...this._config, YouTube_type: type, YouTube_value: '' }}
             }));
         });
-        
         ['button', 'command', 'script'].forEach(valueType => {
             this.querySelector(`#YouTube-value-${valueType}`).addEventListener('change', (e) => {
                 this.dispatchEvent(new CustomEvent('config-changed', {
@@ -2677,28 +2949,31 @@ class TVControlCardEditor extends HTMLElement {
                 }));
             });
         });
-
-        ///// EDITOR UI DE BOTON PRIME
-        this.querySelector('#prime-icon').addEventListener('change', (e) => {
+        
+        ///// EDITOR UI DE BOTON STREAMING 4 (appletv slot)
+        this.querySelector('#appletv-source').addEventListener('change', (e) => {
             this.dispatchEvent(new CustomEvent('config-changed', {
-                detail: { config: { ...this._config, prime_icon: e.target.value }}
+                detail: { config: { ...this._config, appletv_source: e.target.value }}
             }));
         });
-        
-        this.querySelector('#prime-type').addEventListener('change', (e) => {
+        this.querySelector('#appletv-icon').addEventListener('change', (e) => {
+            this.dispatchEvent(new CustomEvent('config-changed', {
+                detail: { config: { ...this._config, appletv_icon: e.target.value }}
+            }));
+        });
+        this.querySelector('#appletv-type').addEventListener('change', (e) => {
             const type = e.target.value;
-            this.querySelector('#prime-value-button').style.display = type === 'button' ? 'block' : 'none';
-            this.querySelector('#prime-value-command').style.display = type === 'command' ? 'block' : 'none';
-            this.querySelector('#prime-value-script').style.display = type === 'script' ? 'block' : 'none';
+            this.querySelector('#appletv-value-button').style.display = type === 'button' ? 'block' : 'none';
+            this.querySelector('#appletv-value-command').style.display = type === 'command' ? 'block' : 'none';
+            this.querySelector('#appletv-value-script').style.display = type === 'script' ? 'block' : 'none';
             this.dispatchEvent(new CustomEvent('config-changed', {
-                detail: { config: { ...this._config, prime_type: type, prime_value: '' }}
+                detail: { config: { ...this._config, appletv_type: type, appletv_value: '' }}
             }));
         });
-        
         ['button', 'command', 'script'].forEach(valueType => {
-            this.querySelector(`#prime-value-${valueType}`).addEventListener('change', (e) => {
+            this.querySelector(`#appletv-value-${valueType}`).addEventListener('change', (e) => {
                 this.dispatchEvent(new CustomEvent('config-changed', {
-                    detail: { config: { ...this._config, prime_value: e.target.value }}
+                    detail: { config: { ...this._config, appletv_value: e.target.value }}
                 }));
             });
         });        
@@ -2741,5 +3016,3 @@ window.customCards.push({
     preview: false,
     documentationURL: 'https://github.com/extraiotpruebas/minimalist-tv-control-card'
 });
-
-
