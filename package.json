@@ -1,0 +1,12 @@
+{
+  "name": "minimalist-tv-control-card",
+  "version": "4.0.0-dev",
+  "private": true,
+  "description": "Tarjeta de control de TV para Home Assistant (LG, Samsung, Roku)",
+  "type": "module",
+  "scripts": {
+    "test": "node --test \"test/**/*.test.mjs\"",
+    "check": "node --check minimalist-tv-control-card.js"
+  },
+  "license": "MIT"
+}

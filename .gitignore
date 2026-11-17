@@ -22,3 +22,7 @@ yarn-error.log*
 # Temporary files
 *.tmp
 *.temp
+
+# Configs reales de clientes: nunca se suben al repo
+test/fixtures/private/
+_legacy/

@@ -1,0 +1,408 @@
+<!doctype html>
+<!--
+  Harness de desarrollo: prueba la tarjeta SIN Home Assistant.
+
+  Cómo abrirlo (los ES modules no cargan desde file://, hace falta un servidor):
+    cd ~/HAdesigns/TV-Control-Card
+    python3 -m http.server 8000
+  y en el navegador de Windows: http://localhost:8000/dev/harness.html
+
+  Simula:
+    - un objeto `hass` inmutable (cada cambio crea objetos nuevos, como HA)
+    - callService con latencia configurable y fallos a propósito
+    - encendido de TV con retraso, select_source, input_select de modo
+    - "ruido": una entidad ajena que cambia cada 100 ms (la tarjeta NO debe repintar)
+-->
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TV Card harness</title>
+<!-- Íconos MDI para el ha-icon falso. El @font-face debe declararse en el documento:
+     Chrome ignora @font-face dentro de un shadowRoot. -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@mdi/font@7.4.47/css/materialdesignicons.min.css">
+<style>
+  :root { color-scheme: dark; }
+  body { margin: 0; font: 14px/1.4 system-ui, sans-serif; background: #111; color: #ddd;
+         display: grid; grid-template-columns: minmax(0, 1fr) 420px; min-height: 100vh; }
+  @media (max-width: 900px) { body { grid-template-columns: 1fr; } }
+  .stage { padding: 24px 16px; display: flex; flex-wrap: wrap; gap: 24px; justify-content: center; align-items: flex-start; }
+  .slot { width: var(--w, 380px); }
+  .slot small { display: block; color: #777; margin-bottom: 4px; }
+  aside { background: #1a1a1a; border-left: 1px solid #2a2a2a; padding: 16px; overflow: auto; max-height: 100vh; box-sizing: border-box; }
+  h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .08em; color: #888; margin: 18px 0 8px; }
+  h2:first-child { margin-top: 0; }
+  label { display: flex; align-items: center; gap: 8px; margin: 4px 0; }
+  input[type=number] { width: 80px; }
+  textarea { width: 100%; height: 180px; box-sizing: border-box; font: 12px ui-monospace, monospace; background: #0d0d0d; color: #cfc; border: 1px solid #333; }
+  button, select, input { font: inherit; }
+  .row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 4px 0; }
+  .entity { padding: 6px 0; border-bottom: 1px solid #262626; }
+  .entity code { color: #9cf; }
+  .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+  .stats div { background: #222; padding: 6px; border-radius: 6px; text-align: center; }
+  .stats b { display: block; font-size: 18px; color: #fff; }
+  .warn b { color: #ff6b6b; }
+  #log { font: 12px ui-monospace, monospace; background: #0d0d0d; border: 1px solid #333; height: 220px; overflow: auto; padding: 6px; white-space: pre-wrap; }
+  #log .err { color: #ff6b6b; } #log .ok { color: #7c7; } #log .info { color: #888; }
+  #configError { color: #ff6b6b; white-space: pre-wrap; }
+  .editor-slot { width: min(100%, 560px); background: #1a1a1a; border: 1px solid #2a2a2a; border-radius: 12px; padding: 12px 16px; box-sizing: border-box; }
+  .editor-slot small { display: block; color: #777; margin-bottom: 4px; }
+</style>
+
+<script>
+  // ---- Stubs de los componentes de HA que usa la tarjeta ----
+  // Son scripts "clásicos" (no module), así que se definen antes de que cargue la tarjeta.
+  const MDI_CSS = 'https://cdn.jsdelivr.net/npm/@mdi/font@7.4.47/css/materialdesignicons.min.css';
+
+  customElements.define('ha-icon', class extends HTMLElement {
+    static observedAttributes = ['icon'];
+    constructor() {
+      super();
+      this.attachShadow({ mode: 'open' }).innerHTML = `
+        <link rel="stylesheet" href="${MDI_CSS}">
+        <style>
+          :host { display: inline-flex; align-items: center; justify-content: center;
+                  width: var(--mdc-icon-size, 24px); height: var(--mdc-icon-size, 24px); }
+          i { font-size: var(--mdc-icon-size, 24px); line-height: 1; font-style: normal; }
+          i.txt { font: 700 9px system-ui; opacity: .85; }
+        </style><i></i>`;
+    }
+    attributeChangedCallback() {
+      window.__iconRenders = (window.__iconRenders || 0) + 1;
+      const [set, name = ''] = (this.getAttribute('icon') || '').split(':');
+      const i = this.shadowRoot.querySelector('i');
+      if (set === 'mdi') { i.className = `mdi mdi-${name}`; i.textContent = ''; }
+      else { i.className = 'txt'; i.textContent = name.slice(0, 5); }   // phu:, etc. no existen aquí
+    }
+  });
+
+  // ha-card vacío: la tarjeta le da todo su estilo (fondo, radio, sombra), igual que en HA.
+  customElements.define('ha-card', class extends HTMLElement {});
+</script>
+<!-- ha-form simulado: el editor visual lo usa (en HA es el real). -->
+<script src="ha-form-stub.js"></script>
+</head>
+<body>
+<main class="stage" id="stage"></main>
+
+<aside>
+  <h2>Contadores</h2>
+  <div class="stats" id="stats"></div>
+
+  <h2>Simulación</h2>
+  <label>Latencia de callService <input type="number" id="latency" value="300" min="0" step="100"> ms</label>
+  <label>Tiempo de arranque de la TV <input type="number" id="boot" value="2500" min="0" step="500"> ms</label>
+  <label><input type="checkbox" id="fail"> Las llamadas fallan</label>
+  <label><input type="checkbox" id="ignoreSource"> La TV ignora select_source (prueba el reintento)</label>
+  <label><input type="checkbox" id="noBoot"> La TV nunca enciende (prueba el aviso de WOL)</label>
+  <label><input type="checkbox" id="noise"> Ruido: otra entidad cambia cada 100 ms</label>
+  <label>Ancho de la tarjeta <input type="range" id="width" min="240" max="800" value="380"> <span id="widthOut">380px</span></label>
+  <label><input type="checkbox" id="twoCards"> Dos tarjetas (aislamiento entre instancias)</label>
+  <label>Estilo
+    <select id="style"><option value="">(el de la config)</option><option>relieve</option><option>halo</option><option>cristal</option></select>
+  </label>
+  <label>Tema
+    <select id="theme"><option value="">(el de la config)</option><option>light</option><option>dark</option><option>auto</option></select>
+  </label>
+  <label><input type="checkbox" id="haDark" checked> HA en modo oscuro (para theme: auto)</label>
+  <label><input type="checkbox" id="showEditor" checked> Mostrar el editor visual</label>
+
+  <h2>Entidades</h2>
+  <div id="entities"></div>
+
+  <h2>Config (JSON)</h2>
+  <div class="row">
+    <select id="preset"></select>
+    <button id="apply">Aplicar</button>
+  </div>
+  <textarea id="config" spellcheck="false"></textarea>
+  <div id="configError"></div>
+
+  <h2>Llamadas a HA <button id="clearLog">limpiar</button></h2>
+  <div id="log"></div>
+</aside>
+
+<script type="module">
+  // Import dinámico con ?t=…: así siempre se carga la versión recién guardada (sin caché).
+  const { CARD_VERSION } = await import(`../minimalist-tv-control-card.js?t=${Date.now()}`);
+
+  const $ = (id) => document.getElementById(id);
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+  // ------------------------------------------------------------------
+  // Estado falso de HA. Igual que HA: NUNCA se modifica un objeto de estado,
+  // siempre se crea uno nuevo (la tarjeta compara referencias).
+  // ------------------------------------------------------------------
+  const SOURCES_LG = ['HDMI 1', 'HDMI 2', 'HDMI 3', 'HDMI 4', 'Netflix', 'Disney+', 'YouTube', 'Prime Video', 'Apple TV', 'Roku OTT'];
+  let states = {};
+  const makeState = (entity_id, state, attributes = {}) =>
+    Object.freeze({ entity_id, state, attributes: Object.freeze({ ...attributes }), last_changed: new Date().toISOString() });
+
+  function setState(id, { state, attributes } = {}) {
+    const prev = states[id];
+    states = { ...states, [id]: makeState(id, state ?? prev?.state ?? 'off', { ...prev?.attributes, ...attributes }) };
+    pushHass();
+  }
+
+  function initStates() {
+    states = {};
+    const put = (id, state, attrs) => { states[id] = makeState(id, state, attrs); };
+    put('media_player.sala', 'on', { friendly_name: 'TV Sala', source: 'HDMI 1', source_list: SOURCES_LG });
+    put('media_player.recamara', 'off', { friendly_name: 'TV Recámara', source_list: SOURCES_LG });
+    put('media_player.roku_sala', 'on', { friendly_name: 'Roku Sala', source: 'Home', app_name: 'Home',
+      source_list: ['Home', 'Netflix', 'YouTube', 'Disney Plus', 'Fubo: Watch Live TV & Sports'] });
+    put('remote.roku_sala', 'on', {});
+    put('input_select.modo_tv', 'default', { options: ['default', 'menu', 'busqueda', 'audio', 'custom1'] });
+    put('sensor.ruido', '0', {});
+  }
+
+  // ------------------------------------------------------------------
+  // callService falso
+  // ------------------------------------------------------------------
+  const counters = { calls: 0, inflight: 0, maxInflight: 0, toggles: 0, errors: 0 };
+
+  async function callService(domain, service, data = {}) {
+    counters.calls++;
+    counters.inflight++;
+    counters.maxInflight = Math.max(counters.maxInflight, counters.inflight);
+    const t0 = performance.now();
+    log(`→ ${domain}.${service} ${JSON.stringify(data)}`, 'info');
+    try {
+      await sleep(Number($('latency').value));
+      if ($('fail').checked) {
+        counters.errors++;
+        log(`✗ ${domain}.${service}: fallo simulado`, 'err');
+        throw { code: 'simulated_error', message: 'Fallo simulado' };   // HA rechaza con un objeto así
+      }
+      simulate(domain, service, data);
+      log(`✓ ${domain}.${service} (${Math.round(performance.now() - t0)} ms)`, 'ok');
+    } finally {
+      counters.inflight--;
+    }
+  }
+
+  function simulate(domain, service, data) {
+    const id = data.entity_id;
+    if (domain !== 'media_player') return;
+    if (service === 'toggle') { counters.toggles++; log('⚠ se usó media_player.toggle (no debería pasar nunca)', 'err'); }
+    if (service === 'turn_on' && states[id]?.state !== 'on' && !$('noBoot').checked) {
+      setTimeout(() => setState(id, { state: 'on' }), Number($('boot').value));
+    }
+    if (service === 'turn_off') setState(id, { state: 'off' });
+    if (service === 'select_source') {
+      if ($('ignoreSource').checked) { log(`⚠ ${id} ignoró select_source`, 'err'); return; }
+      // Como en HA: el Roku publica también app_name; las TVs solo source.
+      setState(id, { attributes: id.includes('roku') ? { source: data.source, app_name: data.source } : { source: data.source } });
+    }
+  }
+
+  // ------------------------------------------------------------------
+  // hass + tarjetas
+  // ------------------------------------------------------------------
+  let cards = [];
+  function pushHass() {
+    const hass = { states, user: { id: 'dev', name: 'Dev' }, language: 'es', themes: { darkMode: $('haDark').checked }, callService };
+    for (const card of cards) card.hass = hass;
+    editor.hass = hass;
+    renderEntities();
+  }
+
+  function mountCards() {
+    const stage = $('stage');
+    stage.replaceChildren();
+    cards = [];
+    const count = $('twoCards').checked ? 2 : 1;
+    for (let i = 0; i < count; i++) {
+      const slot = document.createElement('div');
+      slot.className = 'slot';
+      slot.innerHTML = `<small>tarjeta ${i + 1} · v${CARD_VERSION}</small>`;
+      const card = document.createElement('tv-control-card');
+      slot.append(card);
+      stage.append(slot);
+      cards.push(card);
+    }
+    // El editor visual, como en "Editar tarjeta" de HA: cada cambio llega por
+    // config-changed, se refleja en el JSON y se aplica a las tarjetas.
+    const editorSlot = document.createElement('div');
+    editorSlot.className = 'editor-slot';
+    editorSlot.hidden = !$('showEditor').checked;
+    editorSlot.innerHTML = '<small>editor visual (ha-form simulado: el aspecto real es el de HA)</small>';
+    editorSlot.append(editor);
+    stage.append(editorSlot);
+    applyConfig();
+  }
+
+  const editor = document.createElement('tv-control-card-editor');
+  editor.addEventListener('config-changed', (e) => {
+    $('config').value = JSON.stringify(e.detail.config, null, 2);
+    applyConfig({ fromEditor: true });
+  });
+
+  function applyConfig({ fromEditor = false } = {}) {
+    $('configError').textContent = '';
+    try {
+      const config = JSON.parse($('config').value);
+      if (!fromEditor) editor.setConfig(structuredClone(config));
+      // Los selectores de Estilo y Tema pisan lo que diga la config (sin editar el JSON).
+      if ($('style').value) config.style = $('style').value;
+      if ($('theme').value) config.theme = $('theme').value;
+      for (const card of cards) card.setConfig(config);
+      pushHass();
+    } catch (err) {
+      $('configError').textContent = String(err.message ?? err);
+    }
+  }
+
+  // ------------------------------------------------------------------
+  // Configs de ejemplo
+  // ------------------------------------------------------------------
+  const PRESETS = {
+    'v4 · una LG con acentos': {
+      card_id: 'dev_lg',
+      tvs: [{ name: 'Sala', entity: 'media_player.sala', platform: 'lg' }],
+      modes: ['menu', 'busqueda', 'audio'],
+      streaming: [
+        { source: 'netflix', accent: '#e50914' },
+        { source: 'disney', accent: '#113ccf' },
+        { source: 'YouTube', accent: '#ff0000' },
+        { source: 'hdmi2' },
+      ],
+    },
+    'legacy · formato de producción, 2 TVs': {
+      card_id: 'dev_legacy',
+      colorMode: 'dark',
+      mode_slot_1: 'navegacion',
+      mode_slot_2: 'custom1',
+      mode_slot_3: 'audio',
+      custom1_label: 'Apps',
+      custom1_mode_icon: 'mdi:apps',
+      custom1_up_icon: 'mdi:netflix',
+      custom1_up_value: 'source:Netflix',
+      custom1_left_icon: 'mdi:hdmi-port',
+      custom1_left_value_lg: 'command:com.webos.surfacemanager/showInputPicker',
+      custom1_left_value_samsung: 'KEY_SOURCE',
+      custom1_right_icon: 'mdi:script-text',
+      custom1_right_value: 'script.no_existe',
+      custom1_down_icon: 'mdi:volume-off',
+      custom1_down_value: 'MUTE',
+      netflix_accent_color: '229, 9, 20',
+      tvs: [
+        { name: 'Sala', entity: 'media_player.sala', type: 'LG TV' },
+        { name: 'Recámara', entity: 'media_player.recamara', type: 'Samsung TV' },
+      ],
+    },
+    'v4 · multi-TV, Roku, light, overrides, input_select': {
+      card_id: 'dev_multi',
+      theme: 'light',
+      control_mode_entity: 'input_select.modo_tv',
+      modes: ['menu', 'busqueda', 'audio'],
+      streaming: [{ source: 'netflix', accent: '#e50914' }, { source: 'fubo' }, { source: 'roku' }, { source: 'hdmi2' }],
+      buttons: { menu: { icon: 'mdi:dialpad', action: 'numpad' } },
+      tvs: [
+        { name: 'Sala', entity: 'media_player.sala', platform: 'lg',
+          companion: { platform: 'roku', media_entity: 'media_player.roku_sala', remote_entity: 'remote.roku_sala' } },
+        { name: 'Recámara', entity: 'media_player.recamara', platform: 'samsung',
+          overrides: { modes: ['audio', 'custom1'], custom_modes: { custom1: { label: 'PIN', icon: 'mdi:dialpad',
+            up: { icon: 'mdi:numeric', action: { type: 'sequence', steps: ['1', '2', '3', '4'], delay: 300 } } } } } },
+        { name: 'Entidad que no existe', entity: 'media_player.fantasma', platform: 'lg' },
+      ],
+    },
+  };
+
+  const presetSelect = $('preset');
+  for (const name of Object.keys(PRESETS)) presetSelect.add(new Option(name, name));
+  presetSelect.addEventListener('change', () => { $('config').value = JSON.stringify(PRESETS[presetSelect.value], null, 2); applyConfig(); });
+  $('config').value = JSON.stringify(PRESETS[presetSelect.value], null, 2);
+  $('apply').addEventListener('click', applyConfig);
+
+  // ------------------------------------------------------------------
+  // Panel de entidades
+  // ------------------------------------------------------------------
+  function renderEntities() {
+    const box = $('entities');
+    const rows = Object.values(states).filter((s) => /^(media_player|input_select)\./.test(s.entity_id)).map((s) => {
+      const isSelect = s.entity_id.startsWith('input_select.');
+      const options = isSelect ? s.attributes.options : (s.attributes.source_list || []);
+      const stateBtns = isSelect ? '' : ['on', 'off', 'unavailable'].map((v) =>
+        `<button data-id="${s.entity_id}" data-state="${v}" ${s.state === v ? 'disabled' : ''}>${v}</button>`).join('');
+      const current = isSelect ? s.state : s.attributes.source;
+      const select = options.length
+        ? `<select data-id="${s.entity_id}" data-kind="${isSelect ? 'state' : 'source'}">${options.map((o) =>
+            `<option ${o === current ? 'selected' : ''}>${o}</option>`).join('')}</select>` : '';
+      return `<div class="entity"><code>${s.entity_id}</code> = <b>${s.state}</b>
+        ${s.attributes.source ? `· ${s.attributes.source}` : ''}<div class="row">${stateBtns}${select}</div></div>`;
+    });
+    box.innerHTML = rows.join('');
+  }
+  $('entities').addEventListener('click', (e) => {
+    const b = e.target.closest('button[data-state]');
+    if (b) setState(b.dataset.id, { state: b.dataset.state });
+  });
+  $('entities').addEventListener('change', (e) => {
+    const s = e.target.closest('select[data-id]');
+    if (!s) return;
+    if (s.dataset.kind === 'state') setState(s.dataset.id, { state: s.value });
+    else setState(s.dataset.id, { attributes: { source: s.value } });
+  });
+
+  // ------------------------------------------------------------------
+  // Controles
+  // ------------------------------------------------------------------
+  let noiseTimer = 0;
+  $('noise').addEventListener('change', (e) => {
+    clearInterval(noiseTimer);
+    if (e.target.checked) noiseTimer = setInterval(() => setState('sensor.ruido', { state: String(Date.now()) }), 100);
+  });
+  $('width').addEventListener('input', (e) => {
+    document.documentElement.style.setProperty('--w', `${e.target.value}px`);
+    $('widthOut').textContent = `${e.target.value}px`;
+  });
+  $('twoCards').addEventListener('change', mountCards);
+  $('style').addEventListener('change', applyConfig);
+  $('theme').addEventListener('change', applyConfig);
+  $('haDark').addEventListener('change', pushHass);
+  $('showEditor').addEventListener('change', () => { editor.parentElement.hidden = !$('showEditor').checked; });
+  // Fondo de la página según el tema, para ver la tarjeta como en un dashboard.
+  const syncPage = () => { document.body.style.background = ($('theme').value || '') === 'light' ? '#e6e9ee' : '#111'; };
+  $('theme').addEventListener('change', syncPage);
+  $('clearLog').addEventListener('click', () => { $('log').replaceChildren(); });
+
+  function log(text, kind) {
+    const line = document.createElement('div');
+    line.className = kind;
+    line.textContent = `${new Date().toLocaleTimeString()}  ${text}`;
+    $('log').prepend(line);
+    while ($('log').childElementCount > 300) $('log').lastChild.remove();
+  }
+
+  // Contadores: builds debe quedarse fijo; updates solo sube con cambios relevantes.
+  function renderStats() {
+    const c = cards[0];
+    const s = c?._stats ?? {};
+    const items = [
+      ['builds', s.builds], ['applies', s.applies], ['updates', s.updates],
+      ['llamadas', counters.calls], ['en vuelo', counters.inflight], ['máx. en vuelo', counters.maxInflight],
+      ['esperas', c?._waiters?.size ?? 0], ['errores', counters.errors], ['toggles', counters.toggles, counters.toggles > 0],
+    ];
+    $('stats').innerHTML = items.map(([k, v, bad]) => `<div class="${bad ? 'warn' : ''}"><b>${v ?? 0}</b>${k}</div>`).join('');
+  }
+  setInterval(renderStats, 250);
+
+  // Parámetros de URL para abrir un caso directo: ?preset=2&w=300&two=1
+  const params = new URLSearchParams(location.search);
+  const presetIndex = Number(params.get('preset'));
+  if (presetIndex >= 0 && presetIndex < presetSelect.options.length) {
+    presetSelect.selectedIndex = presetIndex;
+    $('config').value = JSON.stringify(PRESETS[presetSelect.value], null, 2);
+  }
+  if (params.has('w')) { $('width').value = params.get('w'); $('width').dispatchEvent(new Event('input')); }
+  if (params.get('two') === '1') $('twoCards').checked = true;
+  if (params.has('style')) $('style').value = params.get('style');
+  if (params.has('theme')) { $('theme').value = params.get('theme'); syncPage(); }
+
+  initStates();
+  mountCards();
+</script>
+</body>
+</html>

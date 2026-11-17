@@ -1,0 +1,508 @@
+<!doctype html>
+<!--
+  Paso 4.5: tres propuestas de rediseño para la tarjeta (mockups estáticos).
+  Abrir con el servidor del harness:  http://localhost:8000/dev/mockups/rediseno.html
+  El HTML de cada tarjeta es el MISMO; solo cambia el CSS de cada variante. Así la
+  elegida se traslada casi tal cual a §6.
+  Los íconos de Disney+ y Prime son aproximados (en HA vienen de custom-brand-icons).
+-->
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Rediseño · propuestas</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@mdi/font@7.4.47/css/materialdesignicons.min.css">
+<style>
+/* =========================================================================
+   Página de comparación (no es parte de la tarjeta)
+   ========================================================================= */
+:root { color-scheme: dark; --page: #101216; --page-ink: #c9ced6; --page-muted: #7d848e; --page-line: #262a31; }
+:root[data-page="light"] { color-scheme: light; --page: #eef0f3; --page-ink: #2a2f36; --page-muted: #6c737d; --page-line: #d7dbe0; }
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--page); color: var(--page-ink); font: 15px/1.45 Roboto, "Segoe UI", system-ui, sans-serif; }
+.controls {
+  position: sticky; top: 0; z-index: 10; display: flex; flex-wrap: wrap; gap: 10px 22px; align-items: center;
+  padding: 12px 20px; background: color-mix(in srgb, var(--page) 88%, transparent); backdrop-filter: blur(10px);
+  border-bottom: 1px solid var(--page-line);
+}
+.controls fieldset { border: 0; margin: 0; padding: 0; display: flex; gap: 4px; align-items: center; flex-wrap: wrap; }
+.controls legend { float: left; margin-right: 6px; color: var(--page-muted); font-size: 13px; }
+.controls button { font: inherit; font-size: 13px; padding: 5px 10px; border-radius: 8px; border: 1px solid var(--page-line); background: transparent; color: inherit; cursor: pointer; }
+.controls button[aria-pressed="true"] { background: var(--page-ink); color: var(--page); border-color: var(--page-ink); }
+.controls input[type=range] { width: 140px; }
+.stage { display: flex; flex-wrap: wrap; gap: 40px 32px; justify-content: center; padding: 32px 16px 64px; }
+.variant { width: var(--w, 380px); max-width: 100%; }
+.variant h2 { margin: 0 0 2px; font-size: 17px; font-weight: 600; }
+.variant p { margin: 0 0 14px; color: var(--page-muted); font-size: 13.5px; max-width: 46ch; }
+.frame { container-type: inline-size; }
+
+/* =========================================================================
+   Tarjeta: estructura común (las tres variantes la comparten)
+   ========================================================================= */
+.tv {
+  --accent: #dce6f5;            /* sin fuente: blanco 6500 K, como un bias light */
+  --accent-ink: #14171b;        /* texto/ícono sobre --accent */
+  position: relative; display: grid; gap: 18px; padding: 20px;
+  grid-template-areas: "head" "screen" "apps" "pad" "modes" "keys";
+  font-family: var(--ha-font-family-body, Roboto, "Segoe UI", system-ui, sans-serif);
+  -webkit-tap-highlight-color: transparent; user-select: none;
+}
+.tv button { appearance: none; border: 0; margin: 0; padding: 0; background: none; color: inherit; font: inherit; cursor: pointer; touch-action: manipulation; }
+.tv button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.tv .mdi { line-height: 1; display: block; }
+
+.tv-head { grid-area: head; display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 10px; }
+.tv-id { display: grid; justify-items: start; gap: 3px; min-width: 0; text-align: start; }
+.tv-name { display: flex; align-items: center; gap: 2px; font-size: 18px; font-weight: 600; letter-spacing: -0.01em; max-width: 100%; }
+.tv-name span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tv-name .mdi { font-size: 18px; opacity: .5; }
+.tv-status { display: flex; align-items: center; gap: 7px; font-size: 13.5px; min-width: 0; max-width: 100%; }
+.status-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.led { width: 7px; height: 7px; border-radius: 50%; flex: none; }
+
+.switch { display: grid; grid-template-columns: 1fr 1fr; font-size: 13px; font-weight: 500; }
+.switch button { padding: 0 12px; height: 34px; }
+.tv:not([data-has-roku="true"]) .switch { display: none; }
+.tv[data-has-roku="true"] .custom { display: none; }
+
+.screen { grid-area: screen; display: none; }
+.apps { grid-area: apps; display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+.app { display: grid; place-items: center; height: 52px; }
+.app .mdi { font-size: 28px; }
+.app .wm { font-size: 12.5px; font-weight: 700; letter-spacing: -0.01em; }
+
+.pad { grid-area: pad; position: relative; justify-self: center; width: min(100%, 272px); aspect-ratio: 1; border-radius: 50%; overflow: hidden; }
+.dir { position: absolute; inset: 0; display: flex; justify-content: center; align-items: center; }
+.dir .mdi { font-size: 26px; }
+.dir.up    { clip-path: polygon(0 0, 100% 0, 50% 50%);     align-items: flex-start; padding-top: 11%; }
+.dir.down  { clip-path: polygon(0 100%, 100% 100%, 50% 50%); align-items: flex-end;  padding-bottom: 11%; }
+.dir.left  { clip-path: polygon(0 0, 0 100%, 50% 50%);     justify-content: flex-start; padding-left: 11%; }
+.dir.right { clip-path: polygon(100% 0, 100% 100%, 50% 50%); justify-content: flex-end; padding-right: 11%; }
+.ok { position: absolute; inset: 31%; border-radius: 50%; display: grid; place-items: center; font-size: 15px; font-weight: 600; }
+
+.modes { grid-area: modes; display: grid; grid-template-columns: repeat(3, 1fr); }
+.mode { display: flex; align-items: center; justify-content: center; gap: 7px; height: 44px; font-size: 14px; font-weight: 500; min-width: 0; }
+.mode .mdi { font-size: 19px; }
+.mode span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.keys { grid-area: keys; display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+.key { display: grid; place-items: center; height: 48px; }
+.key .mdi { font-size: 24px; }
+
+/* Apagada / sin conexión: los controles se apagan, power queda como protagonista. */
+.tv:is([data-status="off"], [data-status="unavailable"]) :is(.apps, .pad, .modes, .keys) { opacity: .38; transition: opacity .5s; }
+
+/* Celular angosto: los modos solo con ícono. */
+@container (max-width: 340px) {
+  .tv { padding: 16px; gap: 14px; }
+  .mode span { display: none; }
+}
+/* Tablet de pared / columna ancha: dos columnas, el touchpad a la derecha. */
+@container (min-width: 600px) {
+  .tv {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); column-gap: 32px; align-items: center;
+    grid-template-areas: "head pad" "screen pad" "apps pad" "modes pad" "keys pad";
+    grid-template-rows: auto auto auto auto 1fr;
+  }
+  .pad { width: min(100%, 300px); align-self: center; }
+  .keys { align-self: end; }
+}
+@media (prefers-reduced-motion: reduce) { .tv * { transition: none !important; animation: none !important; } }
+
+/* =========================================================================
+   VARIANTE 1 · OBJETO
+   Un control maquinado: superficie con luz cenital, bordes de 1px que simulan
+   aristas, y el touchpad como bisel con 4 marcas que se encienden.
+   ========================================================================= */
+.v-objeto .tv {
+  --surface: #1c1e22; --surface-hi: #24272c; --key: #25282d; --ink: #edeff2; --ink-2: #959ca6;
+  --edge-hi: rgb(255 255 255 / .07); --edge-lo: rgb(0 0 0 / .45); --ring: #3b4048;
+  --led-on: #64e3a6; --led-off: #5e646d; --led-na: #e6b450;
+  border-radius: 28px; color: var(--ink);
+  background: linear-gradient(180deg, var(--surface-hi), var(--surface) 38%);
+  box-shadow: inset 0 1px 0 var(--edge-hi), 0 1px 2px rgb(0 0 0 / .4), 0 18px 40px -18px rgb(0 0 0 / .6);
+}
+.v-objeto .tv[data-theme="light"] {
+  --surface: #e4e7ea; --surface-hi: #f4f5f7; --key: #f7f8f9; --ink: #1d2126; --ink-2: #69707a;
+  --edge-hi: rgb(255 255 255 / .9); --edge-lo: rgb(30 40 55 / .16); --ring: #c2c7ce;
+  --led-on: #1f9d63; --led-off: #9aa1aa; --led-na: #b7791f;
+  box-shadow: inset 0 1px 0 var(--edge-hi), 0 1px 2px rgb(30 40 55 / .12), 0 18px 40px -20px rgb(30 40 55 / .35);
+}
+.v-objeto .tv[data-theme="light"]:not([data-accent]) { --accent: #1d2126; --accent-ink: #fff; }
+.v-objeto .led { background: var(--led-on); box-shadow: 0 0 8px var(--led-on); }
+.v-objeto .tv[data-status="off"] .led { background: var(--led-off); box-shadow: none; }
+.v-objeto .tv[data-status="unavailable"] .led { background: var(--led-na); box-shadow: none; }
+.v-objeto .tv[data-status="busy"] .led { animation: blink 1s steps(2) infinite; }
+.v-objeto .tv-status { color: var(--ink-2); }
+
+/* Teclas "maquinadas": arista clara arriba, sombra abajo. Sin sombras difusas. */
+.v-objeto :is(.power, .custom, .key, .app) {
+  background: var(--key); border-radius: 16px;
+  box-shadow: inset 0 1px 0 var(--edge-hi), 0 1px 0 var(--edge-lo), 0 2px 6px -2px var(--edge-lo);
+}
+.v-objeto :is(.power, .custom) { width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; font-size: 22px; }
+.v-objeto .tv[data-status="on"] .power { color: var(--led-on); }
+.v-objeto .tv:is([data-status="off"], [data-status="unavailable"]) .power { background: var(--ink); color: var(--surface); }
+.v-objeto .switch { background: var(--edge-lo); border-radius: 999px; padding: 3px; box-shadow: inset 0 1px 2px var(--edge-lo); }
+.v-objeto .switch button { border-radius: 999px; color: var(--ink-2); height: 32px; }
+.v-objeto .switch button[aria-pressed="true"] { background: var(--key); color: var(--ink); box-shadow: inset 0 1px 0 var(--edge-hi), 0 1px 3px var(--edge-lo); }
+.v-objeto .app { color: var(--ink-2); }
+.v-objeto .app.active { color: var(--ink); box-shadow: inset 0 0 0 1.5px var(--accent), 0 0 18px -6px var(--accent); }
+
+.v-objeto .pad {
+  background: radial-gradient(circle at 50% 35%, var(--surface-hi), var(--surface) 70%);
+  box-shadow: inset 0 0 0 1.5px var(--ring), inset 0 2px 10px var(--edge-lo), 0 1px 0 var(--edge-hi);
+}
+/* Las 4 marcas del bisel (como un reloj). */
+.v-objeto .pad::before {
+  content: ""; position: absolute; inset: 0; border-radius: 50%; pointer-events: none;
+  background:
+    linear-gradient(var(--ring), var(--ring)) 50% 3.5% / 2px 10px no-repeat,
+    linear-gradient(var(--ring), var(--ring)) 50% 96.5% / 2px 10px no-repeat,
+    linear-gradient(var(--ring), var(--ring)) 3.5% 50% / 10px 2px no-repeat,
+    linear-gradient(var(--ring), var(--ring)) 96.5% 50% / 10px 2px no-repeat;
+}
+.v-objeto .dir { color: var(--ink-2); transition: background .25s; }
+.v-objeto .dir::after { content: ""; position: absolute; background: var(--accent); border-radius: 2px; opacity: 0; transition: opacity .25s; box-shadow: 0 0 10px 1px var(--accent); }
+.v-objeto .dir.up::after    { top: 3.5%; left: calc(50% - 1px); width: 2px; height: 10px; }
+.v-objeto .dir.down::after  { bottom: 3.5%; left: calc(50% - 1px); width: 2px; height: 10px; }
+.v-objeto .dir.left::after  { left: 3.5%; top: calc(50% - 1px); width: 10px; height: 2px; }
+.v-objeto .dir.right::after { right: 3.5%; top: calc(50% - 1px); width: 10px; height: 2px; }
+.v-objeto .dir.pressed { color: var(--ink); }
+.v-objeto .dir.pressed::after { opacity: 1; }
+.v-objeto .dir.up.pressed    { background: radial-gradient(90% 55% at 50% 0%, color-mix(in srgb, var(--accent) 22%, transparent), transparent); }
+.v-objeto .dir.down.pressed  { background: radial-gradient(90% 55% at 50% 100%, color-mix(in srgb, var(--accent) 22%, transparent), transparent); }
+.v-objeto .dir.left.pressed  { background: radial-gradient(55% 90% at 0% 50%, color-mix(in srgb, var(--accent) 22%, transparent), transparent); }
+.v-objeto .dir.right.pressed { background: radial-gradient(55% 90% at 100% 50%, color-mix(in srgb, var(--accent) 22%, transparent), transparent); }
+.v-objeto .ok {
+  background: radial-gradient(circle at 50% 30%, var(--surface-hi), var(--key));
+  box-shadow: inset 0 1px 0 var(--edge-hi), 0 0 0 1px var(--edge-lo), 0 6px 14px -4px var(--edge-lo);
+  color: var(--ink-2);
+}
+.v-objeto .ok.pressed { box-shadow: inset 0 0 0 1.5px var(--accent), inset 0 2px 8px var(--edge-lo); color: var(--ink); }
+
+.v-objeto .modes { background: var(--edge-lo); border-radius: 16px; padding: 4px; box-shadow: inset 0 1px 2px var(--edge-lo); }
+.v-objeto .mode { border-radius: 12px; color: var(--ink-2); height: 40px; }
+.v-objeto .mode[aria-checked="true"] { background: var(--key); color: var(--ink); box-shadow: inset 0 1px 0 var(--edge-hi), 0 1px 3px var(--edge-lo); }
+.v-objeto .mode[aria-checked="true"] .mdi { color: var(--accent); }
+.v-objeto .tv[data-theme="light"]:not([data-accent]) .mode[aria-checked="true"] .mdi { color: var(--ink); }
+.v-objeto .key { color: var(--ink-2); }
+.v-objeto .key.pressed, .v-objeto .app.pressed { transform: translateY(1px); box-shadow: inset 0 1px 3px var(--edge-lo); }
+
+/* =========================================================================
+   VARIANTE 2 · AMBIENTE
+   La "pantalla" de arriba dice qué se está viendo, y el color de la app se
+   derrama detrás como el bias light de una TV real. Todo lo demás es callado.
+   ========================================================================= */
+.v-ambiente .tv {
+  --surface: #1e2024; --ink: #eef0f3; --ink-2: #8f96a0; --line: #2d3036; --glass: #050608;
+  border-radius: 26px; background: var(--surface); color: var(--ink);
+  box-shadow: 0 0 0 1px var(--line);
+}
+.v-ambiente .tv[data-theme="light"] { --surface: #ffffff; --ink: #1c2026; --ink-2: #6b727c; --line: #e3e6ea; box-shadow: 0 1px 2px rgb(20 30 45 / .06), 0 0 0 1px var(--line); }
+.v-ambiente .tv-status { display: none; }
+.v-ambiente :is(.power, .custom) { width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; font-size: 21px; color: var(--ink-2); box-shadow: inset 0 0 0 1px var(--line); }
+.v-ambiente .tv[data-status="on"] .power { color: var(--ink); }
+.v-ambiente .switch { box-shadow: inset 0 0 0 1px var(--line); border-radius: 999px; padding: 3px; }
+.v-ambiente .switch button { border-radius: 999px; height: 32px; color: var(--ink-2); }
+.v-ambiente .switch button[aria-pressed="true"] { background: var(--ink); color: var(--surface); }
+
+.v-ambiente .screen {
+  display: block; position: relative; isolation: isolate; margin: 2px 0 8px;
+}
+/* La luz detrás de la pantalla. Es el único efecto "decorativo" de esta variante,
+   y solo aparece cuando la TV está prendida: es información, no adorno. */
+.v-ambiente .screen::before {
+  content: ""; position: absolute; inset: 18% 6% -16%; z-index: -1; border-radius: 40%;
+  background: var(--accent); filter: blur(30px); opacity: .55; transition: opacity .8s ease, background-color .8s ease;
+}
+.v-ambiente .tv[data-theme="light"] .screen::before { opacity: .45; }
+.v-ambiente .tv:not([data-status="on"]) .screen::before { opacity: 0; }
+.v-ambiente .glass {
+  position: relative; display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 14px;
+  min-height: 104px; padding: 18px 20px; border-radius: 18px; color: #f3f5f8;
+  background: linear-gradient(160deg, #15171b, var(--glass) 55%);
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / .06), 0 1px 0 rgb(255 255 255 / .04);
+  overflow: hidden;
+}
+/* Reflejo del vidrio: una diagonal tenue. */
+.v-ambiente .glass::after { content: ""; position: absolute; inset: 0; background: linear-gradient(115deg, transparent 40%, rgb(255 255 255 / .05) 41%, transparent 62%); pointer-events: none; }
+.v-ambiente .now-icon { font-size: 34px; color: var(--accent); }
+.v-ambiente .now-icon .wm { font-size: 17px; font-weight: 800; }
+.v-ambiente .now-title { font-size: 22px; font-weight: 600; letter-spacing: -0.015em; line-height: 1.15; }
+.v-ambiente .now-sub { font-size: 13px; color: rgb(243 245 248 / .55); margin-top: 2px; }
+.v-ambiente .now-action { display: none; margin-top: 10px; justify-self: start; padding: 7px 14px; border-radius: 999px; background: #f3f5f8; color: #111; font-size: 13.5px; font-weight: 600; }
+.v-ambiente .tv:not([data-status="on"]) .now-icon { color: rgb(243 245 248 / .35); }
+.v-ambiente .tv[data-status="off"] .now-action { display: inline-flex; gap: 6px; align-items: center; }
+.v-ambiente .tv[data-status="busy"] .now-title { animation: pulse 1.4s ease-in-out infinite; }
+
+.v-ambiente .apps { gap: 4px; }
+.v-ambiente .app { color: var(--ink-2); border-radius: 14px; position: relative; }
+.v-ambiente .app.active { color: var(--ink); }
+.v-ambiente .app.active::after { content: ""; position: absolute; bottom: 4px; width: 18px; height: 3px; border-radius: 3px; background: var(--accent); }
+.v-ambiente .tv[data-theme="light"]:not([data-accent]) .app.active::after { background: var(--ink); }
+
+.v-ambiente .pad { box-shadow: inset 0 0 0 1px var(--line); background: radial-gradient(circle at 50% 0%, color-mix(in srgb, var(--accent) 7%, transparent), transparent 70%); }
+.v-ambiente .dir { color: var(--ink-2); transition: background .2s; }
+.v-ambiente .dir.pressed { background: color-mix(in srgb, var(--ink) 8%, transparent); color: var(--ink); }
+.v-ambiente .ok { box-shadow: inset 0 0 0 1px var(--line); background: var(--surface); color: var(--ink-2); }
+.v-ambiente .ok.pressed { background: color-mix(in srgb, var(--ink) 8%, var(--surface)); color: var(--ink); }
+.v-ambiente .modes { border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+.v-ambiente .mode { color: var(--ink-2); position: relative; height: 46px; }
+.v-ambiente .mode[aria-checked="true"] { color: var(--ink); }
+.v-ambiente .mode[aria-checked="true"]::after { content: ""; position: absolute; bottom: -1px; left: 22%; right: 22%; height: 2px; background: var(--ink); border-radius: 2px; }
+.v-ambiente .key { color: var(--ink-2); border-radius: 14px; }
+.v-ambiente .key.pressed, .v-ambiente .app.pressed { background: color-mix(in srgb, var(--ink) 7%, transparent); }
+
+/* =========================================================================
+   VARIANTE 3 · TECLAS
+   Teclas físicas con recorrido real. Los modos se quedan "enclavados" (hundidos)
+   como los botones de las TVs de antes. El OK toma el color de la fuente.
+   ========================================================================= */
+.v-teclas .tv {
+  --surface: #e9ebee; --cap: #fbfbfc; --cap-side: #cfd3d9; --ink: #1d2127; --ink-2: #6a717b; --well: #dadde2;
+  --led-on: #1f9d63; --led-off: #9aa1aa; --led-na: #b7791f;
+  border-radius: 24px; background: var(--surface); color: var(--ink);
+  box-shadow: inset 0 1px 0 #fff, 0 1px 2px rgb(20 30 45 / .1);
+}
+.v-teclas .tv[data-theme="dark"] {
+  --surface: #202328; --cap: #31353c; --cap-side: #15171a; --ink: #eceef1; --ink-2: #959ba5; --well: #181a1e;
+  --led-on: #64e3a6; --led-off: #5e646d; --led-na: #e6b450;
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / .05), 0 1px 2px rgb(0 0 0 / .4);
+}
+.v-teclas .tv:not([data-accent]) { --accent: var(--ink); --accent-ink: var(--surface); }
+.v-teclas .led { background: var(--led-on); }
+.v-teclas .tv[data-status="off"] .led { background: var(--led-off); }
+.v-teclas .tv[data-status="unavailable"] .led { background: var(--led-na); }
+.v-teclas .tv[data-status="busy"] .led { animation: blink 1s steps(2) infinite; }
+.v-teclas .tv-status { color: var(--ink-2); }
+
+/* La tecla: cara clara + lateral de 3px. Al presionar baja 3px (recorrido real). */
+.v-teclas :is(.power, .custom, .key, .app, .mode, .dir, .ok) {
+  background: var(--cap); border-radius: 12px; color: var(--ink-2);
+  box-shadow: 0 3px 0 var(--cap-side), 0 4px 8px -4px rgb(0 0 0 / .25);
+  transition: transform .06s, box-shadow .06s;
+}
+.v-teclas :is(.power, .custom, .key, .app, .mode, .dir, .ok):is(.pressed, [aria-checked="true"]) {
+  transform: translateY(3px); box-shadow: 0 0 0 var(--cap-side), inset 0 1px 3px rgb(0 0 0 / .12);
+}
+.v-teclas :is(.power, .custom) { width: 44px; height: 44px; display: grid; place-items: center; font-size: 22px; }
+.v-teclas .tv[data-status="on"] .power { color: var(--led-on); }
+.v-teclas .tv:is([data-status="off"], [data-status="unavailable"]) .power { background: var(--ink); color: var(--surface); box-shadow: 0 3px 0 color-mix(in srgb, var(--ink) 60%, #000); }
+.v-teclas .switch { gap: 6px; }
+.v-teclas .switch button { background: var(--cap); border-radius: 10px; color: var(--ink-2); box-shadow: 0 3px 0 var(--cap-side); height: 34px; }
+.v-teclas .switch button[aria-pressed="true"] { transform: translateY(3px); box-shadow: inset 0 1px 3px rgb(0 0 0 / .12); color: var(--ink); background: color-mix(in srgb, var(--cap) 70%, var(--well)); }
+.v-teclas .app.active { color: var(--ink); box-shadow: 0 3px 0 var(--cap-side), inset 0 0 0 2px var(--accent); }
+
+/* D-pad en cruz: 4 teclas + OK cuadrado, sin círculo. */
+.v-teclas .pad {
+  border-radius: 22px; padding: 10px; width: min(100%, 248px);
+  display: grid; grid-template: repeat(3, 1fr) / repeat(3, 1fr); gap: 8px;
+  background: var(--well); box-shadow: inset 0 2px 4px rgb(0 0 0 / .1);
+}
+.v-teclas .dir { position: static; clip-path: none; padding: 0; justify-content: center; align-items: center; }
+.v-teclas .dir.up { grid-area: 1 / 2; } .v-teclas .dir.left { grid-area: 2 / 1; }
+.v-teclas .dir.right { grid-area: 2 / 3; } .v-teclas .dir.down { grid-area: 3 / 2; }
+.v-teclas .ok { position: static; grid-area: 2 / 2; inset: auto; border-radius: 12px; background: var(--accent); color: var(--accent-ink); box-shadow: 0 3px 0 color-mix(in srgb, var(--accent) 55%, #000); }
+.v-teclas .ok.pressed { box-shadow: inset 0 1px 3px rgb(0 0 0 / .3); }
+/* Apagada: el OK deja de ser protagonista; el power toma ese lugar. */
+.v-teclas .tv:not([data-status="on"]) .ok { background: var(--cap); color: var(--ink-2); box-shadow: 0 3px 0 var(--cap-side); }
+.v-teclas .modes { gap: 8px; }
+.v-teclas .mode { height: 42px; }
+.v-teclas .mode[aria-checked="true"] { color: var(--ink); background: color-mix(in srgb, var(--cap) 70%, var(--well)); }
+.v-teclas .mode[aria-checked="true"] .mdi { color: var(--accent); }
+.v-teclas .tv:not([data-accent]) .mode[aria-checked="true"] .mdi { color: var(--ink); }
+
+@keyframes blink { 50% { opacity: .25; } }
+@keyframes pulse { 50% { opacity: .45; } }
+</style>
+</head>
+<body>
+
+<div class="controls">
+  <fieldset data-group="status"><legend>TV</legend>
+    <button data-value="netflix" aria-pressed="true">Netflix</button>
+    <button data-value="disney">Disney+</button>
+    <button data-value="hdmi">HDMI 1</button>
+    <button data-value="off">Apagada</button>
+    <button data-value="busy">Encendiendo</button>
+    <button data-value="unavailable">Sin conexión</button>
+  </fieldset>
+  <fieldset data-group="roku"><legend>Roku</legend>
+    <button data-value="none" aria-pressed="true">Sin Roku</button>
+    <button data-value="tv">Con Roku</button>
+  </fieldset>
+  <fieldset data-group="theme"><legend>Tema</legend>
+    <button data-value="dark" aria-pressed="true">Oscuro</button>
+    <button data-value="light">Claro</button>
+  </fieldset>
+  <fieldset data-group="width"><legend>Ancho</legend>
+    <button data-value="340">Celular chico</button>
+    <button data-value="390" aria-pressed="true">Celular</button>
+    <button data-value="640">Tablet</button>
+  </fieldset>
+</div>
+
+<main class="stage">
+  <section class="variant v-objeto">
+    <h2>1 · Objeto</h2>
+    <p>Un control maquinado. El touchpad es un bisel: la marca de cada dirección se enciende con el color de la app.</p>
+    <div class="frame"></div>
+  </section>
+  <section class="variant v-ambiente">
+    <h2>2 · Ambiente</h2>
+    <p>Una pantalla dice qué se está viendo y el color de la app se derrama detrás, como la luz de una TV real.</p>
+    <div class="frame"></div>
+  </section>
+  <section class="variant v-teclas">
+    <h2>3 · Teclas</h2>
+    <p>Teclas con recorrido real. Los modos se quedan hundidos mientras están activos y el OK toma el color de la app.</p>
+    <div class="frame"></div>
+  </section>
+</main>
+
+<template id="card">
+  <div class="tv">
+    <header class="tv-head">
+      <button class="tv-id" aria-haspopup="listbox">
+        <span class="tv-name"><span>Sala</span><i class="mdi mdi-chevron-down"></i></span>
+        <span class="tv-status"><i class="led"></i><span class="status-text"></span></span>
+      </button>
+      <div class="switch" role="group" aria-label="Controlar">
+        <button data-target="tv" aria-pressed="true">TV</button>
+        <button data-target="roku" aria-pressed="false">Roku</button>
+      </div>
+      <button class="custom" aria-label="Modo arte"><i class="mdi mdi-palette-outline"></i></button>
+      <button class="power" aria-label="Encender o apagar"><i class="mdi mdi-power"></i></button>
+    </header>
+
+    <div class="screen" aria-live="polite">
+      <div class="glass">
+        <div class="now-icon"></div>
+        <div>
+          <div class="now-title"></div>
+          <div class="now-sub"></div>
+          <button class="now-action"><i class="mdi mdi-power"></i>Encender</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="apps">
+      <button class="app" data-app="netflix" aria-label="Netflix"><i class="mdi mdi-netflix"></i></button>
+      <button class="app" data-app="disney" aria-label="Disney+"><span class="wm">Disney+</span></button>
+      <button class="app" data-app="youtube" aria-label="YouTube"><i class="mdi mdi-youtube"></i></button>
+      <button class="app" data-app="prime" aria-label="Prime Video"><span class="wm">prime</span></button>
+    </div>
+
+    <div class="pad">
+      <button class="dir up" aria-label="Arriba"><i class="mdi"></i></button>
+      <button class="dir left" aria-label="Izquierda"><i class="mdi"></i></button>
+      <button class="dir right" aria-label="Derecha"><i class="mdi"></i></button>
+      <button class="dir down" aria-label="Abajo"><i class="mdi"></i></button>
+      <button class="ok" aria-label="OK">OK</button>
+    </div>
+
+    <div class="modes" role="radiogroup" aria-label="Modo del touchpad">
+      <button class="mode" role="radio" data-mode="menu" aria-checked="false"><i class="mdi mdi-menu-open"></i><span>Menú</span></button>
+      <button class="mode" role="radio" data-mode="canales" aria-checked="false"><i class="mdi mdi-television-classic"></i><span>Canales</span></button>
+      <button class="mode" role="radio" data-mode="audio" aria-checked="false"><i class="mdi mdi-volume-high"></i><span>Audio</span></button>
+    </div>
+
+    <nav class="keys" aria-label="Teclas">
+      <button class="key" aria-label="Atrás"><i class="mdi mdi-undo-variant"></i></button>
+      <button class="key" aria-label="Inicio"><i class="mdi mdi-home-outline"></i></button>
+      <button class="key" aria-label="Salir"><i class="mdi mdi-exit-to-app"></i></button>
+      <button class="key" aria-label="Menú"><i class="mdi mdi-menu"></i></button>
+    </nav>
+  </div>
+</template>
+
+<script>
+  // Datos de ejemplo: qué muestra cada estado.
+  const SOURCES = {
+    netflix: { status: 'on', title: 'Netflix', app: 'netflix', icon: '<i class="mdi mdi-netflix"></i>', accent: '#e50914' },
+    disney:  { status: 'on', title: 'Disney+', app: 'disney', icon: '<span class="wm">D+</span>', accent: '#2f6bff' },
+    hdmi:    { status: 'on', title: 'HDMI 1', app: null, icon: '<i class="mdi mdi-hdmi-port"></i>', accent: null },
+    off:     { status: 'off', title: 'Apagada', app: null, icon: '<i class="mdi mdi-television-off"></i>', accent: null },
+    busy:    { status: 'busy', title: 'Encendiendo…', app: null, icon: '<i class="mdi mdi-television"></i>', accent: null },
+    unavailable: { status: 'unavailable', title: 'Sin conexión', sub: 'Revisa que la TV esté conectada a la red.', app: null, icon: '<i class="mdi mdi-wifi-off"></i>', accent: null },
+  };
+  const ROKU_ACCENT = '#7b3fe4';
+  const PADS = {
+    none:    ['mdi-chevron-up', 'mdi-chevron-left', 'mdi-chevron-right', 'mdi-chevron-down'],
+    menu:    ['mdi-home-outline', 'mdi-menu', 'mdi-exit-to-app', 'mdi-undo-variant'],
+    canales: ['mdi-plus', 'mdi-hdmi-port', 'mdi-format-list-numbered', 'mdi-minus'],
+    audio:   ['mdi-volume-plus', 'mdi-volume-off', 'mdi-surround-sound', 'mdi-volume-minus'],
+  };
+  const state = { status: 'netflix', roku: 'none', rokuActive: false, theme: 'dark', width: 390, mode: 'none' };
+
+  // Montar una tarjeta por variante.
+  const tpl = document.getElementById('card');
+  for (const frame of document.querySelectorAll('.frame')) frame.append(tpl.content.cloneNode(true));
+  const cards = [...document.querySelectorAll('.tv')];
+
+  function render() {
+    const src = SOURCES[state.status];
+    const hasRoku = state.roku !== 'none';
+    const roku = hasRoku && state.rokuActive;
+    const accent = src.accent ?? (roku && src.status === 'on' ? ROKU_ACCENT : null);
+    document.documentElement.dataset.page = state.theme;
+    document.documentElement.style.setProperty('--w', `${state.width}px`);
+    for (const tv of cards) {
+      tv.dataset.status = src.status;
+      tv.dataset.theme = state.theme;
+      tv.dataset.hasRoku = String(hasRoku);
+      tv.dataset.mode = state.mode;
+      if (accent) { tv.dataset.accent = ''; tv.style.setProperty('--accent', accent); tv.style.setProperty('--accent-ink', '#fff'); }
+      else { delete tv.dataset.accent; tv.style.removeProperty('--accent'); tv.style.removeProperty('--accent-ink'); }
+      const statusText = roku && src.status === 'on' ? `${src.title} en Roku` : src.title;
+      tv.querySelector('.status-text').textContent = statusText;
+      tv.querySelector('.now-icon').innerHTML = src.icon;
+      tv.querySelector('.now-title').textContent = src.title;
+      tv.querySelector('.now-sub').textContent = src.sub ?? (src.status === 'on' ? (roku ? 'En el Roku' : 'En la TV') : src.status === 'off' ? '' : 'Sala');
+      for (const b of tv.querySelectorAll('.switch button')) b.setAttribute('aria-pressed', String((b.dataset.target === 'roku') === roku));
+      for (const a of tv.querySelectorAll('.app')) a.classList.toggle('active', a.dataset.app === src.app);
+      for (const m of tv.querySelectorAll('.mode')) m.setAttribute('aria-checked', String(m.dataset.mode === state.mode));
+      PADS[state.mode].forEach((icon, i) => { tv.querySelectorAll('.dir .mdi')[i].className = `mdi ${icon}`; });
+    }
+  }
+
+  // Controles de la página
+  document.querySelector('.controls').addEventListener('click', (e) => {
+    const b = e.target.closest('button[data-value]');
+    if (!b) return;
+    const group = b.closest('fieldset').dataset.group;
+    for (const x of b.parentElement.querySelectorAll('button')) x.setAttribute('aria-pressed', String(x === b));
+    if (group === 'width') state.width = Number(b.dataset.value);
+    else state[group] = b.dataset.value;
+    render();
+  });
+
+  // Interacción dentro de las tarjetas (solo visual)
+  document.querySelector('.stage').addEventListener('click', (e) => {
+    const mode = e.target.closest('.mode');
+    if (mode) { state.mode = state.mode === mode.dataset.mode ? 'none' : mode.dataset.mode; render(); }
+    const sw = e.target.closest('.switch button');
+    if (sw) { state.rokuActive = sw.dataset.target === 'roku'; render(); }
+  });
+  const pressables = '.dir, .ok, .key, .app, .power, .custom';
+  document.addEventListener('pointerdown', (e) => e.target.closest(pressables)?.classList.add('pressed'));
+  for (const type of ['pointerup', 'pointercancel', 'pointerleave']) {
+    document.addEventListener(type, () => document.querySelectorAll('.pressed').forEach((el) => el.classList.remove('pressed')), true);
+  }
+
+  // ?status=off&theme=light&width=640&roku=tv&rokuActive=1&mode=audio&press=up  (para capturas)
+  const params = new URLSearchParams(location.search);
+  for (const k of ['status', 'theme', 'roku', 'mode']) if (params.has(k)) state[k] = params.get(k);
+  if (params.has('width')) state.width = Number(params.get('width'));
+  if (params.get('rokuActive') === '1') state.rokuActive = true;
+  // Reflejar en la barra lo que vino por URL.
+  for (const fs of document.querySelectorAll('.controls fieldset')) {
+    const v = String(state[fs.dataset.group]);
+    for (const x of fs.querySelectorAll('button')) x.setAttribute('aria-pressed', String(x.dataset.value === v));
+  }
+  render();
+  if (params.has('press')) document.querySelectorAll(`.dir.${params.get('press')}, .ok`).forEach((el) => el.classList.toggle('pressed', el.classList.contains(params.get('press'))));
+</script>
+</body>
+</html>
