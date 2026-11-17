@@ -7,15 +7,15 @@ Esta guía explica, pieza por pieza, el código de tu tarjeta. Está pensada par
 en orden, pero cada parte se entiende por separado. Todos los fragmentos de código
 salen del archivo real; al lado de cada uno se indica de dónde vienen:
 
-- **v4** = el archivo actual en la rama `refactor/v4` (secciones §1 a §5).
+- **v4** = el archivo actual en la rama `refactor/v4` (secciones §1 a §7).
 - **v3 (producción)** = la versión que tienen hoy los clientes, commit `dce0f18`.
   La puedes ver con:
   ```bash
   git -C /home/ian/HAdesigns/TV-Control-Card show dce0f18:minimalist-tv-control-card.js | less
   ```
-  La usamos para estudiar HTML, CSS y eventos, porque la parte visual de la v4
-  todavía no existe. También la usamos para ver **qué está mal** y cómo lo va a
-  resolver la v4.
+  La usamos para comparar: ver **qué estaba mal** en producción y cómo lo resuelve
+  la v4. Algunas secciones de HTML, CSS y eventos (4 a 6) usan ejemplos de la v3
+  porque muestran justamente el problema; la solución real está en 3.6 y 3.7.
 
 ## Índice
 
@@ -125,7 +125,7 @@ declare: HA simplemente llama a esos nombres y, si existen, los usa.
 | `connectedCallback()` | El navegador, al insertar el elemento en la página | Arrancar cosas que necesitan estar en pantalla. |
 | `disconnectedCallback()` | El navegador, al quitarlo de la página (cambias de vista, cierras el editor) | Limpiar: timers, listeners en `document`, holds en curso. |
 | `getCardSize()` | HA (vista Masonry) | Devolver la altura aproximada en "unidades" de unos 50 px. |
-| `getGridOptions()` | HA (vista Sections) | Devolver filas/columnas que ocupa. La v3 no lo tiene; la v4 lo agregará. |
+| `getGridOptions()` | HA (vista Sections) | Devolver filas/columnas que ocupa. La v3 no lo tiene; la v4 devuelve `{ columns: 6, min_columns: 4 }`. |
 | `static getConfigElement()` | HA, al abrir el editor visual | Devolver el elemento del editor. |
 | `static getStubConfig()` | HA, al agregar la tarjeta desde la UI | Devolver una config de ejemplo. |
 
@@ -243,7 +243,8 @@ this.querySelector('#card-id-input').addEventListener('change', (e) => {
 
 Lee esto así: "cuando el `<input>` cambie, crea una config nueva igual a la anterior
 pero con `card_id` actualizado, y anúnciala". Los `...` (spread) y `CustomEvent` se
-explican más adelante (2.6 y 6.5).
+explican más adelante (2.7 y 6.5). El editor de la v4 hace lo mismo, pero arma la
+config nueva con funciones puras y no rehace el formulario en cada tecla (3.7).
 
 ---
 
@@ -625,7 +626,7 @@ nunca intenta leer `action.type` de `null`).
 
 ```js
 // v4 §1
-const HOLDABLE_KEYS = new Set(['up', 'down', 'left', 'right', 'vol_up', 'vol_down', 'ch_up', 'ch_down']);
+const HOLDABLE_KEYS = new Set(['up', 'down', 'left', 'right']);
 
 const CODE_TO_KEY = (() => {
   const map = new Map();
@@ -1092,8 +1093,8 @@ holdTimeout = setTimeout(() => {
 
 # 3. Recorrido por la v4, sección por sección
 
-El archivo de la v4 está dividido en secciones numeradas. Hoy existen §1 a §5; la
-tarjeta visual (§6) y el editor (§7) vienen después.
+El archivo de la v4 está dividido en siete secciones numeradas: §1 a §5 son la
+lógica (3.1 a 3.5), §6 es la tarjeta visual (3.6) y §7 el editor (3.7).
 
 ```text
  YAML del usuario
@@ -1141,15 +1142,16 @@ const KEYS = {
 Después vienen los dígitos (generados con un `for`, ver 2.1) y dos `Set`:
 
 ```js
-const HOLDABLE_KEYS = new Set(['up', 'down', 'left', 'right', 'vol_up', 'vol_down', 'ch_up', 'ch_down']);
+const HOLDABLE_KEYS = new Set(['up', 'down', 'left', 'right']);
 const TV_ONLY_KEYS  = new Set(['vol_up', 'vol_down', 'mute']);
 ```
 
-- `HOLDABLE_KEYS`: las únicas teclas que se repiten al mantener presionado. Un
-  script, una fuente o un `command` se mandan **una sola vez** por toque. Esto es
-  parte del arreglo del bug B1 (hold infinito).
-- `TV_ONLY_KEYS`: aunque el Roku esté activo, el volumen va a la TV. Todavía no se
-  usa en §1-§5; lo usará la tarjeta (§6) para elegir el `device`.
+- `HOLDABLE_KEYS`: las únicas teclas que se repiten al mantener presionado: solo
+  las flechas, igual que producción. Volumen, canal, scripts, fuentes y `command` se
+  mandan **una sola vez** por toque. Esto es parte del arreglo del bug B1 (hold
+  infinito).
+- `TV_ONLY_KEYS`: aunque el Roku esté activo, el volumen va a la TV. Lo usa
+  `routeAction` (§6) para elegir el `device`.
 
 Y el índice inverso `CODE_TO_KEY` (explicado en 2.9), que permite que un YAML viejo
 con `'VOLUMEUP'` o `'KEY_VOLUP'` se entienda como `vol_up`.
@@ -1350,7 +1352,7 @@ Supón un YAML viejo de un cliente con una Samsung y un custom mode con
       └─ devuelve { type: 'key', key: 'vol_up' }
 
 3. El usuario toca la flecha de arriba en el modo custom1.
-   La tarjeta (§6, futura) llama:
+   La tarjeta (§6) llama:
       executeAction(hass, { type:'key', key:'vol_up' },
                     { platform: 'samsung', entity: 'media_player.samsung' })
 
@@ -1416,7 +1418,7 @@ repo v3.x o la variante "v3 multientidad").
 }
 ```
 
-La tarjeta (§6) **solo leerá este modelo**; nunca vuelve a mirar las claves crudas
+La tarjeta (§6) **solo lee este modelo**; nunca vuelve a mirar las claves crudas
 del YAML. Toda la "arqueología" de formatos viejos queda encerrada en §5.
 
 ### Catálogos
@@ -1575,57 +1577,642 @@ Ideas a notar:
   `entity`). Todo lo demás se resuelve con valores por defecto y un aviso en
   `warnings`. HA mostrará los errores como tarjeta roja.
 
-## 3.6 Lo que viene: §6 y §7 según el plan
+## 3.6 §6 La tarjeta
 
-Esto todavía **no existe** en el archivo. Los fragmentos de esta sección son bocetos
-para entender la idea, no el código final.
+§6 es la parte que **se ve**: la clase `TvControlCard`, que HA convierte en la etiqueta
+`<tv-control-card>`. Todo lo de §1 a §5 son herramientas; §6 las usa.
 
-### `_build` / `_update` en lugar de `render()` completo
+### Importar el archivo en Node sin romperlo
 
 ```js
-// BOCETO (no es el código real)
-setConfig(raw) {
-  this._model = normalizeConfig(raw);     // lanza Error si es inválida → tarjeta roja
-  this._built = false;
-  if (this.isConnected) this._build();
+// v4, §6
+const BaseElement = globalThis.HTMLElement ?? class {};
+
+class TvControlCard extends BaseElement { ... }
+```
+
+En el navegador existe `HTMLElement`; en Node no. `globalThis` es "el objeto global",
+sea cual sea el entorno (`window` en el navegador, `global` en Node). Si
+`HTMLElement` no existe, `??` usa una clase vacía (`class {}`), y la línea
+`class TvControlCard extends ...` ya no truena. Las pruebas no crean tarjetas; solo
+necesitan que el archivo se pueda importar para usar las funciones puras.
+
+El registro al final del archivo se protege igual:
+
+```js
+if (globalThis.customElements && !customElements.get(CARD_TAG)) {
+  customElements.define(CARD_TAG, TvControlCard);
+  ...
+}
+```
+
+La segunda condición evita un error si HA carga el archivo dos veces (por ejemplo con
+`?v=1` y `?v=2`): llamar `define` dos veces con el mismo nombre lanza una excepción.
+
+### El nombre de la etiqueta: `?tag=`
+
+```js
+const CARD_TAG = (() => {
+  try {
+    const tag = new URL(import.meta.url).searchParams.get('tag');
+    return tag && /^[a-z][a-z0-9]*(-[a-z0-9]+)+$/.test(tag) ? tag : DEFAULT_CARD_TAG;
+  } catch {
+    return DEFAULT_CARD_TAG;
+  }
+})();
+```
+
+- `import.meta.url` es la URL con la que se cargó **este** archivo, por ejemplo
+  `http://ha.local:8123/local/tv-card-v4.js?tag=tv-control-card-v4&v=3`.
+- `new URL(...)` la separa en partes; `searchParams.get('tag')` lee lo que va después
+  de `tag=`.
+- La regex exige un nombre válido para un custom element (minúsculas y al menos un
+  guion). Si no lo es, se usa el nombre normal.
+- Todo está dentro de una IIFE (2.6) con `try/catch`: en Node o en un entorno raro,
+  si algo falla, se usa el nombre por defecto.
+
+Así dos versiones conviven en el mismo HA: cada una registra un nombre distinto.
+
+### El constructor: estado inicial y listeners
+
+```js
+constructor() {
+  super();
+  this._model = null;              // salida de normalizeConfig (congelada)
+  this._hass = null;
+  this._ui = { tvIndex: 0, mode: null, roku: false, numpad: false };  // estado PROPIO de la tarjeta
+  this._refs = null;               // nodos creados en _build
+  ...
+  this.attachShadow({ mode: 'open' });
+  adoptStyles(this.shadowRoot);
+  const root = this.shadowRoot;
+  root.addEventListener('click', (e) => this._onClick(e));
+  root.addEventListener('pointerdown', (e) => this._onPointerDown(e));
+  for (const type of ['pointerup', 'pointercancel', 'lostpointercapture']) {
+    root.addEventListener(type, () => this._stopHold());
+  }
+  ...
+}
+```
+
+- `super()` llama al constructor de `HTMLElement`. En una clase que hereda, es
+  obligatorio llamarlo antes de usar `this`.
+- Las propiedades que empiezan con `_` son "privadas por convención": JS no lo
+  impide, pero el guion bajo avisa "no lo toques desde fuera".
+- `this._ui` es **todo** el estado que la tarjeta decide por sí misma: qué TV, qué
+  modo, si está en modo Roku y si el numpad está abierto. Lo demás (si la TV está
+  encendida, qué app tiene) viene de `hass`.
+- Los listeners se registran **una sola vez**, aquí. Más abajo verás por qué basta.
+
+### `setConfig` y `set hass`
+
+```js
+setConfig(config) {
+  const model = normalizeConfig(config);   // si lanza Error, HA muestra la tarjeta roja
+  if (model.warnings.length) console.warn(`[${CARD_TAG}] ${model.cardId}:`, model.warnings);
+  this._stopHold();
+  this._model = model;
+  this._ui = { tvIndex: 0, mode: null, roku: false, numpad: false };
+  this._refs = null;               // fuerza _build en el próximo render
+  ...
+  this._schedule();
 }
 
 set hass(hass) {
   this._hass = hass;
-  const sig = this._signature(hass);      // string con SOLO lo que me importa
-  if (sig === this._lastSig) return;      // nada mío cambió: no tocar nada
-  this._lastSig = sig;
-  this._update();                         // parchar clases, textos y variables CSS
+  if (!this._model) return;
+  this._restoreTv();
+  this._waiters.check(hass);
+  this._syncModeEntity(hass);
+  if (this._watchedChanged(hass)) this._schedule();
 }
 ```
 
-- `_build()` crea el DOM **una vez**.
-- `_update()` solo cambia lo necesario: una clase, un texto, unas variables CSS.
-- La **firma** (`_signature`) es, por ejemplo, un string con el `state` y la
-  `source` de la TV activa y del companion. Si es igual a la anterior, no se hace
-  nada. Esto también arregla el bug B5 (la v3 no miraba la entidad del Roku).
-
-### Hold con `async`/`await` en lugar de `setInterval`
+HA llama `set hass` **cada vez que cambia cualquier entidad** de la casa: un sensor de
+temperatura, una luz, lo que sea. Puede ser varias veces por segundo. Por eso lo
+importante es la última línea: solo se repinta si cambió algo que le importa a la
+tarjeta.
 
 ```js
-// BOCETO (no es el código real)
-async _runHold(action, device, token) {
-  for (let n = 0; n < 40; n++) {                 // límite de seguridad
-    if (token.cancelled) return;
-    await executeAction(this._hass, action, device);   // espera a HA
-    if (token.cancelled) return;
-    await delay(250);
+_watchedEntities() {
+  const tv = this._tv;
+  return [tv.entity, tv.companion?.entity, this._model.controlModeEntity].filter(Boolean);
+}
+
+_watchedChanged(hass) {
+  const next = this._watchedEntities().map((id) => hass.states[id]);
+  next.push(this._model.theme === 'auto' ? !!hass.themes?.darkMode : null);
+  const changed = next.length !== this._watched.length || next.some((st, i) => st !== this._watched[i]);
+  this._watched = next;
+  return changed;
+}
+```
+
+- `.filter(Boolean)` quita los `undefined` y `null` (una TV sin Roku no tiene
+  `companion.entity`). `Boolean` usado como función devuelve `true` o `false` según el
+  valor sea truthy o falsy.
+- **El truco:** HA nunca modifica un objeto de estado; cuando una entidad cambia, crea
+  un objeto **nuevo**. Entonces `st !== this._watched[i]` (¿es otro objeto?) basta
+  para saber si cambió, sin comparar campo por campo. Es una comparación de
+  referencias: rapidísima.
+- `next.some(...)` devuelve `true` si **al menos uno** cumple la condición.
+
+### `_schedule`: un render por frame
+
+```js
+_schedule() {
+  if (this._frame || !this.isConnected) return;
+  this._frame = requestAnimationFrame(() => {
+    this._frame = 0;
+    this._render();
+  });
+}
+```
+
+`requestAnimationFrame(fn)` le pide al navegador: "ejecuta `fn` justo antes de dibujar
+el próximo cuadro" (unas 60 veces por segundo). Si en ese lapso llegan cinco cambios,
+los cinco llaman `_schedule`, pero solo el primero agenda: los demás ven que
+`this._frame` ya tiene un número y salen. Resultado: un solo render por cuadro.
+
+`this.isConnected` es `true` si el elemento está en la página. Si no lo está, no tiene
+sentido pintar.
+
+### `_build`: crear el DOM una vez
+
+```js
+_build() {
+  const fragment = cloneSkeleton();
+  const refs = {};
+  for (const el of fragment.querySelectorAll('[data-ref]')) refs[el.dataset.ref] = el;
+  refs.pad = {};
+  for (const el of fragment.querySelectorAll('[data-act="pad"]')) refs.pad[el.dataset.dir] = el;
+  ...
+  this.shadowRoot.querySelector('ha-card')?.remove();
+  this.shadowRoot.append(fragment);
+  this._refs = refs;
+}
+```
+
+- `SKELETON` es un string de HTML **fijo**: no contiene nada del YAML del usuario.
+  `cloneSkeleton()` lo convierte en un `<template>` la primera vez y después solo lo
+  **clona** (`cloneNode(true)`), que es más rápido que volver a leer el texto.
+- `querySelectorAll('[data-ref]')` busca todos los elementos que tienen el atributo
+  `data-ref`. Por ejemplo `<span data-ref="state">` termina en `refs.state`. Así
+  `_update` encuentra cada nodo directamente, sin buscarlo cada vez.
+- `el.dataset.ref` lee el atributo `data-ref` (4.2).
+
+Como el HTML no tiene datos del usuario, nunca hay que "escapar" nada: los nombres de
+las TVs se ponen después con `textContent`, que muestra el texto tal cual y nunca lo
+interpreta como HTML.
+
+### `_update`: parchar, no reconstruir
+
+```js
+_update() {
+  ...
+  const status = tvStatus(st);
+  card.dataset.style = this._model.style;
+  card.dataset.theme = this._theme;
+  card.dataset.status = status;
+  card.dataset.mode = this._ui.mode ?? 'default';
+  ...
+  const locked = status !== 'on';
+  if (locked && this._hold) this._stopHold();
+  for (const el of [...Object.values(refs.pad), ...Object.values(refs.bottom), ...refs.modes.children]) {
+    if (el.disabled !== locked) el.disabled = locked;
+  }
+  ...
+  setText(refs.state, now.title);
+  setVar(card, '--tv-accent', now.accent);
+}
+```
+
+`_update` no crea elementos: cambia **atributos**, **textos** y **variables CSS** de
+los que ya existen. Tres ideas:
+
+1. **JS dice qué pasa; CSS decide cómo se ve.** `card.dataset.status = 'off'` escribe
+   `data-status="off"` en el HTML, y el CSS tiene reglas como
+   `.card[data-status="off"] .ok::before { opacity: 1 }`. JS nunca escribe un color.
+2. **Idempotente:** calcula todo desde el estado actual. Llamarlo una o diez veces da
+   el mismo resultado. Por eso el bug del "tema pegado" de la v3 ya no puede pasar:
+   no hay un "estado anterior" que se olvide de limpiar.
+3. **`disabled` bloquea de verdad.** Un `<button disabled>` no recibe clics, no se
+   puede enfocar con el teclado y los lectores de pantalla lo anuncian como no
+   disponible. `[...a, ...b, ...c]` junta tres listas en una (spread, 2.7), y
+   `Object.values(obj)` da los valores de un objeto como lista.
+
+`setText`, `setAttr` y `setVar` son ayudantes que **solo escriben si el valor
+cambió**: escribir el mismo texto otra vez no cambia nada visible, pero obliga al
+navegador a revisar la página de nuevo.
+
+### Delegación de eventos, en la versión real
+
+```js
+_onClick(e) {
+  const el = e.target.closest?.('[data-act]');
+  if (!el || !this._model || !this._refs) return;
+  ...
+  if (el.disabled) return;   // bloqueado (TV apagada)
+  switch (el.dataset.act) {
+    case 'center':   return this._onCenter();
+    case 'pad':
+    case 'bottom':   return this._press(this._actionFor(el));
+    case 'power':    return this._power();
+    case 'stream':   return this._stream(Number(el.dataset.index));
+    case 'mode':     return this._toggleMode(el.dataset.id);
+    ...
   }
 }
 ```
 
-Diferencias con la v3:
+Es la idea de 6.4 hecha realidad. Cada botón dice qué es con `data-act` (y a veces
+`data-dir`, `data-id` o `data-index`). Un solo listener en el `shadowRoot` recibe
+todos los clics, sube con `closest` hasta el botón y decide con un `switch`.
 
-| v3 (`setInterval`, 200 ms) | v4 (ciclo `async`, ~250 ms) |
-|---|---|
-| Dispara aunque HA no haya contestado: los comandos se acumulan. | La siguiente repetición sale solo después de que terminó la anterior. |
-| Sin límite: si nadie llama `clearInterval`, sigue para siempre. | Máximo ~40 repeticiones pase lo que pase. |
-| Se detiene solo con `pointerup`/`pointerleave` sobre el nodo original. | Se detiene con `pointerup`, `pointercancel`, `lostpointercapture`, `visibilitychange`, `disconnectedCallback`, o cambio de TV/modo. |
+`?.` en `e.target.closest?.(...)` protege por si el target no es un elemento (por
+ejemplo un nodo de texto): si `closest` no existe, la expresión da `undefined` en vez
+de tronar.
+
+`Number(el.dataset.index)` convierte el texto `"2"` en el número `2`: los atributos
+`data-*` siempre son strings.
+
+### El hold, en la versión real
+
+```js
+async _startHold(el, action, pointerId) {
+  this._stopHold();
+  const device = this._route(action);
+  const hold = { el, pointerId, active: true };
+  this._hold = hold;
+  el.classList.add('pressed');
+  try { el.setPointerCapture(pointerId); } catch { /* sin captura */ }
+
+  const { holdDelay, holdInterval, holdMaxRepeats } = this._timing;
+  try {
+    await executeAction(this._hass, action, device);
+    await delay(holdDelay);
+    for (let i = 0; i < holdMaxRepeats && hold.active; i++) {
+      const started = performance.now();
+      await executeAction(this._hass, action, device);
+      const rest = holdInterval - (performance.now() - started);
+      if (rest > 0 && hold.active) await delay(rest);
+    }
+  } catch (err) {
+    this._showError(err);
+  } finally {
+    if (this._hold === hold) this._stopHold();
+  }
+}
+
+_stopHold() {
+  const hold = this._hold;
+  if (!hold) return;
+  hold.active = false;
+  this._hold = null;
+  hold.el.classList.remove('pressed');
+  ...
+}
+```
+
+Léelo como una receta:
+
+1. Manda la tecla una vez, **espera** a que HA conteste (`await`).
+2. Espera `holdDelay` (400 ms). Si el dedo ya se levantó, `hold.active` es `false` y
+   el `for` ni empieza.
+3. Repite: manda, espera la respuesta y, si sobró tiempo para completar 250 ms, espera
+   lo que falta. `performance.now()` da los milisegundos desde que abrió la página;
+   la resta mide cuánto tardó HA.
+4. Se detiene si `hold.active` pasa a `false` o si llega a 40 repeticiones.
+
+**Para detenerlo no hay que "cancelar" nada:** `_stopHold` solo pone
+`hold.active = false`, y el bucle lo ve en su siguiente vuelta. No hay un timer
+suelto que pueda quedar huérfano, que era el problema de la v3 (4.6).
+
+`finally` se ejecuta siempre al salir del `try`, haya error o no. La condición
+`this._hold === hold` evita apagar un hold **nuevo**: si el usuario ya empezó otro,
+`this._hold` apunta a otro objeto y este bucle viejo no lo toca.
+
+`const { holdDelay, holdInterval, holdMaxRepeats } = this._timing;` es destructuring
+(2.7): saca tres propiedades del objeto en tres variables.
+
+### Esperar a que HA confirme: `StateWaiters`
+
+Encender la TV no es instantáneo: se manda `turn_on` y, segundos después, HA reporta
+`state: 'on'`. La v3 esperaba un tiempo fijo y revisaba una vez. La v4 **espera el
+aviso**:
+
+```js
+wait(hass, entityId, predicate, timeoutMs) {
+  const test = (h) => { const st = h?.states?.[entityId]; try { return !!st && !!predicate(st); } catch { return false; } };
+  if (test(hass)) return Promise.resolve(true);
+
+  return new Promise((resolve) => {
+    const waiter = {
+      test,
+      finish: (ok) => {
+        clearTimeout(waiter.timer);
+        this._pending.delete(waiter);
+        resolve(ok);
+      },
+    };
+    waiter.timer = setTimeout(() => waiter.finish(false), timeoutMs);
+    this._pending.add(waiter);
+  });
+}
+
+check(hass) {
+  for (const waiter of [...this._pending]) {
+    if (waiter.test(hass)) waiter.finish(true);
+  }
+}
+```
+
+- `new Promise((resolve) => { ... })` crea una Promise que termina **cuando nosotros
+  llamemos `resolve`**. Aquí `resolve` se guarda dentro de `waiter.finish` para
+  llamarlo después.
+- Cada `set hass` llama `check(hass)`: si la condición ya se cumple, `finish(true)`.
+- Si pasa el tiempo límite, el `setTimeout` llama `finish(false)`.
+- `predicate` es una función que recibe el estado y dice si ya está como queremos,
+  por ejemplo `(s) => s.state === 'on'`.
+
+Quien la usa lo lee casi como texto:
+
+```js
+const ok = await this._waitFor(tv.entity, (s) => tvStatus(s) === 'on', 20000);
+if (!ok) this._toast('La TV no confirmó el encendido.');
+```
+
+### Encender sin apagar nunca
+
+```js
+async _turnOn() {
+  const tv = this._tv;
+  if (this._busy.has(tv.entity)) return;
+  if (tvStatus(this._hass?.states?.[tv.entity]) === 'on') return;
+  ...
+  if (!(await this._ensureOn(tv))) this._toast(...);
+}
+```
+
+`tvStatus` reduce el estado de HA a tres valores: `'on'`, `'off'` y `'unavailable'`.
+La diferencia con la v3 es que `unavailable` **no** es "apagada": la tarjeta no sabe
+cómo está la TV. Por eso ningún flujo usa `media_player.toggle` (que en ese caso podía
+apagarla): se llama `turn_on` o `turn_off` explícitamente, y `_turnOn` sale sin hacer
+nada si la TV ya está encendida.
+
+`this._busy` es un `Map` (2.9) de entidad → texto ("Encendiendo…"). Mientras hay una
+entrada, más toques se ignoran.
+
+### Closures en un flujo largo: `_stream`
+
+```js
+async _stream(index) {
+  const tv = this._tv;                    // se captura AHORA
+  const slot = tv.settings.streaming[index];
+  ...
+  await this._ensureOn(tv);
+  ...
+  ok = await this._selectSourceConfirmed(tvDevice, source.alternates ?? [source.service]);
+}
+```
+
+Abrir Netflix con la TV apagada puede tardar 20 segundos. Si en ese tiempo el usuario
+cambia a otra TV en el selector, `this._tv` ya es otra. Pero la variable local `tv`
+se guardó al empezar, y cada `await` "pausa" la función conservando sus variables
+(2.15). El flujo termina con la TV correcta.
+
+### Funciones flecha como propiedades de clase
+
+```js
+_onOutsidePointer = (e) => {
+  const path = e.composedPath();
+  if (!path.includes(this._refs?.picker) && !path.includes(this._refs?.status)) this._togglePicker(false);
+};
+```
+
+Esta sintaxis (`nombre = () => {...}` dentro de la clase) crea una propiedad por
+tarjeta cuyo valor es una arrow function. Dos ventajas:
+
+- Una arrow function no tiene `this` propio (2.10): usa el de la tarjeta, aunque el
+  navegador la llame desde `document`.
+- La referencia es siempre la misma, así que `removeEventListener('pointerdown',
+  this._onOutsidePointer, true)` encuentra exactamente la que se registró. Con
+  `this._metodo.bind(this)` cada llamada crearía una función nueva, y quitarla
+  fallaría en silencio.
+
+`e.composedPath()` es la lista de elementos por los que pasó el evento, **incluidos**
+los que están dentro del shadow root. `e.target` no sirve desde `document`, por el
+retargeting (6.3).
+
+### `localStorage` con red de seguridad
+
+```js
+const storage = {
+  get(key) {
+    try { return globalThis.localStorage?.getItem(key) ?? null; } catch { return null; }
+  },
+  set(key, value) {
+    try { globalThis.localStorage?.setItem(key, String(value)); } catch { /* sin storage */ }
+  },
+};
+```
+
+`localStorage` guarda texto en el navegador y sobrevive a recargas. La tarjeta lo usa
+para recordar qué TV eligió cada usuario. Pero en modo privado o en algunas apps puede
+lanzar una excepción, y una excepción no atrapada rompería la tarjeta. Con
+`try/catch`, en el peor caso la tarjeta simplemente no recuerda la TV.
+
+`catch { ... }` sin paréntesis es válido: se usa cuando no necesitas el objeto del
+error.
+
+## 3.7 §7 El editor
+
+El editor es lo que aparece al tocar **Editar tarjeta**. Lo usan solo los
+programadores de ExtraIoT, así que busca ser claro, no bonito. Tiene una regla:
+
+> **Lo que está en el YAML se muestra. Lo que no, aparece como "+ Agregar…" o
+> "Personalizar".** El editor nunca escribe valores por defecto.
+
+### Dos mitades: lógica pura y DOM delgado
+
+Igual que la tarjeta, el editor separa el **qué** del **cómo**:
+
+```text
+ config ──► buildEditorView(config, ctx) ──► lista de "nodos"
+                                                │
+                     TvControlCardEditor._reconcile(nodos) ──► <ha-form>, botones, títulos
+                                                │
+        el usuario cambia algo ──► applyFormChange / applyOp ──► config NUEVA
+                                                │
+                              evento config-changed ──► HA guarda y llama setConfig
+```
+
+`buildEditorView`, `applyFormChange` y `applyOp` son funciones puras: reciben la
+config y devuelven datos. Por eso `test/editor.test.mjs` las prueba sin navegador.
+
+### Los nodos
+
+`buildEditorView` no crea elementos: devuelve una lista de objetos simples que
+**describen** lo que hay que mostrar.
+
+```js
+{ kind: 'heading', key: 'tvs', depth: 0, level: 1, text: 'Televisores' }
+{ kind: 'form', key: 'tv0.f', depth: 1, path: ['tvs', 0], schema: [...], data: { name: 'Sala', ... } }
+{ kind: 'buttons', key: 'tv0.add', depth: 1, items: [{ label: '+ Roku conectado', op: { op: 'set', path: ['tvs', 0, 'companion'], value: {} } }] }
+```
+
+- `kind` dice qué es: título, formulario, fila de botones, nota o aviso.
+- `key` es un nombre **único y estable**: el mismo nodo tiene la misma `key` en cada
+  render. Lo usa `_reconcile`.
+- `path` dice dónde vive ese pedazo dentro de la config: `['tvs', 0]` es
+  `config.tvs[0]`.
+- `schema` es lo que entiende `<ha-form>`, el formulario de HA: una lista de campos
+  con su tipo (`selector: { entity: {...} }`, `selector: { select: {...} }`…).
+- Un botón lleva una **operación** (`op`) que dice qué cambiar si lo tocan.
+
+Que "+ Roku conectado" aparezca o no es una simple condición:
+
+```js
+if (t.companion === undefined) adds.push({ label: '+ Roku conectado', op: { op: 'set', path: ['tvs', i, 'companion'], value: {} } });
+```
+
+Si la TV no tiene `companion` en el YAML, se ofrece el botón; al tocarlo se escribe
+`companion: {}` y, en el siguiente render, aparece su formulario.
+
+### Nunca modificar la config original
+
+HA le pasa al editor una config **congelada** (`Object.freeze`): intentar cambiarla
+lanza un error. Además, HA detecta los cambios comparando referencias, igual que la
+tarjeta con `hass`. Por eso cada cambio produce un objeto **nuevo**:
+
+```js
+function setPath(obj, path, value) {
+  if (path.length === 0) return value;
+  const [k, ...rest] = path;
+  const base = Array.isArray(obj) ? [...obj] : isPlainObject(obj) ? { ...obj } : (typeof k === 'number' ? [] : {});
+  const next = setPath(base[k], rest, value);
+  if (next === undefined) {
+    if (Array.isArray(base)) base.splice(k, 1);
+    else delete base[k];
+  } else {
+    base[k] = next;
+  }
+  return base;
+}
+```
+
+- Es **recursiva**: se llama a sí misma con el resto del camino. Para
+  `setPath(config, ['tvs', 0, 'name'], 'Sala')`: copia `config`, dentro copia
+  `config.tvs`, dentro copia `config.tvs[0]` y ahí escribe `name`.
+- Solo se copian los objetos **del camino**. Todo lo demás se comparte con la config
+  vieja, así que es barato.
+- `const [k, ...rest] = path;` separa el primer elemento del resto (destructuring con
+  rest, 2.7).
+- Con `value === undefined` borra la clave. `deletePath` además quita los objetos que
+  quedan vacíos hacia arriba, para que el YAML no se llene de `{}`.
+
+`applyOp` usa estas piezas para cada operación de los botones:
+
+```js
+switch (op.op) {
+  case 'set':    return setPath(config, op.path, clone(op.value));
+  case 'delete': return deletePath(config, op.path);
+  case 'move': {
+    const arr = [...(getPath(config, op.path) ?? [])];
+    const j = op.index + op.delta;
+    if (j < 0 || j >= arr.length) return config;
+    [arr[op.index], arr[j]] = [arr[j], arr[op.index]];   // intercambio con destructuring
+    return setPath(config, op.path, arr);
+  }
+  case 'convert': return serializeV4(rawConfig);
+  ...
+}
+```
+
+`[a, b] = [b, a]` intercambia dos valores sin variable auxiliar.
+
+### Reutilizar elementos por `key` (y no perder el foco)
+
+El editor viejo rehacía todo con `innerHTML` en cada tecla: el campo donde escribías
+se destruía y el cursor se perdía. El nuevo **reutiliza**:
+
+```js
+_reconcile(nodes) {
+  const keep = new Set();
+  nodes.forEach((node, i) => {
+    let el = this._els.get(node.key);
+    if (!el || el._kind !== node.kind) {
+      el = this._create(node);
+      this._els.set(node.key, el);
+    }
+    keep.add(node.key);
+    this._fill(el, node);
+    if (this._root.children[i] !== el) this._root.insertBefore(el, this._root.children[i] ?? null);
+  });
+  for (const [key, el] of this._els) {
+    if (!keep.has(key)) { el.remove(); this._els.delete(key); }
+  }
+}
+```
+
+1. `this._els` es un `Map` de `key` → elemento.
+2. Para cada nodo: si ya hay un elemento con esa `key`, se reutiliza; si no, se crea.
+3. `_fill` le pasa los datos nuevos. A un `<ha-form>` existente solo se le cambia
+   `.data`, y él actualiza sus campos sin destruirlos: el foco se queda donde estaba.
+4. `insertBefore` lo pone en su posición si no estaba ahí.
+5. Al final se quitan los elementos cuyas `key` ya no aparecen (por ejemplo, el
+   formulario del Roku después de tocar ✕).
+
+Lit, en la Fase 3, hace esto mismo automáticamente.
+
+### Avisar a HA: `config-changed`
+
+```js
+_commit(next) {
+  if (sameJson(next, this._config)) { this._render(); return; }
+  this._config = next;
+  this.dispatchEvent(new CustomEvent('config-changed', { detail: { config: next }, bubbles: true, composed: true }));
+  this._render();
+}
+```
+
+El editor no guarda nada por sí mismo: anuncia "esta es la config nueva" con un
+evento (6.5). `bubbles: true` y `composed: true` hacen que el evento suba y salga del
+shadow root hasta donde HA lo escucha. HA guarda, actualiza la vista previa y vuelve a
+llamar `setConfig` del editor.
+
+Los `<ha-form>` también disparan su propio evento (`value-changed`). El editor lo
+detiene con `e.stopPropagation()`: si siguiera subiendo, HA lo confundiría con un
+cambio del editor completo.
+
+### Convertir un YAML viejo: `serializeV4`
+
+Cuando la config tiene formato viejo, el editor solo muestra un aviso y el botón
+**Convertir a formato v4**. Ese botón aplica `serializeV4(raw)`:
+
+1. `normalizeConfig(raw)` entiende el formato viejo y produce el modelo (§5).
+2. `serializeV4` recorre el modelo y escribe el YAML v4 **mínimo**: omite todo lo que
+   ya es el valor por defecto.
+
+¿Cómo saber que la conversión no cambia nada? Con una prueba de ida y vuelta:
+
+```js
+// test/editor.test.mjs
+function assertSameBehavior(raw) {
+  const a = normalizeConfig(raw);
+  const v4 = serializeV4(raw);
+  const b = normalizeConfig(v4);
+  assert.equal(b.format, 'v4');
+  assert.deepEqual(JSON.parse(JSON.stringify(b.tvs)), JSON.parse(JSON.stringify(a.tvs)));
+  ...
+  assert.deepEqual(serializeV4(v4), v4, 'convertir dos veces da lo mismo');
+}
+```
+
+Si el modelo que sale del YAML convertido es igual al del original, la tarjeta se
+comporta igual. `JSON.parse(JSON.stringify(x))` hace una copia "plana" para comparar
+solo los datos. La última línea revisa que convertir un YAML que ya es v4 no lo cambie. La prueba corre también con los configs reales de clientes (los
+fixtures privados de 7.4).
 
 ---
 
@@ -1677,8 +2264,14 @@ const index = parseInt(item.dataset.index);
 - El valor **siempre es string**. Por eso `parseInt(...)` para convertir a número.
   (Mejor `parseInt(x, 10)` o `Number(x)`, para no depender de la base por defecto.)
 
-En la v4, `data-*` es la base de la delegación de eventos (sección 6.4):
-`data-action="power"`, `data-zone="top|bottom"` (bug B4), `data-dir="up"`.
+En la v4, `data-*` es la base de la delegación de eventos (sección 6.4): cada botón
+lleva `data-act` (qué es: `power`, `pad`, `bottom`, `stream`…) y, si hace falta, un
+dato extra (`data-dir="up"`, `data-id="exit"`, `data-index="2"`). El EXIT de arriba
+y el de abajo ya no comparten clase: uno es `data-act="top_left"` y el otro
+`data-act="bottom" data-id="exit"` (bug B4).
+
+También van en el contenedor `.card` para que el CSS reaccione al estado:
+`data-status="off"`, `data-style="halo"`, `data-theme="light"` (ver `_update` en 3.6).
 
 ## 4.3 Custom elements y Shadow DOM
 
@@ -2050,6 +2643,11 @@ Las **container queries** preguntan por el ancho del **contenedor**:
 - `clamp(mínimo, ideal, máximo)` limita un valor entre dos extremos.
 - `aspect-ratio: 1` mantiene la proporción sin fijar el alto.
 
+La v4 pone `container-type: inline-size` en `<ha-card>` y usa tres puntos de corte:
+hasta 340 px los modos muestran solo el ícono; desde 600 px la tarjeta pasa a dos
+columnas con el touchpad a la derecha (tablet de pared); desde 860 px el touchpad
+crece.
+
 ## 5.8 Transforms, transitions y keyframes
 
 ```css
@@ -2099,15 +2697,24 @@ card-mod.
 ## 5.10 `adoptedStyleSheets`
 
 En lugar de un `<style>` dentro del `innerHTML` (que se vuelve a parsear en cada
-render y se duplica en cada tarjeta), el plan usa una hoja compartida:
+render y se duplica en cada tarjeta), la v4 usa una hoja compartida:
 
 ```js
-// BOCETO
-const SHEET = new CSSStyleSheet();
-SHEET.replaceSync(`:host { display: block; } ...`);   // se parsea UNA vez por página
-
-// en el constructor de cada tarjeta:
-this.attachShadow({ mode: 'open' }).adoptedStyleSheets = [SHEET];
+// v4, §6
+function adoptStyles(root) {
+  const supported = 'adoptedStyleSheets' in Document.prototype && 'replaceSync' in CSSStyleSheet.prototype;
+  if (supported) {
+    if (!sharedSheet) {
+      sharedSheet = new CSSStyleSheet();
+      sharedSheet.replaceSync(CARD_CSS);   // se parsea UNA vez por página
+    }
+    root.adoptedStyleSheets = [sharedSheet];
+  } else {
+    const style = document.createElement('style');   // respaldo para navegadores viejos
+    style.textContent = CARD_CSS;
+    root.append(style);
+  }
+}
 ```
 
 Diez tarjetas en el dashboard comparten **un solo** objeto de estilos, parseado una
@@ -2153,15 +2760,14 @@ En la v3, el hold escucha `pointerdown`, `pointerup` y `pointerleave`, pero **no
 `pointercancel`. En un celular, si el navegador interpreta el gesto como scroll,
 manda `pointercancel` y nunca llega `pointerup`: el hold no se detiene.
 
-La v4 usará **captura de puntero**:
+La v4 usa **captura de puntero** (en `_startHold`, 3.6):
 
 ```js
-// BOCETO
-onPointerDown(e) {
-  e.target.setPointerCapture(e.pointerId);  // todos los eventos de ESTE dedo vienen a mí
-  ...
-}
+// v4, §6
+try { el.setPointerCapture(pointerId); } catch { /* sin captura */ }   // todos los eventos de ESTE dedo vienen a mí
 ```
+
+Y además escucha `pointercancel` y `lostpointercapture`, no solo `pointerup`.
 
 Con la captura, aunque el dedo se deslice fuera del sector, el `pointerup` llega al
 mismo elemento. Y en CSS, `touch-action: none` sobre el touchpad le dice al
@@ -2215,20 +2821,22 @@ listener se agrega a `document` en **cada** render (el plan lo señala).
 ## 6.4 Delegación de eventos
 
 La v3 registra un listener por botón, en cada render (`listenerPower`,
-`listenerExit`, `listenerStreaming`...). La v4 usará **delegación**: un solo listener
+`listenerExit`, `listenerStreaming`...). La v4 usa **delegación**: un solo listener
 por tipo de evento en el shadow root, que mira en qué botón cayó el clic:
 
 ```js
-// BOCETO
-this.shadowRoot.addEventListener('click', (e) => {
-  const btn = e.target.closest('[data-action]');   // sube hasta el primer ancestro con data-action
-  if (!btn) return;                                 // clic fuera de un botón
-  this._handleAction(btn.dataset.action, btn.dataset.zone);
-});
+// v4, §6 (constructor y _onClick, simplificado)
+this.shadowRoot.addEventListener('click', (e) => this._onClick(e));
+
+_onClick(e) {
+  const el = e.target.closest?.('[data-act]');   // sube hasta el primer ancestro con data-act
+  if (!el) return;                                // clic fuera de un botón
+  switch (el.dataset.act) { ... }
+}
 ```
 
 - Funciona porque `click` burbujea: un clic en el `<ha-icon>` sube hasta el shadow
-  root, pasando por el `<div data-action="power">`.
+  root, pasando por el `<button data-act="power">`.
 - Dentro del shadow root no hay retargeting: `e.target` es el elemento real (o el
   `ha-icon`, que es el host de su propio shadow root).
 - `element.closest(selector)` busca hacia arriba (incluido el propio elemento) el
@@ -2386,23 +2994,32 @@ fallaría: los 4 pasos saldrían juntos, `executeAction` terminaría sin esperar
 
 ## 7.4 Fixtures privados y pruebas que se saltan
 
-`test/config.test.mjs` prueba `normalizeConfig` con YAML reales de clientes (en
-JSON), guardados en `test/fixtures/private/`, carpeta que está en `.gitignore`:
+Los YAML reales de clientes (en JSON) se guardan en `test/fixtures/private/`, carpeta
+que está en `.gitignore`. Ahí mismo viven las pruebas que mencionan sus entidades y
+scripts (`clientes.test.mjs`), para que ningún dato de un cliente llegue al repo.
+
+Las pruebas públicas (`test/editor.test.mjs`) usan esos archivos **sin nombrarlos**:
 
 ```js
-function privateFixture(name) {
-  const url = new URL(`./fixtures/private/${name}.json`, import.meta.url);
-  return existsSync(url) ? JSON.parse(readFileSync(url, 'utf8')) : null;
+const PRIVATE_DIR = new URL('./fixtures/private/', import.meta.url);
+function privateFixtures() {
+  if (!existsSync(PRIVATE_DIR)) return [];
+  return readdirSync(PRIVATE_DIR).filter((f) => f.endsWith('.json'))
+    .map((f) => ({ name: f.slice(0, -5), config: JSON.parse(readFileSync(new URL(f, PRIVATE_DIR), 'utf8')) }));
 }
 
-test('...', { skip: !fixture && 'fixture privado no disponible' }, () => { ... });
+for (const { name, config } of privateFixtures()) {
+  test(`conversión: config real "${name}" (fixture privado)`, () => assertSameBehavior(config));
+}
 ```
 
 - `import.meta.url` es la URL del archivo de prueba actual; `new URL(ruta, base)`
   resuelve la ruta relativa a ese archivo, sin importar desde qué carpeta corras Node.
-- `readFileSync` lee el archivo como texto y `JSON.parse` lo convierte en objeto.
-- La opción `skip` de `test` marca la prueba como saltada (con ese motivo) cuando el
-  fixture no existe, por ejemplo en GitHub, donde esos archivos no se suben.
+- `readdirSync` lista los archivos de la carpeta; `readFileSync` lee uno como texto
+  y `JSON.parse` lo convierte en objeto.
+- Si la carpeta no existe (por ejemplo en un clon desde GitHub), la lista sale vacía y
+  esas pruebas simplemente no se crean. Otra opción es `test(nombre, { skip: motivo },
+  fn)`, que marca una prueba como saltada.
 
 ## 7.5 Cómo correrlas
 
@@ -2423,12 +3040,13 @@ versión 21; tienes la 22.
 La salida usa el formato TAP: `ok 1 - nombre` si pasa, `not ok 1 - nombre` con el
 detalle del `assert` si falla, y un resumen al final (`# pass 31`, `# fail 0`).
 
-Una advertencia para cuando exista §6: la tarjeta hará
-`class TVControlCard extends HTMLElement` y `customElements.define(...)`. En Node no
-existen `HTMLElement` ni `customElements`, así que importar el archivo desde las
-pruebas fallaría con `ReferenceError: HTMLElement is not defined`. Habrá que
-proteger esa parte (por ejemplo, `if (typeof HTMLElement !== 'undefined') { ... }`)
-o separarla en otro archivo.
+`npm test` también corre las pruebas privadas de `test/fixtures/private/` (el patrón
+`**` entra a subcarpetas); `node --test test/*.test.mjs` corre solo las públicas.
+
+¿Cómo se importa en Node un archivo que define un custom element, si Node no tiene
+`HTMLElement` ni `customElements`? Con las dos protecciones de 3.6:
+`globalThis.HTMLElement ?? class {}` y el `if (globalThis.customElements ...)` antes
+de `define`.
 
 ---
 
@@ -2506,8 +3124,16 @@ console.log(parseAction('KEY_RETURN'));
    fila, con áreas `back home exit menu`.
 10. ¿Por qué `this.style.setProperty('--x', 'red;')` no cambia nada?
 11. ¿Qué devuelve `normalizeConfig({ entity: 'media_player.tv', mode_slot_1: 'navegacion' }).tvs[0].settings.modes`?
-12. En la delegación de eventos (6.4), ¿por qué se usa `e.target.closest('[data-action]')`
-    en vez de `e.target.dataset.action`?
+12. En la delegación de eventos (6.4), ¿por qué se usa `e.target.closest('[data-act]')`
+    en vez de `e.target.dataset.act`?
+13. (3.6) Llegan 3 updates de `hass` en el mismo cuadro, y en los 3 cambió la TV. ¿Cuántas
+    veces corre `_update`? ¿Y si los 3 updates fueran de un sensor de temperatura?
+14. (3.6) En `_startHold`, ¿qué pasaría si la condición del `for` fuera solo
+    `i < holdMaxRepeats` (sin `&& hold.active`)?
+15. (3.6) ¿Por qué `_turnOn` revisa `tvStatus(...) === 'on'` y sale, en lugar de llamar
+    `turn_off`? ¿Qué bug de la v3 evita?
+16. (3.7) `setPath({ a: { b: 1 }, c: { d: 2 } }, ['a', 'b'], 5)` devuelve un objeto
+    nuevo. ¿El `c` del resultado es el **mismo** objeto que el `c` original (`===`)?
 
 ## 8.3 Respuestas cortas
 
@@ -2516,8 +3142,8 @@ console.log(parseAction('KEY_RETURN'));
    `null` (se aplica `trim()` y se compara en minúsculas); una `sequence` con
    `digit_1` y `digit_2` y `delay: 400`.
 2. `remote.send_command` con `{ entity_id: 'remote.roku', command: 'volume_mute' }`.
-   (En la tarjeta real, `mute` está en `TV_ONLY_KEYS` y se mandará a la TV, no al
-   Roku; `executeAction` no decide eso, solo ejecuta sobre el `device` que recibe.)
+   (En la tarjeta real, `mute` está en `TV_ONLY_KEYS` y `routeAction` lo manda a la TV,
+   no al Roku; `executeAction` no decide eso, solo ejecuta sobre el `device` que recibe.)
 3. Porque `roku` tiene como prototipo a `PLATFORM_DEFAULTS`, donde está `turnOn`.
    Usaría `device.entity`, o sea `media_player.roku`.
 4. Hoy no cambiaría nada: comprobé con Node que ningún código de `CODE_TO_KEY`
@@ -2552,4 +3178,15 @@ console.log(parseAction('KEY_RETURN'));
 11. `['menu', 'busqueda', 'audio']`: `navegacion` se convierte en `menu` por
     `MODE_ALIASES` y los otros dos slots toman sus valores por defecto.
 12. Porque el clic suele caer en un hijo (por ejemplo, el `<ha-icon>`), que no tiene
-    `data-action`. `closest` sube hasta encontrar el botón que sí lo tiene.
+    `data-act`. `closest` sube hasta encontrar el botón que sí lo tiene.
+13. Una vez: los 3 llaman `_schedule`, pero solo el primero agenda el
+    `requestAnimationFrame`. Con el sensor, ninguna: `_watchedChanged` ve que los
+    objetos de la TV, el Roku y la entidad de modo son los mismos y no agenda nada.
+14. Soltar el dedo ya no detendría la repetición: seguiría mandando la tecla hasta
+    completar las 40 repeticiones (unos 10 s). `_stopHold` pondría `active = false`,
+    pero nadie lo revisaría.
+15. Porque `_turnOn` solo debe encender. Si llamara a algo que alterna (como el
+    `toggle` de la v3), un estado viejo de HA podría hacer que "Encender" apagara una
+    TV que en realidad está prendida (bug B2).
+16. Sí: `setPath` solo copia los objetos del camino (`raíz` y `a`); `c` se comparte.
+    `resultado.c === original.c` es `true`, y `resultado.a === original.a` es `false`.

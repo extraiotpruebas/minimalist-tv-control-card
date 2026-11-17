@@ -1,34 +1,26 @@
 # TV Control Card
 
-Tarjeta personalizada minimalista y elegante para controlar televisores LG WebOS desde Home Assistant.
+Tarjeta para controlar televisores **LG (webOS)** y **Samsung** desde Home Assistant,
+con soporte opcional para un **Roku** conectado a la TV.
 
-## Características Principales
+![Estilos](https://raw.githubusercontent.com/extraiotpruebas/minimalist-tv-control-card/main/docs/img/estilos.png)
 
-**Diseño Adaptativo** - Temas que cambian dinámicamente según la app activa (Netflix, YouTube, Prime Video)
+- Tres estilos (`relieve`, `halo`, `cristal`) y tema claro, oscuro o automático.
+- Varias TVs en una tarjeta, con la TV elegida recordada por usuario.
+- Touchpad con modos, 4 botones de streaming y botones configurables.
+- Cualquier acción en cualquier botón: tecla, fuente, script, servicio, command de LG,
+  secuencia o teclado numérico.
+- Mantener presionado nunca traba la TV y la tarjeta nunca la apaga por un estado viejo.
+- Editor visual incluido.
 
-**Múltiples Modos** - Navegación, Búsqueda y Audio con controles específicos para cada uno
-
-**Touchpad Virtual** - Control direccional intuitivo con botón central
-
-**Accesos Rápidos** - Botones directos a tus servicios de streaming favoritos
-
-**Indicadores Visuales** - Estado claro del TV y modo de control activo
-
-## Instalación Rápida
-
-Después de instalar vía HACS, agrega a tu Lovelace:
+## Inicio rápido
 
 ```yaml
 type: custom:tv-control-card
-entity: media_player.tu_tv_lg
+tvs:
+  - name: Sala
+    entity: media_player.tv_sala
+    platform: lg        # lg | samsung
 ```
 
-## Requisitos
-
-- Home Assistant 2021.12.0+
-- Integración LG WebOS TV
-- TV LG compatible con WebOS
-
-## Soporte
-
-Para reportar problemas o sugerir mejoras, visita el [repositorio en GitHub](https://github.com/extraiotpruebas/minimalist-tv-control-card).
+Documentación completa en el [repositorio](https://github.com/extraiotpruebas/minimalist-tv-control-card).

@@ -2,256 +2,432 @@
 
 🌐 [Versión en español](README.md)
 
-A minimalist custom card to control LG WebOS and Samsung TVs in Home Assistant.
+Home Assistant card for controlling **LG (webOS)** and **Samsung** TVs, with
+optional support for a **Roku** connected to the TV. Multiple TVs in a single card,
+three visual styles, light or dark theme, and a visual editor.
 
-[![Version](https://img.shields.io/badge/version-3.0.0-blue.svg)](https://github.com/extraiotpruebas/minimalist-tv-control-card)
+[![Version](https://img.shields.io/badge/version-4.0.0-blue.svg)](CHANGELOG.md)
 [![hacs_badge](https://img.shields.io/badge/HACS-Custom-orange.svg)](https://github.com/custom-components/hacs)
 
-![Control Default](Control-default.png)
+![The three styles in dark and light theme](docs/img/estilos.png)
 
 ---
 
 ## Features
 
-- **Adaptive Design**: Dynamic visual themes that change based on the active source (Netflix, YouTube, Prime Video, Disney+)
-- **Multi-brand Support**: Compatible with LG WebOS and Samsung (Tizen)
-- **Configurable Control Modes**: 3 customizable slots to choose which modes appear on the mode wheel
-- **Custom Modes**: Up to 3 fully customizable modes with custom icons and actions
-- **Customizable Exit Button**: Icon and action configurable from the UI editor or YAML
-- **Script Support**: Buttons can execute Home Assistant scripts
-- **Source Support**: Direct switching to HDMI or other input sources
-- **Virtual Touchpad**: Directional control with configurable buttons per mode
-- **Streaming Shortcuts**: Quick access buttons for streaming services (Netflix, Disney+, YouTube, Prime Video)
-- **Status Indicators**: TV state and active source display
-- **UI Editor**: Visual configuration integrated in the Lovelace editor
-- **Haptic Feedback**: Vibration on mobile devices when pressing buttons
+- **Three styles**: `relieve` (default), `halo` and `cristal`, in `dark`, `light`
+  or `auto` theme (follows Home Assistant's dark mode).
+- **Status screen** showing the active app or source, tinted with the brand color.
+- **Touchpad** with modes: Menú (Menu), Canales (Channels), Audio, and up to 3 custom modes.
+- **4 streaming buttons**: if the TV is off, they turn it on and open the app.
+- **Multiple TVs** in one card, with the selected TV remembered per user.
+- **Roku connected to the TV**: TV | Roku switch, plus apps that only exist on the Roku.
+- **Per-TV configuration**: different modes, buttons or streaming for a specific TV.
+- **Any action on any button**: key, source, script, service, LG command, raw code,
+  sequence (e.g. a PIN), a different action per brand, or the numeric keypad.
+- **Safe**: holding down an arrow never locks up the TV, and the card never turns
+  off a TV because of a stale state.
+- **Responsive**: adapts to the card's actual width, from a phone to a wall-mounted
+  tablet (where it switches to two columns).
 
----
-
-## Screenshots
-
-| | | | |
-|---|---|---|---|
-| ![Control 1](Control-1.png) | ![Control 2](Control-2.png) | ![Control 3](Control-3.png) | ![Control 4](Control-4.png) |
+![States: off, Roku mode, numeric keypad and tablet](docs/img/estados.png)
 
 ---
 
 ## Requirements
 
-- Home Assistant 2021.12.0 or higher
-- [HACS](https://hacs.xyz/) installed
-- **LG WebOS TV** integration (for LG TVs) — available natively in Home Assistant
-- **[SamsungTV Smart](https://github.com/ollo69/ha-samsungtv-smart)** integration (for Samsung TVs) — installation via HACS required
-- **[Custom Brand Icons](https://github.com/elax46/custom-brand-icons)** — required for streaming icons (Netflix, Disney+, Prime Video)
+- Home Assistant with a Lovelace dashboard.
+- Depending on the brand:
+  - **LG**: official [LG webOS TV](https://www.home-assistant.io/integrations/webostv/) integration.
+    Turning the TV on requires configuring power-on (Wake on LAN) in the integration.
+  - **Samsung**: [SamsungTV Smart](https://github.com/ollo69/ha-samsungtv-smart) integration (HACS).
+  - **Roku** (optional): official [Roku](https://www.home-assistant.io/integrations/roku/) integration,
+    which creates a `media_player` and a `remote`.
+- [Custom Brand Icons](https://github.com/elax46/custom-brand-icons) for the `phu:`
+  icons (Disney+, Prime Video, Apple TV, Max, Roku…).
+- A browser or app that supports container queries and `color-mix()`:
+  Chrome/Edge 111+, Safari/iOS 16.4+, or an up-to-date Home Assistant app.
 
 ---
 
 ## Installation
 
-### Via HACS (Recommended)
+### With HACS (recommended)
 
-1. Open HACS in your Home Assistant instance
-2. Go to **Frontend**
-3. Click the three-dot menu → **Custom repositories**
-4. Add `https://github.com/extraiotpruebas/minimalist-tv-control-card` as a repository
-5. Select **Lovelace** as the category
-6. Search for **TV Control Card** and click **Install**
-7. Restart Home Assistant
+1. HACS → three-dot menu → **Custom repositories**.
+2. Add `https://github.com/extraiotpruebas/minimalist-tv-control-card` with the
+   category **Dashboard**.
+3. Search for **TV Control Card** and install it.
+4. Reload the browser (Ctrl + F5).
 
 ### Manual
 
-1. Download `minimalist-tv-control-card.js`
-2. Copy it to `/config/www/`
-3. Add the resource in your Lovelace configuration:
+1. Copy `minimalist-tv-control-card.js` to `/config/www/`.
+2. **Settings → Dashboards → ⋮ → Resources → Add resource**:
+   - URL: `/local/minimalist-tv-control-card.js?v=1`
+   - Type: **JavaScript module**
+3. Every time you replace the file, bump the `?v=` number so browsers and the app
+   don't keep using the old copy.
 
-```yaml
-resources:
-  - url: /local/minimalist-tv-control-card.js
-    type: module
-```
+### Trying v4 alongside the version you already have installed
+
+Two versions can't register the same card name. With `?tag=`, v4 registers under a
+different name and both can coexist:
+
+1. Copy the new file under a different name, e.g. `/config/www/tv-card-v4.js`.
+2. Add the resource `/local/tv-card-v4.js?tag=tv-control-card-v4&v=1` (JavaScript module).
+3. In the test card use `type: custom:tv-control-card-v4`.
+
+Existing cards (`custom:tv-control-card`) keep using the installed version.
 
 ---
 
 ## Configuration
 
-### Minimal Configuration
+The easiest way is the **visual editor** (Edit card). It shows only what is
+configured; everything else appears as **+ Agregar…** (+ Add…) or **Personalizar**
+(Customize). If the card has YAML from an earlier version, the editor offers a
+**Convertir a formato v4** (Convert to v4 format) button.
+
+### Minimal
 
 ```yaml
 type: custom:tv-control-card
-entity: media_player.my_tv
+tvs:
+  - name: Sala
+    entity: media_player.tv_sala
+    platform: lg            # lg | samsung
 ```
 
-### Full Configuration
+### Full (example)
 
 ```yaml
 type: custom:tv-control-card
-entity: media_player.my_tv
-colorMode: dark
-modelConfig: samsung
-mode_slot_1: navegacion
-mode_slot_2: busqueda
-mode_slot_3: audio
+card_id: sala               # remembers the selected TV per user (unique per card)
+style: halo                 # relieve | halo | cristal
+theme: auto                 # dark | light | auto
+control_mode_entity: input_select.modo_tv   # optional
+
+tvs:
+  - name: Sala
+    entity: media_player.tv_sala
+    platform: lg
+    companion:                              # Roku connected to this TV (optional)
+      media_entity: media_player.roku_sala
+      remote_entity: remote.roku_sala
+  - name: Recámara
+    entity: media_player.tv_recamara
+    platform: samsung
+    overrides:                              # this TV's own configuration (optional)
+      modes: [audio, menu, busqueda]
+      buttons:                              # replaces the entire global `buttons`
+        menu: { icon: mdi:dialpad, action: numpad }
+        top_left: { icon: mdi:palette, action: script.modo_arte }
+
+modes: [menu, busqueda, custom1]            # the 3 modes in the row
+
+custom_modes:
+  custom1:
+    label: Amplificador
+    icon: mdi:speaker
+    up:    { icon: mdi:volume-plus,  action: script.ampli_subir }
+    down:  { icon: mdi:volume-minus, action: script.ampli_bajar }
+    left:  { icon: mdi:volume-off,   action: mute }
+    right: { icon: mdi:power,        action: script.ampli_power }
+
+streaming:                                  # the 4 buttons, in order
+  - source: netflix
+  - source: disney
+  - source: YouTube
+  - source: hdmi2
+    icon: mdi:sony-playstation
+    accent: '#0070d1'
+
+buttons:
+  menu: { icon: mdi:dialpad, action: numpad }   # the Menu button opens the numeric keypad
 ```
 
 ---
 
-## Configuration Parameters
+## Reference
 
-| Parameter | Type | Required | Default | Description |
+### General options
+
+| Option | Default | Description |
+|---|---|---|
+| `tvs` | — (**required**) | List of TVs. See below. |
+| `card_id` | derived from the entities | Identifies the card so it can remember each user's selected TV. Use it if you have several cards with the same TVs. |
+| `style` | `relieve` | `relieve`, `halo` or `cristal`. |
+| `theme` | `dark` | `dark`, `light` or `auto`. |
+| `control_mode_entity` | — | `input_select` that sets the active mode. Its options must be mode ids (`menu`, `audio`, `custom1`…); any other value leaves the touchpad with no mode. |
+| `modes` | `[menu, busqueda, audio]` | The 3 modes in the row. |
+| `custom_modes` | — | Definition of `custom1`, `custom2`, `custom3`. |
+| `default_pad` | arrows | The touchpad when no mode is active. |
+| `streaming` | Netflix, Disney+, YouTube, Apple TV | The 4 streaming buttons. |
+| `buttons` | — | Changes the icon or action of the fixed buttons. |
+
+### `tvs`
+
+| Option | Description |
+|---|---|
+| `name` | Display name. |
+| `entity` | The TV's `media_player` (**required**). |
+| `platform` | `lg` or `samsung` (default `lg`). |
+| `companion` | Connected Roku: `media_entity` (`media_player`) and `remote_entity` (`remote`). |
+| `overrides` | This TV's own configuration. Accepts `modes`, `custom_modes`, `default_pad`, `streaming` and `buttons`. Each category you set **fully replaces** the global one (it is not merged field by field). |
+
+With two or more TVs, tapping the TV name opens the selector.
+
+### Modes
+
+Tapping a mode activates it; tapping it again returns to the touchpad with no mode (`default_pad`).
+
+| Id | Name | ↑ | ← | → | ↓ |
+|---|---|---|---|---|---|
+| `menu` | Menú | Home | Menu | Exit | Back |
+| `busqueda` | Canales | Channel + | Input menu | Guide | Channel − |
+| `audio` | Audio | Volume + | Mute | — | Volume − |
+| `fuentes` *(experimental)* | Fuentes (Inputs) | HDMI 1 | HDMI 2 | HDMI 3 | HDMI 4 |
+| `info` *(experimental)* | Información (Info) | Guide | Info | My apps | Tools |
+| `custom1`…`custom3` | Custom | defined in `custom_modes` |
+
+`navegacion` (from earlier versions) is converted to `menu`. In the `audio` and
+`fuentes` modes everything goes to the TV even when Roku mode is active.
+
+### `custom_modes` and `default_pad`
+
+```yaml
+custom_modes:
+  custom2:
+    label: PIN
+    icon: mdi:lock
+    up:    { icon: mdi:lock-open, action: [digit_1, digit_2, digit_3, digit_4, enter] }
+    left:  { icon: mdi:television-guide, action: guide }
+    right: info                     # shorthand: action only (no icon)
+    down:  { icon: mdi:cast }       # no action: the button stays empty
+
+default_pad:
+  up: { icon: mdi:chevron-up, action: up }
+```
+
+Each direction (`up`, `left`, `right`, `down`) takes `icon` and `action`.
+
+### `streaming`
+
+There are always 4 buttons. Each one:
+
+| Field | Description |
+|---|---|
+| `source` | Catalog id (table below). |
+| `icon` | Changes the icon. |
+| `accent` | Color of the active button and the screen (`'#e50914'` or `'229, 9, 20'`). |
+| `action` | Custom action instead of opening the source. |
+
+On tap: if the TV is off it turns it on; then it opens the source and waits for
+confirmation (retrying once). With a Roku in Roku mode, or if the app only exists on
+the Roku (e.g. Fubo), it opens it on the Roku.
+
+<details>
+<summary>Source catalog</summary>
+
+| `source` | Name | Icon | On the TV (`select_source`) | On the Roku |
 |---|---|---|---|---|
-| `entity` | string | **Yes** | — | `media_player` entity ID |
-| `colorMode` | string | No | `dark` | Default theme: `dark` or `light` |
-| `modelConfig` | string | No | `LG TV` | TV brand: `LG TV` or `samsung` |
-| `control_mode_entity` | string | No | — | `input_select` entity to sync the active mode |
-| `mode_slot_1` | string | No | `navegacion` | Mode assigned to wheel slot 1 |
-| `mode_slot_2` | string | No | `busqueda` | Mode assigned to wheel slot 2 |
-| `mode_slot_3` | string | No | `audio` | Mode assigned to wheel slot 3 |
-| `exit_icon` | string | No | `mdi:lock-alert` | Exit button icon |
-| `exit_type` | string | No | `button` | Exit button action type: `button`, `command`, `script` |
-| `exit_value` | string | No | `EXIT` / `KEY_EXIT` | Exit button action |
+| `netflix` | Netflix | `mdi:netflix` | `Netflix` | `Netflix` |
+| `disney` | Disney+ | `phu:disney-plus` | `Disney+` | `Disney Plus` |
+| `prime` | Prime Video | `phu:prime-video` | `Prime Video` | `Prime Video` |
+| `YouTube` | YouTube | `mdi:youtube` | `YouTube` | `YouTube` |
+| `appletv` | Apple TV | `phu:apple-tv` | `Apple TV` | `Apple TV` |
+| `hbomax` | Max | `phu:hbo-max` | `Max` | `Max` |
+| `paramount` | Paramount+ | `phu:paramount-plus` | `Paramount+` | `Paramount Plus` |
+| `dazn` | DAZN | `phu:dazn` | `DAZN` | `DAZN Live Sports Streaming` |
+| `universal` | Universal+ | `mdi:earth` | `Universal+` | `Universal+` |
+| `spotify` | Spotify | `mdi:spotify` | `Spotify` | `Spotify` |
+| `crunchyroll` | Crunchyroll | `mdi:alpha-c-circle` | `Crunchyroll` | `Crunchyroll` |
+| `twitch` | Twitch | `mdi:twitch` | `Twitch` | `Twitch` |
+| `fubo` | Fubo | `mdi:alpha-f-circle` | Roku only | `Fubo: Watch Live TV & Sports` |
+| `roku` | Roku | `phu:roku-ultra` | `Roku OTT` or `Roku` | — |
+| `hdmi1` … `hdmi4` | HDMI 1 … 4 | `mdi:hdmi-port` | `HDMI 1` … `HDMI 4` | — |
 
----
+The name is matched case-insensitively against the list of sources the TV reports
+(`source_list`).
 
-## Available Modes
+</details>
 
-### Default Modes
+### `buttons`
 
-| ID | Description | Touchpad Buttons |
+| Button | Default | Notes |
 |---|---|---|
-| `navegacion` | General navigation | Home, Menu, Exit, Back |
-| `busqueda` | Channel control | Channel Up/Down, Info, Guide |
-| `audio` | Volume control | Volume Up/Down, Mute, Sound |
+| `top_left` | hidden | Header button, on the left. Only appears if you assign it a custom action (e.g. a script). With a Roku, its place is taken by the TV \| Roku switch. |
+| `power` | turn on / off | With a custom action, that action replaces both turning on and turning off. |
+| `center` | `enter` (OK) | With the TV off, the center becomes the **Encender** (Power on) button (it only turns on, never off). |
+| `back` | `back` | Bottom row. |
+| `home` | `home` | Bottom row. |
+| `exit` | `exit` | Bottom row. |
+| `menu` | `menu` | Bottom row. |
 
-### Custom Modes
+Each button accepts `icon` and `action`. Shorthand: `power: script.x` is equivalent to
+`power: { action: script.x }`.
 
-Up to 3 fully customizable modes. Each mode allows you to define:
-- Icon for the mode wheel button
-- Mode name
-- Icon and action for each direction (up, down, left, right)
-- Action type: `button` (remote control command), `command` (WebOS endpoint), `script` (HA script)
+**With the TV off** the touchpad, the modes and the bottom row are locked.
+The center (Encender), power, the streaming buttons and `top_left` remain active.
 
-| ID | Description |
-|---|---|
-| `custom1` | Custom mode 1 |
-| `custom2` | Custom mode 2 |
-| `custom3` | Custom mode 3 |
+### Actions
 
-#### YAML example for a custom mode:
+Any `action` can be written like this:
 
 ```yaml
-type: custom:tv-control-card
-entity: media_player.my_tv
-mode_slot_1: custom1
-custom1_mode_icon: mdi:home-sound-in
-custom1_label: Amplifier
-custom1_up_icon: mdi:volume-plus
-custom1_up_type: script
-custom1_up_value: script.volume_up_amp
-custom1_down_icon: mdi:volume-minus
-custom1_down_type: script
-custom1_down_value: script.volume_down_amp
-custom1_left_icon: mdi:power
-custom1_left_type: button
-custom1_left_value: MUTE
-custom1_right_icon: mdi:surround-sound
-custom1_right_type: button
-custom1_right_value: ASTERISK
+action: vol_up                      # key (table below); also VOLUMEUP or KEY_VOLUP
+action: script.mi_script            # script or scene
+action: numpad                      # opens the numeric keypad
+action: [digit_1, digit_2, enter]   # sequence (400 ms pause)
+
+action: { type: key, key: input_menu }
+action: { type: button, button: KEY_HDMI }            # brand's raw code
+action: { type: source, source: HDMI 2 }              # select_source
+action: { type: service, service: light.toggle, data: { entity_id: light.sala } }
+action:                                               # LG command (webostv.command)
+  type: command
+  command: system.launcher/launch
+  payload: { id: netflix }
+action:                                               # sequence with its own pause
+  type: sequence
+  delay: 600
+  steps: [home, down, down, enter]
+action:                                               # one action per brand
+  type: platform
+  by:
+    lg: { type: command, command: tv/switchInput, payload: { inputId: HDMI_1 } }
+    samsung: { type: button, button: KEY_HDMI1 }
+    default: input_menu
 ```
 
-### Additional Modes
+- **Holding down** repeats only the arrows (every 250 ms, for up to 10 s). Everything
+  else is sent once per tap.
+- **With a Roku in Roku mode**, only the keys the Roku has (except volume and mute)
+  and `platform` actions with a `roku` variant go to the Roku. Everything else goes to
+  the TV: EXIT always works.
+- **Useful LG commands**: `system.launcher/launch` (`{id}`), `tv/switchInput`
+  (`{inputId: HDMI_1}`), `com.webos.service.tvpower/power/turnOffScreen` (turns off
+  only the screen), `system.notifications/createToast` (`{message}`),
+  `com.webos.service.ime/insertText` (`{text, replace: 0}`), `media.controls/play`.
+  App and input ids are listed under **Devices → (the TV) → Download
+  diagnostics**.
 
-| ID | Description | Touchpad Buttons |
-|---|---|---|
-| `fuentes` | Input selection | HDMI 1, 2, 3, 4 |
-| `info` | Information | Guide, Info, My Apps, Active App Info |
-| `text` | Text controls | Send text, On-screen keyboard, Delete |
+<details>
+<summary>Key table</summary>
+
+| Key | What it does | LG | Samsung | Roku |
+|---|---|---|---|---|
+| `up` | Up | `UP` | `KEY_UP` | `up` |
+| `down` | Down | `DOWN` | `KEY_DOWN` | `down` |
+| `left` | Left | `LEFT` | `KEY_LEFT` | `left` |
+| `right` | Right | `RIGHT` | `KEY_RIGHT` | `right` |
+| `enter` | Enter / OK | `ENTER` | `KEY_ENTER` | `select` |
+| `back` | Back | `BACK` | `KEY_RETURN` | `back` |
+| `exit` | Exit | `EXIT` | `KEY_EXIT` | — |
+| `home` | Home | `HOME` | `KEY_HOME` | `home` |
+| `menu` | Menu | `MENU` | `KEY_MENU` | — |
+| `info` | Info | `INFO` | `KEY_INFO` | `info` |
+| `guide` | Guide | `GUIDE` | `KEY_GUIDE` | — |
+| `apps` | My apps | `MYAPPS` | `KEY_APP_LIST` | — |
+| `search` | Search | — | — | `search` |
+| `input_menu` | Input menu | `INPUT_HUB` | `KEY_SOURCE` | — |
+| `ch_up` | Channel up | `CHANNELUP` | `KEY_CHUP` | `channel_up` |
+| `ch_down` | Channel down | `CHANNELDOWN` | `KEY_CHDOWN` | `channel_down` |
+| `ch_prev` | Previous channel | — | `KEY_PRECH` | — |
+| `vol_up` | Volume up | `VOLUMEUP` | `KEY_VOLUP` | `volume_up` |
+| `vol_down` | Volume down | `VOLUMEDOWN` | `KEY_VOLDOWN` | `volume_down` |
+| `mute` | Mute | `MUTE` | `KEY_MUTE` | `volume_mute` |
+| `play` | Play | `PLAY` | `KEY_PLAY` | `play` |
+| `pause` | Pause | `PAUSE` | `KEY_PAUSE` | `play` |
+| `stop` | Stop | `STOP` | `KEY_STOP` | — |
+| `rewind` | Rewind | `REWIND` | `KEY_REWIND` | `reverse` |
+| `ff` | Fast forward | `FASTFORWARD` | `KEY_FF` | `forward` |
+| `replay` | Replay | — | — | `replay` |
+| `record` | Record | `RECORD` | `KEY_REC` | — |
+| `cc` | Subtitles | `CC` | `KEY_CAPTION` | — |
+| `asterisk` | Asterisk / Tools | `ASTERISK` | `KEY_TOOLS` | — |
+| `screen_remote` | On-screen remote | `SCREEN_REMOTE` | — | — |
+| `red` | Red | `RED` | `KEY_RED` | — |
+| `green` | Green | `GREEN` | `KEY_GREEN` | — |
+| `yellow` | Yellow | `YELLOW` | `KEY_YELLOW` | — |
+| `blue` | Blue | `BLUE` | `KEY_CYAN` | — |
+| `digit_0` … `digit_9` | Digits | `0`…`9` | `KEY_0`…`KEY_9` | — |
+
+A key the brand doesn't have (—) shows a notice instead of sending anything.
+
+</details>
 
 ---
 
-## Themes
+## Upgrading from version 3
 
-The card automatically adapts its appearance based on the active source:
+Version 3 YAML **keeps working** unchanged: the card translates it on load. To move
+it to the new format, open the visual editor and tap **Convertir a formato v4**
+(Convert to v4 format); the result behaves the same.
 
-| Source | Theme |
+| v3 | v4 |
 |---|---|
-| Netflix | Dark red |
-| Disney+ | Navy blue |
-| Prime Video | Teal blue |
-| Default | Dark neutral (or light if `colorMode: light`) |
+| `entity` + `modelConfig` | `tvs: [{ entity, platform }]` |
+| `colorMode` | `theme` |
+| `mode_slot_1..3` | `modes: [ … ]` |
+| `navegacion` | `menu` |
+| `custom1_up_icon`, `custom1_up_value(_lg/_samsung)` | `custom_modes.custom1.up: { icon, action }` |
+| `netflix_icon`, `netflix_value`, `appletv_source`… | `streaming: [ { source, icon, action, accent } ]` |
+| `exit_icon` / `exit_value` (top button) | `buttons.top_left` |
+| `back_type: numpad` | `buttons.back.action: numpad` |
+| `roku: { … }` inside the TV | `companion: { media_entity, remote_entity }` |
+| `script.x`, `source:HDMI 1`, `command:…` | still accepted as actions |
 
----
+Behavior changes:
 
-## Exit Button
+- The bottom **Exit** button now actually sends EXIT; the top one is `top_left`.
+- The `text` and `amplificador` modes are skipped (they will return in a future version).
+- The `selected_sources` key is no longer used.
 
-The exit button (top left corner) is fully customizable:
-
-```yaml
-# Run a script when pressing exit
-exit_icon: mdi:shield-home
-exit_type: script
-exit_value: script.activate_alarm
-
-# Send a remote control button
-exit_icon: mdi:television-off
-exit_type: button
-exit_value: EXIT
-```
-
----
-
-## Project Structure
-
-```
-minimalist-tv-control-card/
-├── minimalist-tv-control-card.js  # Main file
-├── README.md                       # Documentation (Spanish)
-├── README.en.md                    # Documentation (English)
-├── hacs.json                       # HACS configuration
-├── info.md                         # Short info for HACS
-└── .github/
-    └── workflows/
-        └── validate.yaml
-```
+The full list is in the [CHANGELOG](CHANGELOG.md).
 
 ---
 
 ## Troubleshooting
 
-**Card doesn't appear**
-1. Verify the file is in `/config/www/`
-2. Make sure you added the resource in Lovelace
-3. Clear browser cache (Ctrl + F5)
-4. Check the browser console for errors
+**The card doesn't appear or shows "Custom element doesn't exist"**
+Check that the resource is added as a *JavaScript module* and reload with Ctrl + F5.
+In the app, close and reopen it (or bump the resource's `?v=`).
 
-**Buttons don't work**
-1. Verify your TV is on and reachable on the network
-2. Confirm the LG WebOS or SamsungTV Smart integration is correctly configured
-3. Verify `modelConfig` is set correctly (`LG TV` or `samsung`)
+**Red card with a message** — the YAML has an error that prevents the card from
+being used (e.g. a TV without `entity`). The message says which one.
 
-**Streaming icons don't appear**
-1. Verify Custom Brand Icons is installed and active
+**Something in the YAML has no effect** — open the browser console (F12): the card
+reports any keys it doesn't understand there (`[tv-control-card] …`).
 
-**Theme doesn't change**
-The card automatically detects the theme from the `source` attribute of your `media_player` entity. Verify your TV correctly reports the active source.
+**The LG doesn't turn on** — configure power-on (Wake on LAN) in the webOS integration.
+The card shows a notice if the TV doesn't confirm power-on within 20 s.
+
+**"No se pudo confirmar el cambio a …"** (Could not confirm the switch to …) — the TV
+didn't report the requested source. Check that the name exists in the entity's
+`source_list` attribute.
+
+**The Disney+, Prime Video, etc. icons don't appear** — install Custom Brand Icons.
 
 ---
 
-## Contributing
+## Development
 
-1. Fork the repository
-2. Create a branch: `git checkout -b feature/NewFeature`
-3. Commit: `git commit -m 'feat: description'`
-4. Push: `git push origin feature/NewFeature`
-5. Open a Pull Request
+See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) (how it's built and how to extend it; Spanish) and
+[docs/GUIA-DE-ESTUDIO.md](docs/GUIA-DE-ESTUDIO.md) (the code explained from scratch; Spanish).
+
+```bash
+npm test                                   # tests (Node 22, no dependencies)
+python3 -m http.server 8765 --bind 127.0.0.1
+# http://127.0.0.1:8765/dev/harness.html   card and editor with a simulated HA
+# http://127.0.0.1:8765/dev/selftest.html  in-browser self-test
+```
 
 ---
 
 ## License
 
-MIT — see [LICENSE](LICENSE) for details.
+MIT — see [LICENSE](LICENSE).
 
----
-
-Developed with ❤️ for the Home Assistant community
-
-> This is an unofficial custom card, not affiliated with LG Electronics or Samsung Electronics.
+> Unofficial card, not affiliated with LG Electronics, Samsung Electronics or Roku.

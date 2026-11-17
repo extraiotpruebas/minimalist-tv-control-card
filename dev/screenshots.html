@@ -1,0 +1,127 @@
+<!doctype html>
+<!--
+  Galería estática para las capturas del README (docs/img/).
+  Cada tarjeta recibe un hass FIJO (sin simulación): es una foto, no un harness.
+
+    python3 -m http.server 8765 --bind 127.0.0.1
+    http://127.0.0.1:8765/dev/screenshots.html?set=estilos   (3 estilos × claro/oscuro)
+    http://127.0.0.1:8765/dev/screenshots.html?set=estados   (apagada, Roku, numpad, angosta)
+
+  Los íconos phu: (Custom Brand Icons) no existen fuera de HA, por eso los botones de
+  streaming usan fuentes con ícono mdi: (Netflix, YouTube, Spotify, Twitch).
+-->
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TV Card screenshots</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@mdi/font@7.4.47/css/materialdesignicons.min.css">
+<style>
+  body { margin: 0; font: 14px/1.4 system-ui, sans-serif; }
+  .row { display: flex; gap: 28px; padding: 28px; justify-content: center; align-items: flex-start; }
+  .row.dark { background: #111418; }
+  .row.light { background: #eef1f5; }
+  .slot { width: var(--w, 360px); }
+</style>
+<script>
+  const MDI_CSS = 'https://cdn.jsdelivr.net/npm/@mdi/font@7.4.47/css/materialdesignicons.min.css';
+  customElements.define('ha-icon', class extends HTMLElement {
+    static observedAttributes = ['icon'];
+    constructor() {
+      super();
+      this.attachShadow({ mode: 'open' }).innerHTML = `
+        <link rel="stylesheet" href="${MDI_CSS}">
+        <style>
+          :host { display: inline-flex; align-items: center; justify-content: center;
+                  width: var(--mdc-icon-size, 24px); height: var(--mdc-icon-size, 24px); }
+          i { font-size: var(--mdc-icon-size, 24px); line-height: 1; font-style: normal; }
+        </style><i></i>`;
+    }
+    attributeChangedCallback() {
+      const [set, name = ''] = (this.getAttribute('icon') || '').split(':');
+      this.shadowRoot.querySelector('i').className = set === 'mdi' ? `mdi mdi-${name}` : '';
+    }
+  });
+  customElements.define('ha-card', class extends HTMLElement {});
+</script>
+</head>
+<body>
+<main id="stage"></main>
+<script type="module">
+  await import('../minimalist-tv-control-card.js');
+
+  const SOURCES = ['HDMI 1', 'HDMI 2', 'Netflix', 'YouTube', 'Spotify', 'Twitch', 'Roku OTT'];
+  const st = (entity_id, state, attributes = {}) => ({ entity_id, state, attributes });
+  const STATES = {
+    on: {
+      'media_player.sala': st('media_player.sala', 'on', { source: 'Netflix', source_list: SOURCES }),
+    },
+    off: {
+      'media_player.sala': st('media_player.sala', 'off', { source_list: SOURCES }),
+    },
+    roku: {
+      'media_player.sala': st('media_player.sala', 'on', { source: 'Roku OTT', source_list: SOURCES }),
+      'media_player.roku': st('media_player.roku', 'on', { source: 'YouTube', app_name: 'YouTube' }),
+      'remote.roku': st('remote.roku', 'on'),
+    },
+  };
+  const BASE = {
+    card_id: 'demo',
+    tvs: [{ name: 'Sala', entity: 'media_player.sala', platform: 'lg' }],
+    modes: ['menu', 'busqueda', 'audio'],
+    streaming: [{ source: 'netflix' }, { source: 'YouTube' }, { source: 'spotify' }, { source: 'twitch' }],
+    buttons: { menu: { icon: 'mdi:dialpad', action: 'numpad' } },
+  };
+  const ROKU_TV = { name: 'Sala', entity: 'media_player.sala', platform: 'lg', companion: { media_entity: 'media_player.roku', remote_entity: 'remote.roku' } };
+
+  const SETS = {
+    estilos: [
+      { cls: 'dark', cards: ['relieve', 'halo', 'cristal'].map((style) => ({ config: { ...BASE, style, theme: 'dark' }, states: 'on', mode: 'audio' })) },
+      { cls: 'light', cards: ['relieve', 'halo', 'cristal'].map((style) => ({ config: { ...BASE, style, theme: 'light' }, states: 'on', mode: 'audio' })) },
+    ],
+    estados: [
+      { cls: 'dark', cards: [
+        { label: 'apagada', config: { ...BASE, theme: 'dark' }, states: 'off' },
+        { label: 'roku', config: { ...BASE, style: 'cristal', theme: 'dark', tvs: [ROKU_TV] }, states: 'roku' },
+        { label: 'numpad', config: { ...BASE, style: 'halo', theme: 'dark' }, states: 'on', numpad: true },
+      ] },
+      { cls: 'light', cards: [
+        { label: 'apagada', config: { ...BASE, theme: 'light' }, states: 'off' },
+        { label: 'tablet', config: { ...BASE, style: 'relieve', theme: 'light' }, states: 'on', width: 700 },
+      ] },
+    ],
+  };
+
+  const set = SETS[new URLSearchParams(location.search).get('set')] ?? SETS.estilos;
+  const pending = [];
+  for (const row of set) {
+    const rowEl = document.createElement('div');
+    rowEl.className = `row ${row.cls}`;
+    for (const spec of row.cards) {
+      const slot = document.createElement('div');
+      slot.className = 'slot';
+      if (spec.width) slot.style.setProperty('--w', `${spec.width}px`);
+      const card = document.createElement('tv-control-card');
+      slot.append(card);
+      rowEl.append(slot);
+      card.setConfig(spec.config);
+      card.hass = { states: STATES[spec.states], user: { id: 'demo' }, themes: { darkMode: true }, callService: async () => {} };
+      pending.push({ card, spec });
+    }
+    document.getElementById('stage').append(rowEl);
+  }
+
+  // Esperar al primer render (rAF) y luego poner modos / numpad tocando los botones reales.
+  await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+  for (const { card, spec } of pending) {
+    const q = (sel) => card.shadowRoot.querySelector(sel);
+    if (spec.mode) q(`[data-act="mode"][data-id="${spec.mode}"]`)?.click();
+    if (spec.numpad) q('[data-act="bottom"][data-id="menu"]')?.click();
+  }
+  await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+  // Las animaciones/transiciones no avanzan solas en headless: se terminan a mano.
+  for (const { card } of pending) card.shadowRoot.getAnimations().forEach((a) => a.finish());
+  document.body.dataset.ready = '1';
+</script>
+</body>
+</html>

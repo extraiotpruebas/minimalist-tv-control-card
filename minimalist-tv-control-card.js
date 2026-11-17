@@ -8,7 +8,7 @@
  *   §4  executeAction(): ejecuta una acción ya normalizada sobre un dispositivo
  *   §5  Catálogos (fuentes, modos, botones) y normalizeConfig()
  *   §6  La tarjeta (custom element): ciclo de vida, render, eventos
- *   §7  (pendiente) El editor
+ *   §7  El editor visual (lógica pura + elemento <tv-control-card-editor>)
  *
  * Este archivo se carga en HA como ES module (`type: module`), por eso puede
  * terminar con `export { ... }`. Eso permite que los tests de Node importen las
@@ -1024,10 +1024,10 @@ const TIMING = Object.freeze({
   powerOff: 10000,
   sourceConfirm: 6000,   // cuánto esperar a que la TV reporte la fuente pedida
 });
-const SOURCE_ATTEMPTS = 2;
+const SOURCE_ATTEMPTS = 2;           // 1 intento + 1 reintento: relanzar una app varias veces la reinicia
 // Tras encender, el centro ignora OK este tiempo (ms): un doble toque a "Encender"
 // no debe terminar mandando un OK a la TV recién prendida.
-const CENTER_GUARD_MS = 800;        // 1 intento + 1 reintento: relanzar una app varias veces la reinicia
+const CENTER_GUARD_MS = 800;
 const ROKU_ACCENT = '#6f1ab1';
 
 /* En estos modos todo va a la TV aunque el modo Roku esté activo (igual que producción). */
@@ -2096,8 +2096,8 @@ class TvControlCard extends BaseElement {
   }
 
   /**
-   * Las teclas repetibles (flechas, volumen, canal) se manejan en pointerdown
-   * para responder al instante y poder repetir. Todo lo demás sigue en click.
+   * Las teclas repetibles (solo las flechas, ver HOLDABLE_KEYS) se manejan en
+   * pointerdown para responder al instante y poder repetir. Todo lo demás sigue en click.
    */
   _onPointerDown(e) {
     if (e.button !== 0 || !this._model || !this._refs) return;   // solo botón principal / dedo
