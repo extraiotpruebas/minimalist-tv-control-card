@@ -62,7 +62,7 @@ three visual styles, light or dark theme, and a visual editor.
 
 ### Manual
 
-1. Copy `minimalist-tv-control-card.js` to `/config/www/`.
+1. Copy `dist/minimalist-tv-control-card.js` (from this repository) to `/config/www/`.
 2. **Settings → Dashboards → ⋮ → Resources → Add resource**:
    - URL: `/local/minimalist-tv-control-card.js?v=1`
    - Type: **JavaScript module**
@@ -417,12 +417,24 @@ didn't report the requested source. Check that the name exists in the entity's
 See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) (how it's built and how to extend it; Spanish) and
 [docs/GUIA-DE-ESTUDIO.md](docs/GUIA-DE-ESTUDIO.md) (the code explained from scratch; Spanish).
 
+The source code lives in `src/` (ES modules). [Vite](https://vite.dev) bundles it into
+a single file, `dist/minimalist-tv-control-card.js`, which is the one installed in HA.
+Requires Node 22.
+
 ```bash
-npm test                                   # tests (Node 22, no dependencies)
-python3 -m http.server 8765 --bind 127.0.0.1
-# http://127.0.0.1:8765/dev/harness.html   card and editor with a simulated HA
-# http://127.0.0.1:8765/dev/selftest.html  in-browser self-test
+npm install          # once: installs Vite (the only dependency, dev-only)
+npm run dev          # http://localhost:5173/dev/harness.html, reloads on save
+npm test             # Node tests (includes comparing dist/ against src/)
+npm run build        # generates dist/minimalist-tv-control-card.js
 ```
+
+- `dev/harness.html`: card and editor with a simulated HA.
+- `dev/selftest.html`: in-browser self-test. With `?build=dist` it tests the built
+  file instead of `src/`.
+
+After changing `src/`, run `npm run build` and include `dist/` in the commit: HACS
+downloads that file exactly as it is in the repository (the GitHub Action warns if
+it is out of date).
 
 ---
 

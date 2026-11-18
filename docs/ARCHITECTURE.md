@@ -8,23 +8,40 @@ desde cero, ver la [guía de estudio](GUIA-DE-ESTUDIO.md).
 
 ## 1. Visión general
 
-La tarjeta es **un solo archivo**, `minimalist-tv-control-card.js`, que HA carga como
-ES module (`type: module`). No tiene dependencias ni paso de build. Está dividido en
-siete secciones numeradas; en la Fase 3 (Lit + Vite) cada sección pasará a ser un
-módulo de `src/`.
+El código fuente está en **`src/`**, dividido en módulos ES sin dependencias.
+[Vite](https://vite.dev) los junta en **un solo archivo**,
+`dist/minimalist-tv-control-card.js`, que es el que HA carga como ES module
+(`type: module`) y el que descarga HACS. Los módulos conservan la numeración de
+secciones (§1–§7) del antiguo archivo único, que se sigue usando en esta
+documentación y en la guía de estudio.
 
-| Sección | Qué contiene | ¿Pura?* |
-|---|---|---|
-| §1 Teclas | `KEYS`: tecla semántica → código por marca. `HOLDABLE_KEYS`, `TV_ONLY_KEYS`, `CODE_TO_KEY` | Sí |
-| §2 Acciones | `parseAction` (cualquier forma → objeto `{type,…}`), `resolveForPlatform`, `isHoldable` | Sí |
-| §3 Plataformas | `PLATFORMS` (drivers `lg`, `samsung`, `roku`) + `PLATFORM_DEFAULTS` por prototipo | Llaman a `hass` |
-| §4 Ejecutar | `executeAction(hass, action, device)` | Llama a `hass` |
-| §5 Config | Catálogos (`SOURCES`, `FIXED_MODES`, `DEFAULT_BUTTONS`…) y `normalizeConfig` | Sí |
-| §6 Tarjeta | `TvControlCard`: ciclo de vida, render, eventos, flujos. Helpers puros: `routeAction`, `describeNow`, `tvStatus`, `StateWaiters` | No (DOM) |
-| §7 Editor | Lógica pura (`buildEditorView`, `applyFormChange`, `applyOp`, `serializeV4`) + `TvControlCardEditor` (DOM) | Mixta |
+| Sección | Módulos | Qué contiene | ¿Pura?* |
+|---|---|---|---|
+| §1 Teclas | `actions/keys.js` | `KEYS`: tecla semántica → código por marca. `HOLDABLE_KEYS`, `TV_ONLY_KEYS`, `CODE_TO_KEY` | Sí |
+| §2 Acciones | `actions/parse.js` | `parseAction` (cualquier forma → objeto `{type,…}`), `resolveForPlatform`, `isHoldable` | Sí |
+| §3 Plataformas | `platforms.js` | `PLATFORMS` (drivers `lg`, `samsung`, `roku`) + `PLATFORM_DEFAULTS` por prototipo | Llaman a `hass` |
+| §4 Ejecutar | `execute.js` | `executeAction(hass, action, device)` | Llama a `hass` |
+| §5 Config | `config/catalogs.js`, `config/normalize.js` | Catálogos (`SOURCES`, `FIXED_MODES`, `DEFAULT_BUTTONS`…) y `normalizeConfig` | Sí |
+| §6 Tarjeta | `card/logic.js` | Helpers puros: `routeAction`, `describeNow`, `tvStatus`, `StateWaiters`, `TIMING`, `storage` | Sí |
+| | `card/styles.js`, `card/skeleton.js` | CSS (`CARD_CSS`, `adoptStyles`), HTML base y ayudantes de DOM | — |
+| | `card/tv-control-card.js` | `TvControlCard`: ciclo de vida, render, eventos, flujos | No (DOM) |
+| §7 Editor | `editor/paths.js`, `catalogs.js`, `action-form.js`, `view.js`, `ops.js`, `serialize.js` | Lógica pura: `buildEditorView`, `applyFormChange`, `applyOp`, `serializeV4` | Sí |
+| | `editor/styles.js`, `editor/tv-control-card-editor.js` | `TvControlCardEditor` (DOM) | No |
+| — | `index.js` | Entrada: lee `?tag=`, registra los elementos, reexporta lo puro | — |
+| — | `util.js`, `tag.js`, `version.js` | `has`, `delay`, `deepFreeze`, `firstDefined`, `BaseElement`; nombre del elemento; versión | — |
 
-\* *Pura* = misma entrada, misma salida, sin tocar el DOM ni HA. Todo lo puro se
-exporta al final del archivo (`export { … }`) y se prueba con Node sin navegador.
+\* *Pura* = misma entrada, misma salida, sin tocar el DOM ni HA. `src/index.js`
+reexporta todo lo puro, y las pruebas de Node lo importan de ahí sin navegador.
+
+**Reglas de los módulos:** cada módulo exporta al final (`export { … }`) solo lo que
+otros usan; no hay imports circulares; las utilidades compartidas viven en `util.js`
+y no en el módulo donde se usaron primero.
+
+**`?tag=`:** se lee en `index.js` (`tagFromUrl(import.meta.url)`) y se guarda con
+`setCardTag()` antes de registrar los elementos. No puede leerse en otro módulo: en
+desarrollo cada módulo tiene su propia URL y solo la entrada recibe el `?tag=`.
+`CARD_TAG` y `EDITOR_TAG` son `let` exportados, que los demás módulos ven siempre
+actualizados.
 
 ### Principios
 
@@ -350,7 +367,8 @@ haya Roku, agregarlo a `TV_MODES`. El editor lo lista solo.
 `BUTTON_LABELS` del editor y, si es de la fila de abajo, `BOTTOM_BUTTONS`.
 
 **Un tipo de acción** → `ACTION_TYPES` + un `case` en `parseAction` (§2) y en
-`executeAction` (§4); en el editor: `ACTION_UI_TYPES`, `ALL_ACTION_TYPES`,
+`executeAction` (§4); en el editor (`editor/catalogs.js`, `editor/action-form.js`,
+`editor/serialize.js`): `ACTION_UI_TYPES`, `ALL_ACTION_TYPES`,
 `actionToForm`, `formToAction`, `actionSchema`, `serializeAction`. Revisar
 `routeAction` (¿a qué dispositivo va?).
 
@@ -372,17 +390,28 @@ En todos los casos: agregar pruebas en `test/` y, si toca la UI, una verificaci�
 | Herramienta | Qué prueba | Cómo |
 |---|---|---|
 | `test/*.test.mjs` | Lo puro: acciones, drivers, config, ruteo, editor, conversión | `npm test` |
-| `dev/harness.html` | La tarjeta y el editor con un `hass` simulado (latencia, fallos, TV que no enciende, ruido) | servidor local + navegador |
+| `test/dist.test.mjs` | Que `dist/` se comporta igual que `src/` (exports, catálogos, `parseAction`, `normalizeConfig`, `serializeV4`, vista del editor, ruteo) | `npm run build && npm test` |
+| `dev/harness.html` | La tarjeta y el editor con un `hass` simulado (latencia, fallos, TV que no enciende, ruido) | `npm run dev` |
 | `dev/selftest.html` | Autoprueba en navegador: hold, power, centro, numpad, bloqueo, editor… | abrirlo; muestra `✓ todo bien` |
 | `dev/screenshots.html` | Galería fija para las capturas del README (`docs/img/`) | `?set=estilos` / `?set=estados` |
 | `dev/ha-form-stub.js` | `ha-form` simulado (mismo contrato, sin el aspecto de HA) | lo cargan harness y selftest |
+| GitHub Action `build` | `npm ci`, build, que `dist/` del commit esté actualizado, pruebas | en cada push |
+
+Las páginas de `dev/` cargan `src/index.js`; con `?build=dist` cargan el archivo final.
 
 ```bash
+npm install                                # una vez
+npm run dev                                # http://localhost:5173/dev/harness.html (recarga al guardar)
 npm test                                   # pruebas de Node
-npm run check                              # solo sintaxis
-python3 -m http.server 8765 --bind 127.0.0.1
-# http://127.0.0.1:8765/dev/harness.html  |  /dev/selftest.html
+npm run build                              # dist/minimalist-tv-control-card.js
+npm run check                              # solo sintaxis (src/ y dist/)
 ```
+
+**Build** (`vite.config.js`): library mode, solo formato `es`, un archivo, target
+Chrome/Edge 111, Safari 16.4, Firefox 113 (el mínimo del README). **Sin minificar**:
+con gzip son ~43 KB contra ~32 KB minificado, y a cambio el archivo se puede leer y
+depurar en el HA de un cliente (conserva nombres, JSDoc y marcas `// src/…`). `dist/`
+se incluye en los commits porque HACS lo descarga del repositorio.
 
 **Configs reales de clientes:** viven en `test/fixtures/private/` (en `.gitignore`)
 junto con las pruebas que mencionan sus entidades. Las pruebas públicas descubren esos
@@ -406,15 +435,14 @@ archivos sin nombrarlos; en un clon sin la carpeta simplemente no corren.
 
 ---
 
-## 12. Hacia la Fase 3 (Lit + Vite)
+## 12. Fase 3
 
-| Hoy (sección) | Módulo previsto |
-|---|---|
-| §1 + §2 | `src/actions/keys.js`, `src/actions/parse.js` |
-| §3 + §4 | `src/platforms/*.js`, `src/execute.js` |
-| §5 | `src/config/catalogs.js`, `src/config/normalize.js` |
-| §6 | `src/card/tv-control-card.js` (Lit: `render()` reemplaza a `_build`/`_update`), `src/card/styles.js`, `src/card/flows.js` |
-| §7 | `src/editor/view.js` (puro), `src/editor/tv-control-card-editor.js` |
-
-La lógica pura se mueve tal cual con sus pruebas; el cambio real es el render de §6
-y §7.
+- **3a (hecha): Vite + módulos.** El archivo único se separó en `src/` moviendo el
+  código por rangos de línea, sin reescribirlo; los imports se generaron con ESLint
+  (`no-undef`). Verificado: las pruebas de Node contra `src/` y `dist/`, la
+  autoprueba contra ambos, y capturas idénticas a las del archivo único.
+- **3b (pendiente): Lit.** Primero el editor (`editor/tv-control-card-editor.js`:
+  `_reconcile` pasa a ser una plantilla), después la tarjeta
+  (`card/tv-control-card.js` y `card/skeleton.js`: `render()` reemplaza a
+  `SKELETON` + `_build`/`_applySettings`/`_update`). Todo lo demás de `src/` no
+  cambia.

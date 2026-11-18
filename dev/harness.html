@@ -4,8 +4,12 @@
 
   Cómo abrirlo (los ES modules no cargan desde file://, hace falta un servidor):
     cd ~/HAdesigns/TV-Control-Card
-    python3 -m http.server 8000
-  y en el navegador de Windows: http://localhost:8000/dev/harness.html
+    npm run dev          → http://localhost:5173/dev/harness.html (recarga al guardar)
+  o sin Vite:
+    python3 -m http.server 8000   → http://localhost:8000/dev/harness.html
+
+  Por defecto carga el código fuente (src/index.js). Con ?build=dist carga el
+  archivo final que se instala en HA (dist/, hay que correr `npm run build` antes).
 
   Simula:
     - un objeto `hass` inmutable (cada cambio crea objetos nuevos, como HA)
@@ -125,7 +129,8 @@
 
 <script type="module">
   // Import dinámico con ?t=…: así siempre se carga la versión recién guardada (sin caché).
-  const { CARD_VERSION } = await import(`../minimalist-tv-control-card.js?t=${Date.now()}`);
+  const ENTRY = new URLSearchParams(location.search).get('build') === 'dist' ? '../dist/minimalist-tv-control-card.js' : '../src/index.js';
+  const { CARD_VERSION } = await import(`${ENTRY}?t=${Date.now()}`);
 
   const $ = (id) => document.getElementById(id);
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));

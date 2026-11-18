@@ -63,7 +63,7 @@ tres estilos visuales, tema claro u oscuro y un editor visual.
 
 ### Manual
 
-1. Copia `minimalist-tv-control-card.js` a `/config/www/`.
+1. Copia `dist/minimalist-tv-control-card.js` (de este repositorio) a `/config/www/`.
 2. **Configuración → Dashboards → ⋮ → Recursos → Agregar recurso**:
    - URL: `/local/minimalist-tv-control-card.js?v=1`
    - Tipo: **Módulo JavaScript**
@@ -417,12 +417,24 @@ que el nombre exista en el atributo `source_list` de la entidad.
 Ver [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) (cómo está hecha y cómo extenderla) y
 [docs/GUIA-DE-ESTUDIO.md](docs/GUIA-DE-ESTUDIO.md) (el código explicado desde cero).
 
+El código fuente está en `src/` (módulos ES). [Vite](https://vite.dev) los junta en
+un solo archivo, `dist/minimalist-tv-control-card.js`, que es el que se instala en HA.
+Requiere Node 22.
+
 ```bash
-npm test                                   # pruebas (Node 22, sin dependencias)
-python3 -m http.server 8765 --bind 127.0.0.1
-# http://127.0.0.1:8765/dev/harness.html   tarjeta y editor con un HA simulado
-# http://127.0.0.1:8765/dev/selftest.html  autoprueba en el navegador
+npm install          # una vez: instala Vite (única dependencia, solo de desarrollo)
+npm run dev          # http://localhost:5173/dev/harness.html, recarga al guardar
+npm test             # pruebas de Node (incluye comparar dist/ con src/)
+npm run build        # genera dist/minimalist-tv-control-card.js
 ```
+
+- `dev/harness.html`: tarjeta y editor con un HA simulado.
+- `dev/selftest.html`: autoprueba en el navegador. Con `?build=dist` prueba el
+  archivo final en lugar de `src/`.
+
+Después de cambiar `src/`, corre `npm run build` e incluye `dist/` en el commit:
+HACS descarga ese archivo tal como está en el repositorio (la GitHub Action avisa si
+quedó desactualizado).
 
 ---
 

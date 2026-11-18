@@ -6,6 +6,7 @@
     python3 -m http.server 8765 --bind 127.0.0.1
     http://127.0.0.1:8765/dev/screenshots.html?set=estilos   (3 estilos × claro/oscuro)
     http://127.0.0.1:8765/dev/screenshots.html?set=estados   (apagada, Roku, numpad, angosta)
+    Agrega &build=dist para usar el archivo final (dist/) en lugar de src/.
 
   Los íconos phu: (Custom Brand Icons) no existen fuera de HA, por eso los botones de
   streaming usan fuentes con ícono mdi: (Netflix, YouTube, Spotify, Twitch).
@@ -48,7 +49,8 @@
 <body>
 <main id="stage"></main>
 <script type="module">
-  await import('../minimalist-tv-control-card.js');
+  const ENTRY = new URLSearchParams(location.search).get('build') === 'dist' ? '../dist/minimalist-tv-control-card.js' : '../src/index.js';
+  await import(ENTRY);
 
   const SOURCES = ['HDMI 1', 'HDMI 2', 'Netflix', 'YouTube', 'Spotify', 'Twitch', 'Roku OTT'];
   const st = (entity_id, state, attributes = {}) => ({ entity_id, state, attributes });

@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   parseAction, executeAction, isHoldable, resolveForPlatform, KEYS, UnsupportedActionError,
-} from '../minimalist-tv-control-card.js';
+} from '../src/index.js';
 import { createFakeHass, LG_TV, SAMSUNG_TV, ROKU } from './helpers.mjs';
 
 // ---------------------------------------------------------------------------

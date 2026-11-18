@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { normalizeConfig, resolveForPlatform } from '../minimalist-tv-control-card.js';
+import { normalizeConfig, resolveForPlatform } from '../src/index.js';
 
 // ---------------------------------------------------------------------------
 // Errores de validación

@@ -4,7 +4,7 @@ import { readFileSync, readdirSync, existsSync } from 'node:fs';
 import {
   normalizeConfig, buildEditorView, applyFormChange, applyOp, serializeV4, actionToForm, formToAction,
   setPath, deletePath, parseAction,
-} from '../minimalist-tv-control-card.js';
+} from '../src/index.js';
 
 /** Configs reales de clientes (test/fixtures/private/, gitignored). Sin la carpeta → lista vacía. */
 const PRIVATE_DIR = new URL('./fixtures/private/', import.meta.url);

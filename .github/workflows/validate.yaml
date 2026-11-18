@@ -11,8 +11,28 @@ jobs:
     runs-on: "ubuntu-latest"
     name: Validate
     steps:
-      - uses: "actions/checkout@v3"
+      - uses: "actions/checkout@v4"
       - name: HACS validation
         uses: "hacs/action@main"
         with:
           category: "plugin"
+
+  build:
+    runs-on: "ubuntu-latest"
+    name: Build y pruebas
+    steps:
+      - uses: "actions/checkout@v4"
+      - uses: "actions/setup-node@v4"
+        with:
+          node-version: 22
+          cache: npm
+      - name: Instalar dependencias (versiones exactas de package-lock.json)
+        run: npm ci
+      - name: Construir dist/
+        run: npm run build
+      # HACS descarga dist/ tal como está en el repo: si alguien cambió src/ y olvidó
+      # correr `npm run build`, aquí falla con la diferencia.
+      - name: dist/ está actualizado
+        run: git diff --exit-code -- dist/
+      - name: Pruebas
+        run: npm test

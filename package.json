@@ -5,8 +5,13 @@
   "description": "Tarjeta de control de TV para Home Assistant (LG, Samsung, Roku)",
   "type": "module",
   "scripts": {
+    "dev": "vite",
+    "build": "vite build",
     "test": "node --test \"test/**/*.test.mjs\"",
-    "check": "node --check minimalist-tv-control-card.js"
+    "check": "node --check src/index.js && node --check dist/minimalist-tv-control-card.js"
   },
-  "license": "MIT"
+  "license": "MIT",
+  "devDependencies": {
+    "vite": "8.3.8"
+  }
 }

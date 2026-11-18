@@ -1,13 +1,14 @@
 # Guía de estudio: cómo funciona la Minimalist TV Control Card
 
 > Para: Ian. Nivel: principiante en JavaScript, CSS y HTML.
-> Rama: `refactor/v4`. Archivo principal: `minimalist-tv-control-card.js`.
+> Código fuente: `src/` (módulos). Archivo que se instala en HA: `dist/minimalist-tv-control-card.js` (ver 8).
 
 Esta guía explica, pieza por pieza, el código de tu tarjeta. Está pensada para leerse
 en orden, pero cada parte se entiende por separado. Todos los fragmentos de código
 salen del archivo real; al lado de cada uno se indica de dónde vienen:
 
-- **v4** = el archivo actual en la rama `refactor/v4` (secciones §1 a §7).
+- **v4** = el código actual, en `src/`. Las secciones §1 a §7 corresponden a sus
+  módulos (tabla en 8.1).
 - **v3 (producción)** = la versión que tienen hoy los clientes, commit `dce0f18`.
   La puedes ver con:
   ```bash
@@ -26,7 +27,8 @@ salen del archivo real; al lado de cada uno se indica de dónde vienen:
 5. [CSS](#5-css)
 6. [Eventos](#6-eventos)
 7. [Pruebas con `node:test`](#7-pruebas-con-nodetest)
-8. [Glosario y ejercicios](#8-glosario-y-ejercicios)
+8. [El proyecto con Vite: módulos, npm y build](#8-el-proyecto-con-vite-módulos-npm-y-build)
+9. [Glosario y ejercicios](#9-glosario-y-ejercicios)
 
 ---
 
@@ -51,9 +53,9 @@ resources:
 (ES = ECMAScript, el nombre oficial del estándar de JavaScript). Eso tiene tres
 consecuencias que importan:
 
-1. **Puede usar `import` y `export`.** Por eso la v4 puede terminar con
-   `export { ... }` (ver §EXPORTS). HA ignora esos exports, pero las pruebas de
-   Node los usan para importar las funciones.
+1. **Puede usar `import` y `export`.** Por eso el archivo de la v4 puede terminar
+   con `export { ... }`. HA ignora esos exports, pero las pruebas de Node los usan
+   para importar las funciones.
 2. **Su ámbito es privado.** Una variable `const KEYS` declarada arriba del
    archivo **no** se vuelve global (no aparece como `window.KEYS`). En la v3 había
    variables globales a propósito (`window.ygriega = 0;` en el `constructor`), que
@@ -839,7 +841,7 @@ Y en la prueba:
 // test/actions.test.mjs
 import {
   parseAction, executeAction, isHoldable, resolveForPlatform, KEYS, UnsupportedActionError,
-} from '../minimalist-tv-control-card.js';
+} from '../src/index.js';
 import { createFakeHass, LG_TV, SAMSUNG_TV, ROKU } from './helpers.mjs';
 ```
 
@@ -851,6 +853,9 @@ import { createFakeHass, LG_TV, SAMSUNG_TV, ROKU } from './helpers.mjs';
   exportar en la misma línea donde se declara.
 - Lo que se importa es una **conexión en vivo** y de solo lectura: no puedes hacer
   `KEYS = {}` desde la prueba, pero sí ves el mismo objeto `KEYS`.
+
+`src/index.js` es la entrada de la tarjeta: reexporta lo que las pruebas necesitan
+de los demás módulos (8.1).
 
 **¿Por qué `.mjs` en las pruebas y `.js` en la tarjeta?** Node decide si un archivo
 es módulo ES por su extensión y por `package.json`:
@@ -1585,7 +1590,7 @@ Ideas a notar:
 ### Importar el archivo en Node sin romperlo
 
 ```js
-// v4, §6
+// v4, src/util.js
 const BaseElement = globalThis.HTMLElement ?? class {};
 
 class TvControlCard extends BaseElement { ... }
@@ -1597,7 +1602,7 @@ sea cual sea el entorno (`window` en el navegador, `global` en Node). Si
 `class TvControlCard extends ...` ya no truena. Las pruebas no crean tarjetas; solo
 necesitan que el archivo se pueda importar para usar las funciones puras.
 
-El registro al final del archivo se protege igual:
+El registro, en `src/index.js`, se protege igual:
 
 ```js
 if (globalThis.customElements && !customElements.get(CARD_TAG)) {
@@ -1612,24 +1617,29 @@ La segunda condición evita un error si HA carga el archivo dos veces (por ejemp
 ### El nombre de la etiqueta: `?tag=`
 
 ```js
-const CARD_TAG = (() => {
+// src/tag.js
+export function tagFromUrl(url) {
   try {
-    const tag = new URL(import.meta.url).searchParams.get('tag');
+    const tag = new URL(url).searchParams.get('tag');
     return tag && /^[a-z][a-z0-9]*(-[a-z0-9]+)+$/.test(tag) ? tag : DEFAULT_CARD_TAG;
   } catch {
     return DEFAULT_CARD_TAG;
   }
-})();
+}
+
+// src/index.js
+setCardTag(tagFromUrl(import.meta.url));
 ```
 
 - `import.meta.url` es la URL con la que se cargó **este** archivo, por ejemplo
-  `http://ha.local:8123/local/tv-card-v4.js?tag=tv-control-card-v4&v=3`.
+  `http://ha.local:8123/local/tv-card-v4.js?tag=tv-control-card-v4&v=3`. Por eso se
+  lee en `index.js`, la entrada: es el único archivo que recibe el `?tag=` (8.1).
 - `new URL(...)` la separa en partes; `searchParams.get('tag')` lee lo que va después
   de `tag=`.
 - La regex exige un nombre válido para un custom element (minúsculas y al menos un
   guion). Si no lo es, se usa el nombre normal.
-- Todo está dentro de una IIFE (2.6) con `try/catch`: en Node o en un entorno raro,
-  si algo falla, se usa el nombre por defecto.
+- El `try/catch` cubre una URL inválida o un entorno raro: si algo falla, se usa el
+  nombre por defecto.
 
 Así dos versiones conviven en el mismo HA: cada una registra un nombre distinto.
 
@@ -3050,9 +3060,254 @@ de `define`.
 
 ---
 
-# 8. Glosario y ejercicios
+# 8. El proyecto con Vite: módulos, npm y build
 
-## 8.1 Glosario
+Hasta la Fase 2, la tarjeta era un solo archivo de 3470 líneas. En la Fase 3a se
+separó en **módulos** y se agregó **Vite**, una herramienta que los vuelve a juntar
+en un solo archivo para HA. La tarjeta hace exactamente lo mismo; lo que cambió es
+cómo está organizado el código y cómo se trabaja con él.
+
+## 8.1 De un archivo a muchos módulos
+
+```text
+src/
+  index.js                 entrada: lee ?tag=, registra los elementos
+  util.js  tag.js  version.js
+  actions/keys.js          §1        actions/parse.js   §2
+  platforms.js             §3        execute.js         §4
+  config/catalogs.js       §5        config/normalize.js
+  card/logic.js  card/styles.js  card/skeleton.js  card/tv-control-card.js   §6
+  editor/*.js                                                              §7
+```
+
+Las secciones § de esta guía siguen valiendo: cada una ahora vive en uno o más
+archivos. ¿Por qué separarlo?
+
+- **Encontrar las cosas.** Si buscas cómo se rutea una tecla al Roku, abres
+  `card/logic.js` (unas 200 líneas), no un archivo de 3470.
+- **Ver los cambios en git.** Un cambio en el editor solo toca archivos de
+  `editor/`; en la revisión se ve de inmediato qué parte se modificó.
+- **Trabajar en paralelo.** Dos personas que tocan módulos distintos no chocan.
+- **Dejar claras las dependencias.** Las líneas `import` del principio dicen
+  exactamente qué usa cada archivo de los demás.
+
+### Cómo se ve un módulo
+
+```js
+// src/card/logic.js (principio y final)
+import { KEYS, TV_ONLY_KEYS } from '../actions/keys.js';
+import { SOURCES } from '../config/catalogs.js';
+import { has } from '../util.js';
+
+function tvStatus(stateObj) { ... }
+function routeAction(action, { tv, rokuMode, mode }) { ... }
+...
+
+export { CENTER_GUARD_MS, SOURCE_ATTEMPTS, StateWaiters, TIMING, describeNow, ... };
+```
+
+- Arriba, los `import`: qué necesita este archivo de otros (2.12). `'../util.js'`
+  es una ruta relativa: `..` sube una carpeta, de `card/` a `src/`.
+- Abajo, el `export`: qué ofrece a los demás. Lo que no se exporta (por ejemplo
+  `normSource`) es privado del módulo: nadie más puede usarlo.
+- Cada módulo exporta **solo lo que otro módulo usa**. Si mañana ves que algo no
+  se exporta, sabes que nadie de fuera depende de eso.
+
+### Un `import` es una conexión en vivo
+
+```js
+// src/tag.js
+export let CARD_TAG = DEFAULT_CARD_TAG;
+
+export function setCardTag(tag) {
+  CARD_TAG = tag;
+  EDITOR_TAG = `${tag}-editor`;
+}
+```
+
+Cuando `card/tv-control-card.js` hace `import { CARD_TAG } from '../tag.js'`, no
+recibe una **copia** del valor: recibe una conexión a la variable original. Si
+después `setCardTag()` la cambia, la tarjeta ve el valor nuevo. Desde fuera solo se
+puede leer (`CARD_TAG = 'x'` en otro módulo da error); cambiarla solo lo puede hacer
+el módulo que la declaró.
+
+¿Y por qué el tag se lee en `index.js`? Por `import.meta.url` (3.6): es la URL del
+archivo **donde se escribe**. En desarrollo, cada módulo se carga por separado con
+su propia URL, y solo la entrada (`index.js`) recibe el `?tag=`:
+
+```text
+/local/tv-card.js?tag=tv-control-card-v4    ← index.js: aquí SÍ está el tag
+/src/tag.js                                 ← sin tag
+/src/card/tv-control-card.js                ← sin tag
+```
+
+Por eso `index.js` lee su propia URL y llama `setCardTag()` antes de registrar los
+elementos.
+
+### Cómo se separó sin romper nada
+
+El código no se reescribió: un script lo **cortó por rangos de línea** del archivo
+viejo y lo pegó en cada módulo. Después, para saber qué `import` necesitaba cada
+archivo, se usó **ESLint**, una herramienta que revisa código. Su regla `no-undef`
+avisa cuando un archivo usa un nombre que no está definido en él. Cada aviso
+("`KEYS` no está definido en `card/logic.js`") se convirtió en un `import`. Al final,
+ESLint confirmó cero avisos y que no hay **imports circulares** (A importa de B y B
+de A), que pueden causar errores difíciles de entender.
+
+## 8.2 npm y `package.json`
+
+**npm** (Node Package Manager) es el gestor de paquetes de JavaScript: como `apt` en
+Linux, pero para librerías y herramientas de JS. Viene con Node.
+
+`package.json` describe el proyecto:
+
+```json
+{
+  "name": "minimalist-tv-control-card",
+  "version": "4.0.0-dev",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "test": "node --test \"test/**/*.test.mjs\"",
+    "check": "node --check src/index.js && node --check dist/minimalist-tv-control-card.js"
+  },
+  "devDependencies": {
+    "vite": "8.3.8"
+  }
+}
+```
+
+- `"private": true` evita publicarlo por error en el registro público de npm.
+- `"type": "module"` hace que Node trate los `.js` como módulos ES (2.12).
+- **`scripts`**: atajos con nombre. `npm run build` ejecuta `vite build`;
+  `npm test` ejecuta las pruebas (`test` es tan común que no necesita `run`).
+- **`devDependencies`**: herramientas que solo se usan **para desarrollar**. Vite no
+  viaja dentro de la tarjeta: arma el archivo y ya. La tarjeta sigue sin
+  dependencias.
+- `"8.3.8"` es una versión **exacta**. Con `"^8.3.8"`, npm podría instalar la 8.4
+  cuando salga, y el resultado del build podría cambiar sin que nadie lo decida.
+
+### `npm install`, `node_modules` y `package-lock.json`
+
+```bash
+npm install
+```
+
+- Descarga Vite **y todo lo que Vite necesita** a la carpeta `node_modules/`. Son
+  decenas de paquetes. Esa carpeta no se sube a git (está en `.gitignore`): se
+  regenera cuando hace falta.
+- Escribe **`package-lock.json`**, con la versión exacta de **cada** paquete
+  descargado, también los indirectos. Ese archivo **sí** se sube a git: así tú, otra
+  persona o GitHub instalan exactamente lo mismo.
+- `npm ci` (lo usa la GitHub Action) instala justo lo que dice el lock, sin
+  actualizar nada; si `package.json` y el lock no coinciden, falla.
+
+## 8.3 Qué hace Vite
+
+Vite hace dos trabajos:
+
+**1. Servidor de desarrollo** (`npm run dev`). Sirve los archivos del proyecto en
+`http://localhost:5173` y, cuando guardas un cambio, recarga la página. Abre
+`dev/harness.html`, que carga `src/index.js` directamente: el navegador entiende
+módulos ES y va pidiendo cada `import` por separado.
+
+(Muchas herramientas reemplazan solo el módulo cambiado sin recargar, lo que se
+llama HMR. Con custom elements no sirve: un nombre como `tv-control-card` no se puede
+registrar dos veces en la misma página, así que Vite recarga todo.)
+
+**2. Build** (`npm run build`). Parte de `src/index.js`, sigue todos sus `import`
+y junta todos los módulos en **un solo archivo**: `dist/minimalist-tv-control-card.js`.
+A esto se le llama *bundle* (paquete). Es el archivo que se instala en HA.
+
+```js
+// dist/minimalist-tv-control-card.js (fragmento)
+/*! Minimalist TV Control Card v4.0.0-dev · MIT · https://github.com/extraiotpruebas/... */
+// src/version.js
+var CARD_VERSION = "4.0.0-dev";
+// src/tag.js
+var DEFAULT_CARD_TAG = "tv-control-card";
+...
+// src/actions/keys.js
+var KEYS = {
+```
+
+Los comentarios `// src/...` marcan de qué módulo viene cada parte. Si en el HA de
+un cliente aparece un error en la línea 2000 del archivo, buscas hacia arriba el
+último `// src/` y sabes qué módulo abrir.
+
+La configuración está en `vite.config.js`. Lo importante:
+
+```js
+build: {
+  lib: {
+    entry: 'src/index.js',
+    formats: ['es'],
+    fileName: () => 'minimalist-tv-control-card.js',
+  },
+  target: ['chrome111', 'edge111', 'safari16.4', 'firefox113'],
+  minify: false,
+  ...
+}
+```
+
+- **`lib`** ("library mode"): el resultado es un módulo para que otro programa (HA)
+  lo cargue, no una página web completa. `formats: ['es']`: módulo ES, el único
+  formato que necesita HA.
+- **`target`**: los navegadores más viejos que se soportan. Si el código usara algo
+  que esos navegadores no entienden, Vite lo traduciría a una forma equivalente.
+  Son los mínimos que ya pide el README.
+- **`minify: false`**: no se "comprime" el código. Minificar quita espacios y cambia
+  nombres largos por letras (`tvStatus` → `a`). Ahorraría unos 11 KB con gzip, pero
+  el archivo se volvería ilegible y casi imposible de depurar en el HA de un
+  cliente. La tarjeta se descarga una vez y queda en caché, así que no vale la pena.
+
+### Por qué `dist/` se sube a git
+
+HACS instala la tarjeta descargando el archivo del repositorio (busca en `dist/` el
+nombre que dice `hacs.json`). HACS no corre `npm run build`. Por eso, cada vez que
+cambia `src/`, hay que reconstruir y subir `dist/` en el mismo commit. Si se olvida,
+la GitHub Action lo detecta: reconstruye y compara con el `dist/` del commit.
+
+## 8.4 El flujo de trabajo diario
+
+```bash
+npm install            # solo la primera vez (o si cambia package.json)
+npm run dev            # 1. editar src/ y ver el cambio en el harness
+npm test               # 2. pruebas de Node
+npm run build          # 3. generar dist/
+```
+
+4. Para probar en tu HA: copia `dist/minimalist-tv-control-card.js` a
+   `/config/www/` y sube el `?v=` del recurso.
+5. Commit con `src/` **y** `dist/`.
+
+`npm test` también corre `test/dist.test.mjs`, que compara `dist/` con `src/`. Si
+cambiaste `src/` y no reconstruiste, esa prueba puede fallar: es el aviso de que
+`dist/` quedó viejo.
+
+## 8.5 Cómo se comprobó que la 3a no cambió nada
+
+La regla de la 3a era "mover, no cambiar". Se verificó desde cuatro lados:
+
+1. **Las 85 pruebas de siempre**, ahora contra `src/index.js`.
+2. **`test/dist.test.mjs`**: importa `src/` y `dist/` en la misma prueba y compara
+   exports, catálogos, `parseAction`, `normalizeConfig`, `serializeV4`, la vista del
+   editor y el ruteo, también con los configs reales de clientes.
+3. **La autoprueba en Chrome**, dos veces: contra `src/` y contra `dist/`
+   (`?build=dist`).
+4. **Capturas**: las de `dev/screenshots.html` con el archivo viejo, con `src/` y con
+   `dist/` produjeron la misma imagen.
+
+Esa es la ventaja de haber separado lógica pura y DOM desde el principio: casi todo
+se puede comprobar comparando datos, sin mirar la pantalla.
+
+---
+
+# 9. Glosario y ejercicios
+
+## 9.1 Glosario
 
 | Término | Significado breve |
 |---|---|
@@ -3087,7 +3342,7 @@ de `define`.
 | **template literal** | String entre backticks con `${}`. |
 | **unión discriminada** | Objetos con un campo `type` que indica qué otros campos tienen. |
 
-## 8.2 Ejercicios
+## 9.2 Ejercicios
 
 Hazlos con el archivo abierto. Para los que piden ejecutar código, crea un archivo
 de pruebas en tu carpeta temporal (no en el repo) o usa `node` interactivo:
@@ -3095,7 +3350,7 @@ de pruebas en tu carpeta temporal (no en el repo) o usa `node` interactivo:
 ```bash
 cd /home/ian/HAdesigns/TV-Control-Card
 node --input-type=module -e "
-import { parseAction } from './minimalist-tv-control-card.js';
+import { parseAction } from './src/index.js';
 console.log(parseAction('KEY_RETURN'));
 "
 ```
@@ -3135,7 +3390,7 @@ console.log(parseAction('KEY_RETURN'));
 16. (3.7) `setPath({ a: { b: 1 }, c: { d: 2 } }, ['a', 'b'], 5)` devuelve un objeto
     nuevo. ¿El `c` del resultado es el **mismo** objeto que el `c` original (`===`)?
 
-## 8.3 Respuestas cortas
+## 9.3 Respuestas cortas
 
 1. `{type:'key', key:'enter'}` (código Roku); `{type:'button', button:'KEY_HDMI'}`;
    `{type:'service', service:'script.turn_on', data:{entity_id:'script.cine'}}`;

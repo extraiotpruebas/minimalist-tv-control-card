@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {
   tvStatus, StateWaiters, TvControlCard, normalizeConfig, parseAction,
   routeAction, sourceMatches, resolveSourceName, describeNow, STYLES,
-} from '../minimalist-tv-control-card.js';
+} from '../src/index.js';
 
 // Que este archivo se pueda importar ya prueba el guard de §6: en Node no existe
 // HTMLElement ni customElements, y aun así la clase se declara sin error.

@@ -82,6 +82,15 @@ visual guarda el formato nuevo v4. Ver [docs/ARCHITECTURE.md](docs/ARCHITECTURE.
 - Render: el DOM se construye una vez y después solo se actualiza lo que cambió; los
   cambios de entidades ajenas a la tarjeta ya no la repintan.
 
+### Desarrollo
+- El código fuente pasa a `src/`, separado en módulos ES. [Vite](https://vite.dev)
+  los junta en `dist/minimalist-tv-control-card.js`, que es el archivo que se
+  instala en HA (HACS lo toma de `dist/`). Para la instalación manual se copia ese
+  archivo. El nombre del archivo y del elemento no cambian.
+- `npm run dev` (harness con recarga automática), `npm run build`, `npm test`
+  (incluye una prueba que compara `dist/` con `src/`) y una GitHub Action que
+  construye, revisa que `dist/` esté actualizado y corre las pruebas.
+
 ### Eliminado
 - Los modos `text` y `amplificador` (eran maquetas sin función). Si un YAML los trae
   se omiten con un aviso; volverán en una versión futura.

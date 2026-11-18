@@ -2,7 +2,8 @@
 <!--
   Autoprueba de la tarjeta en un navegador real (complementa los tests de Node,
   que no tienen DOM). Abrir con el mismo servidor que el harness:
-    http://localhost:8000/dev/selftest.html
+    http://localhost:8000/dev/selftest.html              (código fuente, src/)
+    http://localhost:8000/dev/selftest.html?build=dist   (archivo final, dist/)
   Muestra ✓/✗ por cada verificación.
 -->
 <html lang="es">
@@ -36,7 +37,8 @@
 </script>
 <script type="module">
   // Import dinámico con ?t=…: el navegador no puede reutilizar una versión vieja en caché.
-  await import(`../minimalist-tv-control-card.js?t=${Date.now()}`);
+  const ENTRY = new URLSearchParams(location.search).get('build') === 'dist' ? '../dist/minimalist-tv-control-card.js' : '../src/index.js';
+  await import(`${ENTRY}?t=${Date.now()}`);
 
   const out = [];
   let failures = 0;
