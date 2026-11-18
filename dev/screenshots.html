@@ -3,10 +3,10 @@
   Galería estática para las capturas del README (docs/img/).
   Cada tarjeta recibe un hass FIJO (sin simulación): es una foto, no un harness.
 
-    python3 -m http.server 8765 --bind 127.0.0.1
-    http://127.0.0.1:8765/dev/screenshots.html?set=estilos   (3 estilos × claro/oscuro)
-    http://127.0.0.1:8765/dev/screenshots.html?set=estados   (apagada, Roku, numpad, angosta)
-    Agrega &build=dist para usar el archivo final (dist/) en lugar de src/.
+    npm run dev → http://localhost:5173/dev/screenshots.html?set=estilos   (3 estilos × claro/oscuro)
+                  http://localhost:5173/dev/screenshots.html?set=estados   (apagada, Roku, numpad, angosta)
+    Con &build=dist usa el archivo final (dist/); así también sirve un servidor simple
+    (python3 -m http.server).
 
   Los íconos phu: (Custom Brand Icons) no existen fuera de HA, por eso los botones de
   streaming usan fuentes con ícono mdi: (Netflix, YouTube, Spotify, Twitch).

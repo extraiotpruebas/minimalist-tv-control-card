@@ -2,8 +2,10 @@
 <!--
   Autoprueba de la tarjeta en un navegador real (complementa los tests de Node,
   que no tienen DOM). Abrir con el mismo servidor que el harness:
-    http://localhost:8000/dev/selftest.html              (código fuente, src/)
-    http://localhost:8000/dev/selftest.html?build=dist   (archivo final, dist/)
+    npm run dev → http://localhost:5173/dev/selftest.html            (código fuente, src/)
+    cualquier servidor → /dev/selftest.html?build=dist                (archivo final, dist/)
+  En Chrome headless usa un perfil NUEVO en cada corrida: con un perfil reutilizado,
+  los módulos que importa src/index.js pueden salir de la caché (código viejo).
   Muestra ✓/✗ por cada verificación.
 -->
 <html lang="es">
@@ -204,9 +206,13 @@
   check(q('.card').dataset.mode === 'menu', 'control_mode_entity = navegacion (alias) → modo Menú');
 
   // 7. Selector de TV
+  // Lit pinta en una microtarea después de cada cambio: updateComplete es la promesa
+  // que se cumple cuando ya terminó de pintar.
   click('[data-act="picker"]');
+  await card.updateComplete;
   check(!q('[data-ref="picker"]').hidden, 'el selector se abre');
   document.body.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, composed: true }));
+  await card.updateComplete;
   check(q('[data-ref="picker"]').hidden, 'pointerdown fuera de la tarjeta lo cierra');
   click('[data-act="picker"]');
   click('[data-act="tv"][data-index="1"]');
@@ -230,10 +236,10 @@
   set('media_player.rec', 'off');
   await frame();
 
-  // 9. setConfig otra vez → un build nuevo, y la config inválida lanza
+  // 9. setConfig otra vez: Lit reutiliza el DOM (no hay rebuild) y no lo duplica; la config inválida lanza
   card.setConfig({ ...config, card_id: 'otro' });
   await frame();
-  check(card._stats.builds === 2 && root.querySelectorAll('ha-card').length === 1, 'setConfig nuevo → rebuild sin duplicar el DOM');
+  check(card._stats.builds === 1 && root.querySelectorAll('ha-card').length === 1, 'setConfig nuevo → mismo DOM, sin reconstruir ni duplicar');
   let threw = false;
   try { card.setConfig({ type: 'x' }); } catch { threw = true; }
   check(threw, 'config sin TVs → setConfig lanza (HA muestra el error)');
@@ -420,7 +426,10 @@
     `tocar el centro apagado → 1 solo turn_on y ningún OK (${callsSince(n)})`);
   check(q3('[data-ref="centerPower"]').getAttribute('icon') === 'mdi:loading', 'mientras enciende, el centro muestra un indicador de carga');
   set('media_player.sala', 'on');
-  await frame();
+  // Se espera al render (la tarjeta ya muestra la TV prendida), no a un frame: en el
+  // tiempo virtual del headless, esperar un frame puede adelantar el reloj varios
+  // segundos y la pausa de 800 ms ya habría pasado.
+  await card3.updateComplete;
   n = calls.length;
   center.click();     // justo después de encender
   await sleep(30);

@@ -9,47 +9,52 @@
  *   connectedCallback     la tarjeta entra a la página
  *   disconnectedCallback  la tarjeta sale (cambio de vista, modo edición...)
  *
- * El método de render (la parte nueva respecto a v3.x):
+ * El render, con Lit (LitElement):
  *
- *   _build()          crea el DOM UNA vez (por config). Sin datos del usuario en
- *                     el HTML: los textos e íconos se ponen después con
- *                     textContent/setAttribute, así que no hay que escapar nada.
- *   _applySettings()  cuando cambian los settings de la TV activa (otra TV con
- *                     overrides): cambia íconos y reconstruye solo la fila de modos.
- *   _update()         parcha: clases, textos, atributos y variables CSS. Es
- *                     "idempotente": calcula todo a partir del estado actual, así
- *                     que llamarlo dos veces da el mismo resultado (y por eso el
- *                     bug del "tema pegado" de la v3 ya no puede ocurrir).
+ *   willUpdate()      antes de cada render: estado que depende de la TV (cambio de
+ *                     settings, TV que se apagó, pausa del centro tras encender).
+ *   render()          arma la "vista" (_view) y devuelve la plantilla (template.js).
+ *                     Lit compara con lo que hay en pantalla y solo toca lo que
+ *                     cambió. Es "idempotente": todo se calcula del estado actual,
+ *                     por eso el bug del "tema pegado" de la v3 no puede ocurrir.
  *
- *   set hass solo agenda un _update si cambió alguna entidad que nos importa, y
- *   varios cambios dentro del mismo frame se juntan en uno (requestAnimationFrame).
+ *   El estado propio (this._ui, _busy, _loading…) son objetos normales, no
+ *   propiedades reactivas de Lit: cada cambio llama _schedule() = requestUpdate().
+ *   set hass solo lo llama si cambió una entidad que nos importa, y Lit junta
+ *   varios pedidos en un solo render.
  *
- * Como el DOM ya no se reemplaza, los nodos (y los listeners) sobreviven a los
- * updates de hass: esa es la base del arreglo del hold infinito (paso 4).
+ * Lit reutiliza los nodos: los botones sobreviven a los updates de hass, y esa es
+ * la base del arreglo del hold infinito (paso 4).
  * ========================================================================== */
+import { LitElement, nothing, unsafeCSS } from 'lit';
 import { isHoldable } from '../actions/parse.js';
 import { CENTER_GUARD_MS, SOURCE_ATTEMPTS, StateWaiters, TIMING, describeNow, resolveSourceName, routeAction, sourceMatches, storage, tvStatus } from './logic.js';
-import { cloneSkeleton, makeIcon, setAttr, setText, setVar } from './skeleton.js';
-import { adoptStyles } from './styles.js';
+import { CARD_CSS } from './styles.js';
+import { cardTemplate } from './template.js';
 import { BOTTOM_BUTTONS, DIRECTIONS, MODE_ALIASES, SOURCES_BY_ID } from '../config/catalogs.js';
 import { normalizeConfig } from '../config/normalize.js';
 import { executeAction } from '../execute.js';
 import { UnsupportedActionError, getPlatform } from '../platforms.js';
 import { CARD_TAG, EDITOR_TAG } from '../tag.js';
-import { BaseElement, delay, has } from '../util.js';
+import { delay, has } from '../util.js';
 
-class TvControlCard extends BaseElement {
+class TvControlCard extends LitElement {
+  // El CSS de siempre: Lit lo convierte UNA vez en una hoja compartida por todas las
+  // tarjetas (adoptedStyleSheets), con respaldo a <style> en navegadores viejos.
+  static styles = unsafeCSS(CARD_CSS);
+
   constructor() {
     super();
     this._model = null;              // salida de normalizeConfig (congelada)
     this._hass = null;
     this._ui = { tvIndex: 0, mode: null, roku: false, numpad: false };  // estado PROPIO de la tarjeta
-    this._refs = null;               // nodos creados en _build
-    this._appliedSettings = null;    // settings que _applySettings ya pintó
+    this._appliedSettings = null;    // settings de la TV que ya se pintaron (para contar cambios)
+    this._shownStatus = null;        // estado de la TV que muestra la pantalla AHORA
+    this._pickerOpen = false;        // selector de TVs abierto
+    this._toastState = { text: '', show: false };
     this._watched = [];              // objetos de estado vistos en el último set hass
     this._modeEntityState = undefined;
     this._restored = false;          // ¿ya se leyó la TV guardada en localStorage?
-    this._frame = 0;                 // id del requestAnimationFrame pendiente (0 = ninguno)
     this._toastTimer = 0;
     this._waiters = new StateWaiters();
     this._hold = null;               // presión en curso: { el, action, device, pointerId, active }
@@ -62,13 +67,16 @@ class TvControlCard extends BaseElement {
     this._busy = new Map();          // entity → 'Encendiendo…' / 'Apagando…'
     this._loading = new Map();       // entity → índice del botón de streaming en curso
     this._stats = { builds: 0, applies: 0, updates: 0 };  // lo muestra el harness
+  }
 
-    this.attachShadow({ mode: 'open' });
-    adoptStyles(this.shadowRoot);
-    // Delegación de eventos: un listener por TIPO de evento para todos los
-    // botones, presentes y futuros. Como el DOM no se reemplaza, nunca hay que
-    // volver a registrarlos.
-    const root = this.shadowRoot;
+  /*
+   * Lit crea el shadowRoot aquí (no en el constructor). Es el lugar para registrar
+   * la delegación de eventos: un listener por TIPO de evento para todos los botones,
+   * presentes y futuros. Como Lit reutiliza los nodos, nunca hay que volver a
+   * registrarlos.
+   */
+  createRenderRoot() {
+    const root = super.createRenderRoot();
     root.addEventListener('click', (e) => this._onClick(e));
     root.addEventListener('pointerdown', (e) => this._onPointerDown(e));
     // Cualquiera de estos termina una presión. Se escucha en el shadowRoot (no
@@ -86,6 +94,7 @@ class TvControlCard extends BaseElement {
     root.addEventListener('contextmenu', (e) => {
       if (e.target.closest?.('[data-act]')) e.preventDefault();
     });
+    return root;
   }
 
   /* ----- API que usa Home Assistant ----- */
@@ -95,10 +104,10 @@ class TvControlCard extends BaseElement {
     const model = normalizeConfig(config);
     if (model.warnings.length) console.warn(`[${CARD_TAG}] ${model.cardId}:`, model.warnings);
     this._stopHold();
+    this._togglePicker(false);
     this._model = model;
     this._ui = { tvIndex: 0, mode: null, roku: false, numpad: false };
     this._restored = false;
-    this._refs = null;               // fuerza _build en el próximo render
     this._appliedSettings = null;
     this._watched = [];
     this._modeEntityState = undefined;
@@ -119,18 +128,18 @@ class TvControlCard extends BaseElement {
   }
 
   connectedCallback() {
+    super.connectedCallback();
     this._watched = [];              // al volver a la página, repintar sí o sí
     document.addEventListener('visibilitychange', this._onVisibility);
     this._schedule();
   }
 
   disconnectedCallback() {
+    super.disconnectedCallback();
     // Si la tarjeta sale de la página con un dedo encima, la presión termina aquí.
     this._stopHold();
     document.removeEventListener('visibilitychange', this._onVisibility);
-    if (this._frame) cancelAnimationFrame(this._frame);
-    this._frame = 0;
-    if (this._refs) this._togglePicker(false);
+    this._togglePicker(false);
     clearTimeout(this._toastTimer);
     // Las esperas de _waitFor NO se cancelan: HA desconecta y reconecta tarjetas
     // al cambiar de vista, y un flujo de "encender + elegir fuente" debe seguir.
@@ -236,96 +245,9 @@ class TvControlCard extends BaseElement {
 
   /* ----- render ----- */
 
-  /**
-   * Junta varios pedidos de render en uno solo por frame (~16 ms). Si llegan 5
-   * updates de hass seguidos, se pinta una vez, justo antes de dibujar.
-   */
+  /** Pide un render. Lit junta varios pedidos seguidos en uno solo. */
   _schedule() {
-    if (this._frame || !this.isConnected) return;
-    this._frame = requestAnimationFrame(() => {
-      this._frame = 0;
-      this._render();
-    });
-  }
-
-  _render() {
-    if (!this._model) return;
-    if (!this._refs) this._build();
-    this._update();
-  }
-
-  _build() {
-    this._stats.builds++;
-    const fragment = cloneSkeleton();
-    const refs = {};
-    for (const el of fragment.querySelectorAll('[data-ref]')) refs[el.dataset.ref] = el;
-    refs.pad = {};
-    for (const el of fragment.querySelectorAll('[data-act="pad"]')) refs.pad[el.dataset.dir] = el;
-    refs.stream = [...fragment.querySelectorAll('[data-act="stream"]')];
-    refs.bottom = {};
-    for (const el of fragment.querySelectorAll('[data-act="bottom"]')) refs.bottom[el.dataset.id] = el;
-
-    // Lista de TVs del selector: depende solo de la config, se arma aquí.
-    refs.picker.replaceChildren(...this._model.tvs.map((tv, i) => {
-      const item = document.createElement('button');
-      item.type = 'button';
-      item.className = 'picker-item';
-      item.dataset.act = 'tv';
-      item.dataset.index = String(i);
-      item.setAttribute('role', 'option');
-      const name = document.createElement('span');
-      name.textContent = tv.name;   // textContent: el nombre se muestra tal cual, nunca se interpreta como HTML
-      item.append(makeIcon(tv.platform === 'samsung' ? 'mdi:television' : 'mdi:television-play', 'tv-ico'), name, makeIcon('mdi:check', 'check'));
-      return item;
-    }));
-
-    // Se quita solo el <ha-card> de un build anterior (si setConfig se llamó
-    // otra vez). Un innerHTML = '' borraría también el <style> de respaldo.
-    this.shadowRoot.querySelector('ha-card')?.remove();
-    this.shadowRoot.append(fragment);
-    this._refs = refs;
-    this._appliedSettings = null;
-  }
-
-  /** Lo que depende de los settings de la TV activa (cambia solo al cambiar de TV). */
-  _applySettings(settings) {
-    this._stats.applies++;
-    const refs = this._refs;
-    const { buttons, streaming } = settings;
-
-    // (Los íconos de streaming cambian con el estado (spinner): van en _update.)
-    setAttr(refs.power.firstElementChild, 'icon', buttons.power.icon);
-    setAttr(refs.centerIcon, 'icon', buttons.center.icon);
-    for (const id of BOTTOM_BUTTONS) setAttr(refs.bottom[id].firstElementChild, 'icon', buttons[id].icon);
-    streaming.forEach((slot, i) => refs.stream[i].setAttribute('aria-label', slot.source.name));
-
-    // Botón propio del encabezado (el "exit" de arriba de los YAML viejos). Si solo
-    // repite el EXIT de abajo, se oculta: era un duplicado. Con Roku, su lugar lo
-    // ocupa el selector TV | Roku.
-    const topLeft = buttons.top_left;
-    const isPlainExit = topLeft.action?.type === 'key' && topLeft.action.key === 'exit';
-    refs.topLeft.hidden = !topLeft.action || isPlainExit;
-    setAttr(refs.topLeft.firstElementChild, 'icon', topLeft.icon);
-    setAttr(refs.topLeft, 'aria-label', topLeft.action?.type === 'service' ? topLeft.action.data?.entity_id : 'Acción');
-
-    // Modos: un grupo de "radio" (solo uno activo a la vez).
-    const modeButtons = settings.modes.map((id) => {
-      const def = settings.modeDefs[id];
-      const btn = document.createElement('button');
-      btn.type = 'button';
-      btn.className = 'mode';
-      btn.dataset.act = 'mode';
-      btn.dataset.id = id;
-      btn.setAttribute('role', 'radio');
-      const label = document.createElement('span');
-      label.textContent = def.label;
-      btn.append(makeIcon(def.icon), label);
-      return btn;
-    });
-    refs.modes.replaceChildren(...modeButtons);
-
-    if (this._ui.mode && !settings.modes.includes(this._ui.mode)) this._ui.mode = null;
-    this._appliedSettings = settings;
+    this.requestUpdate();
   }
 
   /** 'light' | 'dark'. Con theme: auto se sigue el modo oscuro de HA. */
@@ -334,65 +256,63 @@ class TvControlCard extends BaseElement {
     return this._hass?.themes?.darkMode ? 'dark' : 'light';
   }
 
-  _update() {
+  /** Lit lo llama UNA vez, cuando crea el DOM por primera vez. */
+  firstUpdated() {
+    this._stats.builds++;
+  }
+
+  /*
+   * Antes de cada render: el estado que depende de la TV. Va aquí y no en render()
+   * porque cambia cosas (cierra el numpad, corta un hold): render() solo describe.
+   */
+  willUpdate() {
+    if (!this._model) return;
     this._stats.updates++;
-    const refs = this._refs;
     const tv = this._tv;
     const settings = tv.settings;
-    if (this._appliedSettings !== settings) this._applySettings(settings);
-
-    const st = this._hass?.states?.[tv.entity];
-    const status = tvStatus(st);
-    const roku = this._ui.roku && !!tv.companion;
-    const busy = this._busy.get(tv.entity);
-    const card = refs.card;
-
-    // Atributos data-* en .card: el CSS decide cómo se ve cada caso con
-    // selectores como .card[data-status="on"] .power. JS dice QUÉ pasa; CSS, CÓMO.
-    card.dataset.style = this._model.style;
-    card.dataset.theme = this._theme;
-    card.dataset.status = status;
-    card.dataset.mode = this._ui.mode ?? 'default';
-    card.dataset.roku = String(roku);
-    card.dataset.busy = String(!!busy);
-    card.classList.toggle('multi', this._model.tvs.length > 1);
-
-    // Con la TV apagada o sin conexión, los controles que le hablan a la TV se
-    // BLOQUEAN (disabled), no solo se atenúan: antes se veían apagados pero seguían
-    // mandando teclas. `disabled` también lo anuncia a los lectores de pantalla.
-    // El centro (Encender), el power y el streaming (enciende y abre la app) siguen activos.
-    const locked = status !== 'on';
-    if (locked && this._hold) this._stopHold();
-    for (const el of [...Object.values(refs.pad), ...Object.values(refs.bottom), ...refs.modes.children]) {
-      if (el.disabled !== locked) el.disabled = locked;
+    if (this._appliedSettings !== settings) {
+      // Otra TV con su propia configuración: si el modo activo no existe en ella, se apaga.
+      this._stats.applies++;
+      if (this._ui.mode && !settings.modes.includes(this._ui.mode)) this._ui.mode = null;
+      this._appliedSettings = settings;
     }
 
-    // El numpad solo tiene sentido con la TV prendida. Si se apaga con el numpad
-    // abierto, se cierra: así el centro "Encender" siempre está a la vista.
-    if (this._ui.numpad && status !== 'on') this._ui.numpad = false;
-    card.dataset.numpad = String(this._ui.numpad);
-    // Los botones que abren el numpad dicen si está abierto (aria-expanded).
-    for (const [el, act] of this._numpadOpeners(settings)) setAttr(el, 'aria-expanded', act ? String(this._ui.numpad) : null);
-
-    // Centro del touchpad: con la TV apagada o sin conexión es el botón Encender.
+    const status = tvStatus(this._hass?.states?.[tv.entity]);
+    // Con la TV apagada o sin conexión, los controles que le hablan a la TV se
+    // BLOQUEAN (disabled en la plantilla): un hold en curso se corta, y el numpad
+    // se cierra para que el centro "Encender" quede a la vista.
+    if (status !== 'on') {
+      if (this._hold) this._stopHold();
+      this._ui.numpad = false;
+    }
     // Justo cuando la TV pasa a 'on', el centro ignora OK un momento: un doble toque
     // a "Encender" no debe terminar mandando un OK a la TV recién prendida.
-    const centerIsPower = status !== 'on';
     if (status === 'on' && this._lastStatus !== null && this._lastStatus !== 'on') {
       this._centerGuardUntil = performance.now() + CENTER_GUARD_MS;
     }
     this._lastStatus = status;
-    setAttr(refs.center, 'aria-label', centerIsPower ? 'Encender' : 'OK');
-    setAttr(refs.centerPower, 'icon', busy && centerIsPower ? 'mdi:loading' : settings.buttons.power.icon);
+    this._shownStatus = status;
+  }
 
-    setText(refs.name, tv.name);
+  render() {
+    if (!this._model) return nothing;
+    return cardTemplate(this._view());
+  }
 
-    // Selector TV | Roku: solo si la TV tiene Roku.
-    refs.switch.hidden = !tv.companion;
-    for (const btn of refs.switch.children) btn.setAttribute('aria-pressed', String((btn.dataset.id === 'roku') === roku));
-    if (tv.companion) refs.topLeft.hidden = true;
-
-    // La pantalla de vidrio y el color de la app.
+  /**
+   * Todo lo que muestra la tarjeta, calculado desde el estado actual: qué TV, si
+   * está prendida, qué app, qué modo… La plantilla (template.js) solo lo pinta.
+   */
+  _view() {
+    const tv = this._tv;
+    const settings = tv.settings;
+    const { buttons } = settings;
+    const st = this._hass?.states?.[tv.entity];
+    const status = this._shownStatus;
+    const roku = this._ui.roku && !!tv.companion;
+    const busy = this._busy.get(tv.entity);
+    const locked = status !== 'on';
+    const centerIsPower = status !== 'on';
     const now = describeNow({
       status, busy, roku,
       hasCompanion: !!tv.companion,
@@ -400,35 +320,71 @@ class TvControlCard extends BaseElement {
       rokuState: roku ? this._hass?.states?.[tv.companion.entity] : null,
       streaming: settings.streaming,
     });
-    setText(refs.state, now.title);
-    setText(refs.nowSub, now.sub);
-    setAttr(refs.nowIcon, 'icon', now.icon);
-    // Se recalcula desde cero en cada update: si no hay color, la variable se BORRA
-    // (por eso el "tema pegado" de la v3 ya no puede ocurrir).
-    setVar(card, '--tv-accent', now.accent);
-    setVar(card, '--tv-glow', now.accent);
-
+    // Los botones que abren el numpad dicen si está abierto (aria-expanded).
+    const expanded = (action) => (action?.type === 'numpad' ? String(this._ui.numpad) : undefined);
     const pad = this._pad;
-    for (const dir of DIRECTIONS) {
-      setAttr(refs.pad[dir].firstElementChild, 'icon', pad[dir].icon);
-      refs.pad[dir].classList.toggle('empty', !pad[dir].action);
-    }
-
-    for (const btn of refs.modes.children) btn.setAttribute('aria-checked', String(btn.dataset.id === this._ui.mode));
-
     const loadingIndex = this._loading.get(tv.entity);
-    settings.streaming.forEach((slot, i) => {
-      const loading = loadingIndex === i;
-      refs.stream[i].classList.toggle('active', !!now.sourceId && slot.source.id === now.sourceId);
-      refs.stream[i].classList.toggle('loading', loading);
-      setAttr(refs.stream[i].firstElementChild, 'icon', loading ? 'mdi:loading' : slot.icon);
-    });
 
-    for (const item of refs.picker.children) {
-      const active = Number(item.dataset.index) === this._ui.tvIndex;
-      item.classList.toggle('active', active);
-      item.setAttribute('aria-selected', String(active));
-    }
+    // Botón propio del encabezado (el "exit" de arriba de los YAML viejos). Si solo
+    // repite el EXIT de abajo, se oculta: era un duplicado. Con Roku, su lugar lo
+    // ocupa el selector TV | Roku.
+    const topLeft = buttons.top_left;
+    const isPlainExit = topLeft.action?.type === 'key' && topLeft.action.key === 'exit';
+
+    return {
+      style: this._model.style,
+      theme: this._theme,
+      status,
+      mode: this._ui.mode ?? 'default',
+      roku,
+      busy: !!busy,
+      numpad: this._ui.numpad,
+      multi: this._model.tvs.length > 1,
+      // Se recalcula en cada render: si no hay color, la variable se BORRA
+      // (por eso el "tema pegado" de la v3 ya no puede ocurrir).
+      accent: now.accent,
+      locked,
+      name: tv.name,
+      hasCompanion: !!tv.companion,
+      pickerOpen: this._pickerOpen,
+      topLeft: {
+        hidden: !topLeft.action || isPlainExit || !!tv.companion,
+        icon: topLeft.icon,
+        label: topLeft.action?.type === 'service' ? topLeft.action.data?.entity_id : 'Acción',
+        expanded: expanded(topLeft.action),
+      },
+      powerIcon: buttons.power.icon,
+      tvs: this._model.tvs.map((t, index) => ({
+        index,
+        name: t.name,
+        active: index === this._ui.tvIndex,
+        icon: t.platform === 'samsung' ? 'mdi:television' : 'mdi:television-play',
+      })),
+      now,
+      streaming: settings.streaming.map((slot, index) => ({
+        index,
+        name: slot.source.name,
+        active: !!now.sourceId && slot.source.id === now.sourceId,
+        loading: loadingIndex === index,
+        icon: loadingIndex === index ? 'mdi:loading' : slot.icon,
+      })),
+      pad: Object.fromEntries(DIRECTIONS.map((dir) => [dir, {
+        icon: pad[dir].icon,
+        empty: !pad[dir].action,
+        expanded: expanded(pad[dir].action),
+      }])),
+      centerIsPower,
+      centerIcon: buttons.center.icon,
+      centerPowerIcon: busy && centerIsPower ? 'mdi:loading' : buttons.power.icon,
+      modes: settings.modes.map((id) => ({
+        id,
+        label: settings.modeDefs[id].label,
+        icon: settings.modeDefs[id].icon,
+        checked: id === this._ui.mode,
+      })),
+      bottom: Object.fromEntries(BOTTOM_BUTTONS.map((id) => [id, { icon: buttons[id].icon, expanded: expanded(buttons[id].action) }])),
+      toast: this._toastState,
+    };
   }
 
   /* ----- eventos ----- */
@@ -449,7 +405,7 @@ class TvControlCard extends BaseElement {
     // closest() sube desde el nodo tocado hasta encontrar un [data-act]. Así un
     // toque sobre el <ha-icon> de dentro cuenta como toque al botón.
     const el = e.target.closest?.('[data-act]');
-    if (!el || !this._model || !this._refs) return;
+    if (!el || !this._model || !this.hasUpdated) return;
 
     // Un hold ya envió la acción en el pointerdown: el click que el navegador
     // dispara al soltar no debe mandarla otra vez.
@@ -482,13 +438,13 @@ class TvControlCard extends BaseElement {
    * pointerdown para responder al instante y poder repetir. Todo lo demás sigue en click.
    */
   _onPointerDown(e) {
-    if (e.button !== 0 || !this._model || !this._refs) return;   // solo botón principal / dedo
+    if (e.button !== 0 || !this._model || !this.hasUpdated) return;   // solo botón principal / dedo
     const el = e.target.closest?.('[data-act]');
     if (!el || el.disabled) return;
     if (el.dataset.act === 'center') {
       // Lo que cuenta es la cara que se VEÍA al tocar, no la que haya al soltar:
       // un toque que empezó como "Encender" nunca termina mandando un OK.
-      this._centerPress = { power: this._refs.card.dataset.status !== 'on', at: performance.now() };
+      this._centerPress = { power: this._shownStatus !== 'on', at: performance.now() };
       if (this._centerPress.power) return;   // como Encender no hay hold
     }
     const action = this._actionFor(el);
@@ -604,16 +560,6 @@ class TvControlCard extends BaseElement {
     this._schedule();
   }
 
-  /** Pares [botón, ¿abre el numpad?] de los botones que pueden tener la acción numpad. */
-  _numpadOpeners(settings) {
-    const refs = this._refs;
-    const isNumpad = (button) => button?.action?.type === 'numpad';
-    const pairs = BOTTOM_BUTTONS.map((id) => [refs.bottom[id], isNumpad(settings.buttons[id])]);
-    pairs.push([refs.topLeft, isNumpad(settings.buttons.top_left)]);
-    for (const dir of DIRECTIONS) pairs.push([refs.pad[dir], isNumpad(this._pad[dir])]);
-    return pairs;
-  }
-
   _route(action) {
     return routeAction(action, { tv: this._tv, rokuMode: this._ui.roku, mode: this._ui.mode });
   }
@@ -706,10 +652,10 @@ class TvControlCard extends BaseElement {
     const press = this._centerPress;
     this._centerPress = null;
     const recent = press && performance.now() - press.at < 1500;
-    const asPower = recent ? press.power : this._refs.card.dataset.status !== 'on';
+    const asPower = recent ? press.power : this._shownStatus !== 'on';
     if (asPower) return this._turnOn();
     if (performance.now() < this._centerGuardUntil) return;
-    return this._press(this._actionFor(this._refs.center));
+    return this._press(this._tv.settings.buttons.center.action);
   }
 
   /**
@@ -794,16 +740,14 @@ class TvControlCard extends BaseElement {
   }
 
   _togglePicker(force) {
-    const refs = this._refs;
-    if (!refs || this._model.tvs.length < 2) return;
-    const open = force ?? refs.picker.hidden;
-    if (open === !refs.picker.hidden) return;
-    refs.picker.hidden = !open;
-    refs.status.setAttribute('aria-expanded', String(open));
+    const open = force ?? !this._pickerOpen;
+    if (open === this._pickerOpen || (open && !(this._model?.tvs.length > 1))) return;
+    this._pickerOpen = open;
     // El listener en document existe SOLO mientras el popup está abierto
     // (la v3 agregaba uno nuevo en cada render y nunca los quitaba).
     if (open) document.addEventListener('pointerdown', this._onOutsidePointer, true);
     else document.removeEventListener('pointerdown', this._onOutsidePointer, true);
+    this._schedule();
   }
 
   /*
@@ -817,7 +761,8 @@ class TvControlCard extends BaseElement {
    */
   _onOutsidePointer = (e) => {
     const path = e.composedPath();
-    if (!path.includes(this._refs?.picker) && !path.includes(this._refs?.status)) this._togglePicker(false);
+    const root = this.renderRoot;
+    if (!path.includes(root.querySelector('.picker')) && !path.includes(root.querySelector('.tv-name'))) this._togglePicker(false);
   };
 
   _selectTv(index) {
@@ -836,12 +781,14 @@ class TvControlCard extends BaseElement {
   }
 
   _toast(message) {
-    const toast = this._refs?.toast;
-    if (!toast) return;
-    toast.textContent = message;
-    toast.classList.add('show');
+    if (!this.hasUpdated) return;
+    this._toastState = { text: message, show: true };
+    this._schedule();
     clearTimeout(this._toastTimer);
-    this._toastTimer = setTimeout(() => toast.classList.remove('show'), 3500);
+    this._toastTimer = setTimeout(() => {
+      this._toastState = { ...this._toastState, show: false };
+      this._schedule();
+    }, 3500);
   }
 
   _showError(err) {

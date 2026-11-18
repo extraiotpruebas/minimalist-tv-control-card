@@ -401,26 +401,9 @@ ha-card.card {
 `;
 
 /*
- * Una sola hoja de estilos para TODAS las tarjetas de la página: el navegador
- * parsea el CSS una vez y cada shadowRoot solo guarda una referencia
- * (adoptedStyleSheets). La v3 reinsertaba un <style> de 733 líneas en cada render.
- * Navegadores viejos (iOS < 16.4, p. ej. una tablet de pared antigua) no tienen
- * CSSStyleSheet construible: ahí se usa un <style> normal, una sola vez.
+ * Una sola hoja de estilos para TODAS las tarjetas de la página: la tarjeta la usa
+ * como `static styles` y Lit la convierte UNA vez en un CSSStyleSheet compartido
+ * (adoptedStyleSheets), con respaldo a <style> en navegadores viejos. La v3
+ * reinsertaba un <style> de 733 líneas en cada render.
  */
-let sharedSheet = null;
-function adoptStyles(root) {
-  const supported = 'adoptedStyleSheets' in Document.prototype && 'replaceSync' in CSSStyleSheet.prototype;
-  if (supported) {
-    if (!sharedSheet) {
-      sharedSheet = new CSSStyleSheet();
-      sharedSheet.replaceSync(CARD_CSS);
-    }
-    root.adoptedStyleSheets = [sharedSheet];
-  } else {
-    const style = document.createElement('style');
-    style.textContent = CARD_CSS;
-    root.append(style);
-  }
-}
-
-export { adoptStyles };
+export { CARD_CSS };

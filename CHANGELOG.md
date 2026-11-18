@@ -87,6 +87,9 @@ visual guarda el formato nuevo v4. Ver [docs/ARCHITECTURE.md](docs/ARCHITECTURE.
   los junta en `dist/minimalist-tv-control-card.js`, que es el archivo que se
   instala en HA (HACS lo toma de `dist/`). Para la instalación manual se copia ese
   archivo. El nombre del archivo y del elemento no cambian.
+- La tarjeta y el editor se dibujan con [Lit](https://lit.dev) 3.3.3 (incluido en
+  `dist/`): plantillas en lugar de parchar el DOM a mano. Mismo HTML, mismo CSS y
+  mismo comportamiento.
 - `npm run dev` (harness con recarga automática), `npm run build`, `npm test`
   (incluye una prueba que compara `dist/` con `src/`) y una GitHub Action que
   construye, revisa que `dist/` esté actualizado y corre las pruebas.

@@ -417,12 +417,12 @@ que el nombre exista en el atributo `source_list` de la entidad.
 Ver [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) (cómo está hecha y cómo extenderla) y
 [docs/GUIA-DE-ESTUDIO.md](docs/GUIA-DE-ESTUDIO.md) (el código explicado desde cero).
 
-El código fuente está en `src/` (módulos ES). [Vite](https://vite.dev) los junta en
-un solo archivo, `dist/minimalist-tv-control-card.js`, que es el que se instala en HA.
-Requiere Node 22.
+El código fuente está en `src/` (módulos ES, render con [Lit](https://lit.dev)).
+[Vite](https://vite.dev) los junta en un solo archivo, `dist/minimalist-tv-control-card.js`,
+que es el que se instala en HA y ya incluye Lit. Requiere Node 22.
 
 ```bash
-npm install          # una vez: instala Vite (única dependencia, solo de desarrollo)
+npm install          # una vez: instala Lit y Vite
 npm run dev          # http://localhost:5173/dev/harness.html, recarga al guardar
 npm test             # pruebas de Node (incluye comparar dist/ con src/)
 npm run build        # genera dist/minimalist-tv-control-card.js
@@ -431,6 +431,9 @@ npm run build        # genera dist/minimalist-tv-control-card.js
 - `dev/harness.html`: tarjeta y editor con un HA simulado.
 - `dev/selftest.html`: autoprueba en el navegador. Con `?build=dist` prueba el
   archivo final en lugar de `src/`.
+
+Las páginas de `dev/` necesitan el servidor de Vite (`npm run dev`) para cargar
+`src/`; con `?build=dist` funcionan con cualquier servidor.
 
 Después de cambiar `src/`, corre `npm run build` e incluye `dist/` en el commit:
 HACS descarga ese archivo tal como está en el repositorio (la GitHub Action avisa si

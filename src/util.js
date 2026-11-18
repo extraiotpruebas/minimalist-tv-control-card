@@ -1,7 +1,7 @@
 /*
  * Utilidades pequeñas que usan varios módulos. Cada una estaba antes en la sección
  * donde se usó por primera vez (has en §2, delay en §4, deepFreeze/firstDefined en
- * §5, BaseElement en §6); al separar en módulos se juntan aquí para que ningún
+ * §5); al separar en módulos se juntan aquí para que ningún
  * módulo tenga que importar de otro solo por una utilidad.
  */
 
@@ -36,11 +36,4 @@ function firstDefined(...values) {
   return undefined;
 }
 
-/*
- * En Node (los tests) no existe HTMLElement. Con `?? class {}` la clase se puede
- * declarar igual y los tests siguen importando el archivo sin navegador.
- * (?? = "si lo de la izquierda es null/undefined, usa lo de la derecha".)
- */
-const BaseElement = globalThis.HTMLElement ?? class {};
-
-export { BaseElement, deepFreeze, delay, firstDefined, has };
+export { deepFreeze, delay, firstDefined, has };

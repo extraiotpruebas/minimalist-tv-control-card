@@ -8,7 +8,8 @@ desde cero, ver la [guía de estudio](GUIA-DE-ESTUDIO.md).
 
 ## 1. Visión general
 
-El código fuente está en **`src/`**, dividido en módulos ES sin dependencias.
+El código fuente está en **`src/`**, dividido en módulos ES. La única dependencia es
+[Lit](https://lit.dev) (render de la tarjeta y el editor), que viaja dentro del build.
 [Vite](https://vite.dev) los junta en **un solo archivo**,
 `dist/minimalist-tv-control-card.js`, que es el que HA carga como ES module
 (`type: module`) y el que descarga HACS. Los módulos conservan la numeración de
@@ -23,12 +24,12 @@ documentación y en la guía de estudio.
 | §4 Ejecutar | `execute.js` | `executeAction(hass, action, device)` | Llama a `hass` |
 | §5 Config | `config/catalogs.js`, `config/normalize.js` | Catálogos (`SOURCES`, `FIXED_MODES`, `DEFAULT_BUTTONS`…) y `normalizeConfig` | Sí |
 | §6 Tarjeta | `card/logic.js` | Helpers puros: `routeAction`, `describeNow`, `tvStatus`, `StateWaiters`, `TIMING`, `storage` | Sí |
-| | `card/styles.js`, `card/skeleton.js` | CSS (`CARD_CSS`, `adoptStyles`), HTML base y ayudantes de DOM | — |
-| | `card/tv-control-card.js` | `TvControlCard`: ciclo de vida, render, eventos, flujos | No (DOM) |
+| | `card/styles.js`, `card/template.js` | CSS (`CARD_CSS`) y la plantilla Lit (`cardTemplate(view)`) | — |
+| | `card/tv-control-card.js` | `TvControlCard` (LitElement): ciclo de vida, `_view()`, eventos, flujos | No (DOM) |
 | §7 Editor | `editor/paths.js`, `catalogs.js`, `action-form.js`, `view.js`, `ops.js`, `serialize.js` | Lógica pura: `buildEditorView`, `applyFormChange`, `applyOp`, `serializeV4` | Sí |
-| | `editor/styles.js`, `editor/tv-control-card-editor.js` | `TvControlCardEditor` (DOM) | No |
+| | `editor/styles.js`, `editor/tv-control-card-editor.js` | `TvControlCardEditor` (LitElement) | No |
 | — | `index.js` | Entrada: lee `?tag=`, registra los elementos, reexporta lo puro | — |
-| — | `util.js`, `tag.js`, `version.js` | `has`, `delay`, `deepFreeze`, `firstDefined`, `BaseElement`; nombre del elemento; versión | — |
+| — | `util.js`, `tag.js`, `version.js` | `has`, `delay`, `deepFreeze`, `firstDefined`; nombre del elemento; versión | — |
 
 \* *Pura* = misma entrada, misma salida, sin tocar el DOM ni HA. `src/index.js`
 reexporta todo lo puro, y las pruebas de Node lo importan de ahí sin navegador.
@@ -50,8 +51,8 @@ actualizados.
 2. **El YAML se lee en un solo lugar.** `normalizeConfig` convierte cualquier formato
    (v4, repo v3.x, variante v3 multientidad) en un modelo interno congelado. La
    tarjeta nunca vuelve a mirar las claves crudas.
-3. **Construir una vez, después parchar.** El DOM se crea en `_build`; los cambios de
-   estado solo tocan clases, atributos, textos y variables CSS.
+3. **Describir, no parchar.** `render()` describe la tarjeta desde el estado actual
+   y Lit aplica solo los cambios. Los nodos se reutilizan: nunca se reconstruye el DOM.
 4. **Nunca apagar por accidente.** Ningún flujo automático usa `toggle`; `unavailable`
    nunca se trata como "apagada".
 5. **Nada queda corriendo solo.** Todo lo que repite o espera (hold, esperas de
@@ -70,16 +71,18 @@ actualizados.
     │                            tvs: [{ name, entity, platform, companion, settings }],
     │                            warnings }
     ▼
- §6 _build()  (una vez por config)          set hass(hass)  (muy seguido)
-    │                                           │
-    │                                  ¿cambió una entidad vigilada?
-    │                                           │ sí
-    ▼                                           ▼
- _applySettings(settings) ◄──── _render() ◄── _schedule()  (1 vez por frame, rAF)
- (al cambiar de TV con overrides)   │
-                                    ▼
-                                _update()   clases, data-*, textos, --tv-accent
-                                    
+ §6 TvControlCard (LitElement)              set hass(hass)  (muy seguido)
+                                                │
+                                       ¿cambió una entidad vigilada?
+                                                │ sí
+                                                ▼
+                                   _schedule() = requestUpdate()
+                                   (Lit junta varios pedidos en un render)
+                                                │
+                     willUpdate()   cambio de settings, TV apagada, pausa del centro
+                     render()       _view() → cardTemplate(view)   (card/template.js)
+                     Lit aplica al DOM solo lo que cambió: clases, data-*, textos, --tv-accent
+
  Toque del usuario
     │  (delegación: 1 listener por tipo en el shadowRoot)
     ▼
@@ -200,11 +203,12 @@ Excepciones fijas: las teclas del numpad siempre van a la TV.
 
 | Método | Cuándo | Qué hace |
 |---|---|---|
-| `constructor` | al crear | `attachShadow`, hoja de estilos compartida, listeners delegados |
-| `setConfig` | cada cambio de YAML | `normalizeConfig`, reinicia `_ui`, fuerza `_build` |
+| `constructor` | al crear | estado inicial |
+| `createRenderRoot` | Lit crea el shadow root | listeners delegados (los estilos los pone Lit desde `static styles`) |
+| `setConfig` | cada cambio de YAML | `normalizeConfig`, reinicia `_ui`, cierra el picker, pide render |
 | `set hass` | cada cambio de cualquier entidad de HA | restaura la TV guardada, resuelve esperas, sincroniza `control_mode_entity`, agenda render solo si cambió algo vigilado |
 | `connectedCallback` | entra a la página | `visibilitychange`, render |
-| `disconnectedCallback` | sale de la página | corta el hold, cancela el frame, cierra el picker |
+| `disconnectedCallback` | sale de la página | corta el hold, cierra el picker |
 
 **Entidades vigiladas** (`_watchedEntities`): la TV activa, su Roku y
 `control_mode_entity` (más `themes.darkMode` con `theme: auto`). HA crea un objeto
@@ -212,18 +216,24 @@ nuevo por cada cambio de estado, así que se comparan **referencias** (`===`).
 
 ### Render
 
-- `_build()` clona `SKELETON` (un `<template>`), guarda los nodos en `this._refs` y
-  arma la lista del picker. Sin datos del usuario en el HTML: textos e íconos se
-  ponen con `textContent` / `setAttribute`, así que no hay que escapar nada.
-- `_applySettings(settings)` corre al cambiar los `settings` de la TV activa: íconos
-  de botones y la fila de modos.
-- `_update()` es **idempotente**: calcula todo desde el estado actual. Pone en
-  `.card` los atributos `data-style`, `data-theme`, `data-status`
-  (`on`/`off`/`unavailable`), `data-mode`, `data-roku`, `data-busy`, `data-numpad`, y
-  las variables `--tv-accent` / `--tv-glow`. También aplica `disabled` a touchpad,
-  modos y teclas de abajo cuando la TV no está `on`.
-- `_schedule()` junta varios pedidos en un solo `requestAnimationFrame`.
-- `_stats` cuenta `builds`/`applies`/`updates` (los muestra el harness).
+- El estado propio (`_ui`, `_busy`, `_loading`, `_pickerOpen`, `_toastState`) son
+  objetos normales, no propiedades reactivas: cada cambio llama `_schedule()`, que
+  es `this.requestUpdate()`. Así los flujos quedaron igual que antes de Lit.
+- `willUpdate()` (antes de cada render) maneja lo que **cambia estado**: cambio de
+  `settings` de la TV activa (y apaga un modo que no exista en ella), TV que dejó de
+  estar `on` (corta el hold, cierra el numpad), pausa del centro al pasar a `on`.
+  Guarda `_shownStatus`: lo que los toques consideran "lo que se veía".
+- `render()` → `cardTemplate(this._view())`. `_view()` es **idempotente**: calcula
+  todo desde el estado actual. La plantilla pone en `.card` los atributos
+  `data-style`, `data-theme`, `data-status` (`on`/`off`/`unavailable`), `data-mode`,
+  `data-roku`, `data-busy`, `data-numpad`, las variables `--tv-accent` / `--tv-glow`
+  (`styleMap`) y `disabled` en touchpad, modos y teclas de abajo cuando la TV no está
+  `on`. Es el mismo HTML que el antiguo `SKELETON`; los `data-ref` se conservan como
+  marcas para la autoprueba.
+- Los botones del touchpad usan `classMap`: el hold les agrega `pressed` por su
+  cuenta y un render no debe borrarla.
+- `_stats` cuenta `builds` (`firstUpdated`, siempre 1), `applies` (cambios de
+  settings) y `updates` (renders); los muestran el harness y la autoprueba.
 
 ### Estado propio (`this._ui`)
 
@@ -281,8 +291,9 @@ lo demás en `click`. El `click` que sigue a un hold se suprime (`_suppressClick
 
 ## 7. CSS
 
-`CARD_CSS` se convierte una vez en un `CSSStyleSheet` compartido por todas las
-instancias (`adoptedStyleSheets`), con respaldo a `<style>` donde no existe. Está en
+`CARD_CSS` es el `static styles` de la tarjeta: Lit lo convierte una vez en un
+`CSSStyleSheet` compartido por todas las instancias (`adoptedStyleSheets`), con
+respaldo a `<style>` donde no existe. Está en
 **tres capas**:
 
 1. **Estructura común:** layout con `grid-template-areas`, pantalla de estado,
@@ -316,9 +327,10 @@ Reglas útiles:
  config ──► buildEditorView(config, { model, error, expanded, mediaPlayers })
               │  lista plana de nodos: alert | heading | note | buttons | form
               ▼
- TvControlCardEditor._reconcile(nodes)   reutiliza cada elemento por su `key`
-              │                          (un <ha-form> existente solo recibe datos
-              │                           nuevos → no pierde el foco)
+ TvControlCardEditor.render()   repeat(nodes, key): reutiliza cada elemento por su
+              │                 `key` (un <ha-form> existente solo recibe datos
+              │                 nuevos → no pierde el foco; _schemaFor mantiene el
+              │                 mismo objeto de schema mientras no cambie)
    value-changed (ha-form) ──► applyFormChange(config, node, data) ─┐
    click en [data-op]      ──► applyOp(config, op)                   ├─► config nueva
                                                                     ┘   (inmutable)
@@ -363,7 +375,7 @@ TV real (los endpoints "Luna" no funcionan por `webostv.command`).
 down) y quitarlo de `RESERVED_MODES` si estaba ahí. Si todo debe ir a la TV aunque
 haya Roku, agregarlo a `TV_MODES`. El editor lo lista solo.
 
-**Un botón fijo** → `DEFAULT_BUTTONS`, el `SKELETON` (con su `data-act`), `_actionFor`,
+**Un botón fijo** → `DEFAULT_BUTTONS`, la plantilla (`card/template.js`, con su `data-act`), `_view()`, `_actionFor`,
 `BUTTON_LABELS` del editor y, si es de la fila de abajo, `BOTTOM_BUTTONS`.
 
 **Un tipo de acción** → `ACTION_TYPES` + un `case` en `parseAction` (§2) y en
@@ -397,7 +409,11 @@ En todos los casos: agregar pruebas en `test/` y, si toca la UI, una verificaci�
 | `dev/ha-form-stub.js` | `ha-form` simulado (mismo contrato, sin el aspecto de HA) | lo cargan harness y selftest |
 | GitHub Action `build` | `npm ci`, build, que `dist/` del commit esté actualizado, pruebas | en cada push |
 
-Las páginas de `dev/` cargan `src/index.js`; con `?build=dist` cargan el archivo final.
+Las páginas de `dev/` cargan `src/index.js`, que importa `lit` por nombre de paquete:
+hay que abrirlas con `npm run dev` (Vite resuelve ese nombre). Con `?build=dist`
+cargan el archivo final, que ya trae Lit, y sirve cualquier servidor
+(`python3 -m http.server`). En Chrome headless, usar un perfil nuevo en cada corrida:
+con uno reutilizado, los módulos de `src/` pueden salir de la caché.
 
 ```bash
 npm install                                # una vez
@@ -409,7 +425,7 @@ npm run check                              # solo sintaxis (src/ y dist/)
 
 **Build** (`vite.config.js`): library mode, solo formato `es`, un archivo, target
 Chrome/Edge 111, Safari 16.4, Firefox 113 (el mínimo del README). **Sin minificar**:
-con gzip son ~43 KB contra ~32 KB minificado, y a cambio el archivo se puede leer y
+con gzip son ~50 KB (Lit incluido) contra unos 11 KB menos minificado, y a cambio el archivo se puede leer y
 depurar en el HA de un cliente (conserva nombres, JSDoc y marcas `// src/…`). `dist/`
 se incluye en los commits porque HACS lo descarga del repositorio.
 
@@ -441,8 +457,11 @@ archivos sin nombrarlos; en un clon sin la carpeta simplemente no corren.
   código por rangos de línea, sin reescribirlo; los imports se generaron con ESLint
   (`no-undef`). Verificado: las pruebas de Node contra `src/` y `dist/`, la
   autoprueba contra ambos, y capturas idénticas a las del archivo único.
-- **3b (pendiente): Lit.** Primero el editor (`editor/tv-control-card-editor.js`:
-  `_reconcile` pasa a ser una plantilla), después la tarjeta
-  (`card/tv-control-card.js` y `card/skeleton.js`: `render()` reemplaza a
-  `SKELETON` + `_build`/`_applySettings`/`_update`). Todo lo demás de `src/` no
-  cambia.
+- **3b (hecha): Lit 3.3.3.** El editor (`repeat` en lugar de `_reconcile`) y la
+  tarjeta (`willUpdate` + `render()` + `card/template.js` en lugar de `SKELETON` +
+  `_build`/`_applySettings`/`_update`). Sin decoradores (`static properties`, JS
+  puro). La lógica pura de `src/` no cambió. Verificado: pruebas de Node contra `src/`
+  y `dist/` (con un DOM mínimo simulado para importar el Lit de navegador), la
+  autoprueba contra ambos con perfiles limpios (3 verificaciones adaptadas: esperar
+  a `updateComplete` y "sin rebuild"), y capturas iguales a las de antes de Lit
+  (diferencias por debajo del ruido entre corridas).

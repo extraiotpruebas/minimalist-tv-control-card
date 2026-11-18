@@ -28,7 +28,8 @@ salen del archivo real; al lado de cada uno se indica de dónde vienen:
 6. [Eventos](#6-eventos)
 7. [Pruebas con `node:test`](#7-pruebas-con-nodetest)
 8. [El proyecto con Vite: módulos, npm y build](#8-el-proyecto-con-vite-módulos-npm-y-build)
-9. [Glosario y ejercicios](#9-glosario-y-ejercicios)
+9. [Lit: describir la tarjeta en lugar de parcharla](#9-lit-describir-la-tarjeta-en-lugar-de-parcharla)
+10. [Glosario y ejercicios](#10-glosario-y-ejercicios)
 
 ---
 
@@ -1590,29 +1591,33 @@ Ideas a notar:
 ### Importar el archivo en Node sin romperlo
 
 ```js
-// v4, src/util.js
-const BaseElement = globalThis.HTMLElement ?? class {};
+// src/card/tv-control-card.js
+import { LitElement, nothing, unsafeCSS } from 'lit';
 
-class TvControlCard extends BaseElement { ... }
+class TvControlCard extends LitElement { ... }
 ```
 
-En el navegador existe `HTMLElement`; en Node no. `globalThis` es "el objeto global",
-sea cual sea el entorno (`window` en el navegador, `global` en Node). Si
-`HTMLElement` no existe, `??` usa una clase vacía (`class {}`), y la línea
-`class TvControlCard extends ...` ya no truena. Las pruebas no crean tarjetas; solo
-necesitan que el archivo se pueda importar para usar las funciones puras.
+La tarjeta hereda de `LitElement` (sección 9), que a su vez hereda de `HTMLElement`.
+En Node no existe `HTMLElement`, pero Lit trae una versión especial para Node que
+simula lo mínimo, así que las pruebas pueden importar el archivo para usar las
+funciones puras. Las pruebas no crean tarjetas.
 
-El registro, en `src/index.js`, se protege igual:
+El registro, en `src/index.js`, solo se hace en un navegador:
 
 ```js
-if (globalThis.customElements && !customElements.get(CARD_TAG)) {
+const inBrowser = typeof window !== 'undefined' && !!globalThis.customElements;
+if (inBrowser && !customElements.get(CARD_TAG)) {
   customElements.define(CARD_TAG, TvControlCard);
   ...
 }
 ```
 
-La segunda condición evita un error si HA carga el archivo dos veces (por ejemplo con
-`?v=1` y `?v=2`): llamar `define` dos veces con el mismo nombre lanza una excepción.
+- `typeof window !== 'undefined'`: en Node no hay `window`. (La versión de Lit para
+  Node crea un `customElements` simulado, por eso no basta con revisar ese.)
+  `typeof` de una variable que no existe da `'undefined'` sin lanzar error.
+- `!customElements.get(CARD_TAG)` evita un error si HA carga el archivo dos veces
+  (por ejemplo con `?v=1` y `?v=2`): llamar `define` dos veces con el mismo nombre
+  lanza una excepción.
 
 ### El nombre de la etiqueta: `?tag=`
 
@@ -1643,7 +1648,7 @@ setCardTag(tagFromUrl(import.meta.url));
 
 Así dos versiones conviven en el mismo HA: cada una registra un nombre distinto.
 
-### El constructor: estado inicial y listeners
+### El constructor y `createRenderRoot`: estado inicial y listeners
 
 ```js
 constructor() {
@@ -1651,28 +1656,33 @@ constructor() {
   this._model = null;              // salida de normalizeConfig (congelada)
   this._hass = null;
   this._ui = { tvIndex: 0, mode: null, roku: false, numpad: false };  // estado PROPIO de la tarjeta
-  this._refs = null;               // nodos creados en _build
+  this._shownStatus = null;        // estado de la TV que muestra la pantalla AHORA
   ...
-  this.attachShadow({ mode: 'open' });
-  adoptStyles(this.shadowRoot);
-  const root = this.shadowRoot;
+}
+
+createRenderRoot() {
+  const root = super.createRenderRoot();
   root.addEventListener('click', (e) => this._onClick(e));
   root.addEventListener('pointerdown', (e) => this._onPointerDown(e));
   for (const type of ['pointerup', 'pointercancel', 'lostpointercapture']) {
     root.addEventListener(type, () => this._stopHold());
   }
   ...
+  return root;
 }
 ```
 
-- `super()` llama al constructor de `HTMLElement`. En una clase que hereda, es
-  obligatorio llamarlo antes de usar `this`.
+- `super()` llama al constructor de la clase padre (`LitElement`). En una clase que
+  hereda, es obligatorio llamarlo antes de usar `this`.
 - Las propiedades que empiezan con `_` son "privadas por convención": JS no lo
   impide, pero el guion bajo avisa "no lo toques desde fuera".
 - `this._ui` es **todo** el estado que la tarjeta decide por sí misma: qué TV, qué
   modo, si está en modo Roku y si el numpad está abierto. Lo demás (si la TV está
   encendida, qué app tiene) viene de `hass`.
-- Los listeners se registran **una sola vez**, aquí. Más abajo verás por qué basta.
+- Lit crea el shadow root en `createRenderRoot()`, no en el constructor. Por eso los
+  listeners se registran ahí, **una sola vez**: `super.createRenderRoot()` hace el
+  trabajo normal de Lit (crear el shadow root y ponerle los estilos) y después se
+  agregan los listeners.
 
 ### `setConfig` y `set hass`
 
@@ -1683,7 +1693,6 @@ setConfig(config) {
   this._stopHold();
   this._model = model;
   this._ui = { tvIndex: 0, mode: null, roku: false, numpad: false };
-  this._refs = null;               // fuerza _build en el próximo render
   ...
   this._schedule();
 }
@@ -1727,100 +1736,84 @@ _watchedChanged(hass) {
   referencias: rapidísima.
 - `next.some(...)` devuelve `true` si **al menos uno** cumple la condición.
 
-### `_schedule`: un render por frame
+### `_schedule`, `willUpdate` y `render`
 
 ```js
 _schedule() {
-  if (this._frame || !this.isConnected) return;
-  this._frame = requestAnimationFrame(() => {
-    this._frame = 0;
-    this._render();
-  });
+  this.requestUpdate();
 }
 ```
 
-`requestAnimationFrame(fn)` le pide al navegador: "ejecuta `fn` justo antes de dibujar
-el próximo cuadro" (unas 60 veces por segundo). Si en ese lapso llegan cinco cambios,
-los cinco llaman `_schedule`, pero solo el primero agenda: los demás ven que
-`this._frame` ya tiene un número y salen. Resultado: un solo render por cuadro.
+`requestUpdate()` le pide a Lit un render (9.4). Si en un instante llegan cinco
+cambios, los cinco lo piden, pero Lit pinta una sola vez, en la siguiente microtarea.
+(Antes esto se hacía a mano con `requestAnimationFrame`.)
 
-`this.isConnected` es `true` si el elemento está en la página. Si no lo está, no tiene
-sentido pintar.
-
-### `_build`: crear el DOM una vez
+Antes de cada render, Lit llama `willUpdate()`. Ahí va lo que **cambia estado**:
 
 ```js
-_build() {
-  const fragment = cloneSkeleton();
-  const refs = {};
-  for (const el of fragment.querySelectorAll('[data-ref]')) refs[el.dataset.ref] = el;
-  refs.pad = {};
-  for (const el of fragment.querySelectorAll('[data-act="pad"]')) refs.pad[el.dataset.dir] = el;
+willUpdate() {
+  if (!this._model) return;
   ...
-  this.shadowRoot.querySelector('ha-card')?.remove();
-  this.shadowRoot.append(fragment);
-  this._refs = refs;
-}
-```
-
-- `SKELETON` es un string de HTML **fijo**: no contiene nada del YAML del usuario.
-  `cloneSkeleton()` lo convierte en un `<template>` la primera vez y después solo lo
-  **clona** (`cloneNode(true)`), que es más rápido que volver a leer el texto.
-- `querySelectorAll('[data-ref]')` busca todos los elementos que tienen el atributo
-  `data-ref`. Por ejemplo `<span data-ref="state">` termina en `refs.state`. Así
-  `_update` encuentra cada nodo directamente, sin buscarlo cada vez.
-- `el.dataset.ref` lee el atributo `data-ref` (4.2).
-
-Como el HTML no tiene datos del usuario, nunca hay que "escapar" nada: los nombres de
-las TVs se ponen después con `textContent`, que muestra el texto tal cual y nunca lo
-interpreta como HTML.
-
-### `_update`: parchar, no reconstruir
-
-```js
-_update() {
-  ...
-  const status = tvStatus(st);
-  card.dataset.style = this._model.style;
-  card.dataset.theme = this._theme;
-  card.dataset.status = status;
-  card.dataset.mode = this._ui.mode ?? 'default';
-  ...
-  const locked = status !== 'on';
-  if (locked && this._hold) this._stopHold();
-  for (const el of [...Object.values(refs.pad), ...Object.values(refs.bottom), ...refs.modes.children]) {
-    if (el.disabled !== locked) el.disabled = locked;
+  const status = tvStatus(this._hass?.states?.[tv.entity]);
+  if (status !== 'on') {
+    if (this._hold) this._stopHold();
+    this._ui.numpad = false;
   }
-  ...
-  setText(refs.state, now.title);
-  setVar(card, '--tv-accent', now.accent);
+  if (status === 'on' && this._lastStatus !== null && this._lastStatus !== 'on') {
+    this._centerGuardUntil = performance.now() + CENTER_GUARD_MS;
+  }
+  this._lastStatus = status;
+  this._shownStatus = status;
 }
 ```
 
-`_update` no crea elementos: cambia **atributos**, **textos** y **variables CSS** de
-los que ya existen. Tres ideas:
+- Si la TV se apagó, se corta un hold en curso y se cierra el numpad.
+- Si la TV acaba de pasar a `on`, el centro ignora OK 800 ms (un doble toque a
+  "Encender" no debe terminar mandando un OK).
+- `_shownStatus` guarda el estado que la pantalla va a mostrar. Los toques lo usan:
+  lo que cuenta es lo que el usuario **veía** al tocar.
 
-1. **JS dice qué pasa; CSS decide cómo se ve.** `card.dataset.status = 'off'` escribe
+Después, `render()` **describe** la tarjeta:
+
+```js
+render() {
+  if (!this._model) return nothing;
+  return cardTemplate(this._view());
+}
+```
+
+`_view()` calcula un objeto con todo lo que hay que mostrar, y `cardTemplate` (en
+`card/template.js`) lo convierte en HTML con Lit. Un pedazo:
+
+```js
+// src/card/template.js
+<ha-card class="card ${classMap({ multi: v.multi })}" data-ref="card"
+  data-style=${v.style} data-theme=${v.theme} data-status=${v.status} ...
+  style=${styleMap({ '--tv-accent': v.accent ?? undefined, ... })}>
+```
+
+Tres ideas:
+
+1. **JS dice qué pasa; CSS decide cómo se ve.** `data-status=${v.status}` escribe
    `data-status="off"` en el HTML, y el CSS tiene reglas como
    `.card[data-status="off"] .ok::before { opacity: 1 }`. JS nunca escribe un color.
-2. **Idempotente:** calcula todo desde el estado actual. Llamarlo una o diez veces da
-   el mismo resultado. Por eso el bug del "tema pegado" de la v3 ya no puede pasar:
-   no hay un "estado anterior" que se olvide de limpiar.
-3. **`disabled` bloquea de verdad.** Un `<button disabled>` no recibe clics, no se
-   puede enfocar con el teclado y los lectores de pantalla lo anuncian como no
-   disponible. `[...a, ...b, ...c]` junta tres listas en una (spread, 2.7), y
-   `Object.values(obj)` da los valores de un objeto como lista.
+2. **Idempotente:** todo se calcula desde el estado actual. Llamarlo una o diez
+   veces da el mismo resultado. Por eso el bug del "tema pegado" de la v3 no puede
+   pasar: no hay un "estado anterior" que se olvide de limpiar.
+3. **`disabled` bloquea de verdad.** `?disabled=${v.locked}` en el touchpad, los modos
+   y las teclas de abajo: un `<button disabled>` no recibe clics, no se puede enfocar
+   con el teclado y los lectores de pantalla lo anuncian como no disponible.
 
-`setText`, `setAttr` y `setVar` son ayudantes que **solo escriben si el valor
-cambió**: escribir el mismo texto otra vez no cambia nada visible, pero obliga al
-navegador a revisar la página de nuevo.
+Lit **reutiliza** los nodos entre renders: el botón de "arriba" es siempre el mismo
+objeto. Eso es lo que permite que un hold no pierda su botón aunque lleguen updates
+de `hass` (4.6).
 
 ### Delegación de eventos, en la versión real
 
 ```js
 _onClick(e) {
   const el = e.target.closest?.('[data-act]');
-  if (!el || !this._model || !this._refs) return;
+  if (!el || !this._model || !this.hasUpdated) return;
   ...
   if (el.disabled) return;   // bloqueado (TV apagada)
   switch (el.dataset.act) {
@@ -1996,7 +1989,8 @@ se guardó al empezar, y cada `await` "pausa" la función conservando sus variab
 ```js
 _onOutsidePointer = (e) => {
   const path = e.composedPath();
-  if (!path.includes(this._refs?.picker) && !path.includes(this._refs?.status)) this._togglePicker(false);
+  const root = this.renderRoot;
+  if (!path.includes(root.querySelector('.picker')) && !path.includes(root.querySelector('.tv-name'))) this._togglePicker(false);
 };
 ```
 
@@ -2050,7 +2044,7 @@ Igual que la tarjeta, el editor separa el **qué** del **cómo**:
 ```text
  config ──► buildEditorView(config, ctx) ──► lista de "nodos"
                                                 │
-                     TvControlCardEditor._reconcile(nodos) ──► <ha-form>, botones, títulos
+                     TvControlCardEditor.render() con repeat ──► <ha-form>, botones, títulos
                                                 │
         el usuario cambia algo ──► applyFormChange / applyOp ──► config NUEVA
                                                 │
@@ -2073,7 +2067,7 @@ config y devuelven datos. Por eso `test/editor.test.mjs` las prueba sin navegado
 
 - `kind` dice qué es: título, formulario, fila de botones, nota o aviso.
 - `key` es un nombre **único y estable**: el mismo nodo tiene la misma `key` en cada
-  render. Lo usa `_reconcile`.
+  render. Lo usa `repeat` (9.5).
 - `path` dice dónde vive ese pedazo dentro de la config: `['tvs', 0]` es
   `config.tvs[0]`.
 - `schema` es lo que entiende `<ha-form>`, el formulario de HA: una lista de campos
@@ -2143,37 +2137,37 @@ switch (op.op) {
 
 ### Reutilizar elementos por `key` (y no perder el foco)
 
-El editor viejo rehacía todo con `innerHTML` en cada tecla: el campo donde escribías
-se destruía y el cursor se perdía. El nuevo **reutiliza**:
+El editor viejo de producción rehacía todo con `innerHTML` en cada tecla: el campo
+donde escribías se destruía y el cursor se perdía. El nuevo **reutiliza**:
 
 ```js
-_reconcile(nodes) {
-  const keep = new Set();
-  nodes.forEach((node, i) => {
-    let el = this._els.get(node.key);
-    if (!el || el._kind !== node.kind) {
-      el = this._create(node);
-      this._els.set(node.key, el);
-    }
-    keep.add(node.key);
-    this._fill(el, node);
-    if (this._root.children[i] !== el) this._root.insertBefore(el, this._root.children[i] ?? null);
-  });
-  for (const [key, el] of this._els) {
-    if (!keep.has(key)) { el.remove(); this._els.delete(key); }
+render() {
+  ...
+  const nodes = buildEditorView(this._config, { model, error, expanded: this._expanded, mediaPlayers });
+  return html`<div class="ed">${repeat(nodes, (node) => node.key, (node) => this._renderNode(node))}</div>`;
+}
+
+_renderNode(node) {
+  switch (node.kind) {
+    case 'form':
+      return html`<ha-form data-key=${node.key} .hass=${this._hass} .schema=${this._schemaFor(node)}
+        .data=${node.data} @value-changed=${(e) => this._onFormChange(e, node)}></ha-form>`;
+    ...
   }
 }
 ```
 
-1. `this._els` es un `Map` de `key` → elemento.
-2. Para cada nodo: si ya hay un elemento con esa `key`, se reutiliza; si no, se crea.
-3. `_fill` le pasa los datos nuevos. A un `<ha-form>` existente solo se le cambia
-   `.data`, y él actualiza sus campos sin destruirlos: el foco se queda donde estaba.
-4. `insertBefore` lo pone en su posición si no estaba ahí.
-5. Al final se quitan los elementos cuyas `key` ya no aparecen (por ejemplo, el
-   formulario del Roku después de tocar ✕).
+1. `repeat` (9.5) recuerda qué elemento corresponde a cada `key`. Si en el siguiente
+   render aparece la misma `key`, reutiliza el mismo elemento.
+2. A un `<ha-form>` existente solo le cambian `.data`, y él actualiza sus campos sin
+   destruirlos: el foco se queda donde estaba.
+3. `_schemaFor` devuelve el **mismo** objeto de schema mientras su contenido no
+   cambie. Un schema nuevo (aunque igual) haría que `<ha-form>` rehiciera sus campos.
+4. Los elementos cuyas `key` ya no aparecen (por ejemplo, el formulario del Roku
+   después de tocar ✕) Lit los quita solo.
 
-Lit, en la Fase 3, hace esto mismo automáticamente.
+Antes de Lit esto lo hacía a mano una función, `_reconcile`, con un `Map` de
+`key` → elemento.
 
 ### Avisar a HA: `config-changed`
 
@@ -2281,7 +2275,7 @@ y el de abajo ya no comparten clase: uno es `data-act="top_left"` y el otro
 `data-act="bottom" data-id="exit"` (bug B4).
 
 También van en el contenedor `.card` para que el CSS reaccione al estado:
-`data-status="off"`, `data-style="halo"`, `data-theme="light"` (ver `_update` en 3.6).
+`data-status="off"`, `data-style="halo"`, `data-theme="light"` (ver `render` en 3.6).
 
 ## 4.3 Custom elements y Shadow DOM
 
@@ -2401,7 +2395,7 @@ Juntemos closures (2.6), timers (2.16) e `innerHTML` (4.5):
 Y como `setInterval` no espera a que HA conteste, con la TV o la red lentas los
 comandos se acumulan y la TV se satura. La v4 lo arregla por cuatro lados:
 
-1. **DOM persistente** (`_build` una vez): el `<path>` nunca se reemplaza.
+1. **DOM persistente** (Lit reutiliza los nodos): el botón nunca se reemplaza.
 2. **Ciclo `async` con `await`** (3.6): no se acumulan comandos.
 3. **Límite** de repeticiones.
 4. **Muchas formas de detenerlo** (`pointercancel`, `lostpointercapture`,
@@ -2710,25 +2704,20 @@ En lugar de un `<style>` dentro del `innerHTML` (que se vuelve a parsear en cada
 render y se duplica en cada tarjeta), la v4 usa una hoja compartida:
 
 ```js
-// v4, §6
-function adoptStyles(root) {
-  const supported = 'adoptedStyleSheets' in Document.prototype && 'replaceSync' in CSSStyleSheet.prototype;
-  if (supported) {
-    if (!sharedSheet) {
-      sharedSheet = new CSSStyleSheet();
-      sharedSheet.replaceSync(CARD_CSS);   // se parsea UNA vez por página
-    }
-    root.adoptedStyleSheets = [sharedSheet];
-  } else {
-    const style = document.createElement('style');   // respaldo para navegadores viejos
-    style.textContent = CARD_CSS;
-    root.append(style);
-  }
+// La idea, escrita a mano (así lo hacía la v4 antes de Lit):
+const sheet = new CSSStyleSheet();
+sheet.replaceSync(CARD_CSS);                 // se parsea UNA vez por página
+shadowRoot.adoptedStyleSheets = [sheet];     // cada tarjeta solo guarda una referencia
+
+// Hoy, con Lit (sección 9), basta con declarar:
+class TvControlCard extends LitElement {
+  static styles = unsafeCSS(CARD_CSS);
 }
 ```
 
 Diez tarjetas en el dashboard comparten **un solo** objeto de estilos, parseado una
-sola vez. Lit hace exactamente esto con `static styles`.
+sola vez. Lit hace exactamente eso con `static styles`, y en navegadores viejos sin
+`adoptedStyleSheets` pone un `<style>` normal.
 
 ---
 
@@ -3076,7 +3065,7 @@ src/
   actions/keys.js          §1        actions/parse.js   §2
   platforms.js             §3        execute.js         §4
   config/catalogs.js       §5        config/normalize.js
-  card/logic.js  card/styles.js  card/skeleton.js  card/tv-control-card.js   §6
+  card/logic.js  card/styles.js  card/template.js  card/tv-control-card.js   §6
   editor/*.js                                                              §7
 ```
 
@@ -3184,8 +3173,9 @@ Linux, pero para librerías y herramientas de JS. Viene con Node.
 - **`scripts`**: atajos con nombre. `npm run build` ejecuta `vite build`;
   `npm test` ejecuta las pruebas (`test` es tan común que no necesita `run`).
 - **`devDependencies`**: herramientas que solo se usan **para desarrollar**. Vite no
-  viaja dentro de la tarjeta: arma el archivo y ya. La tarjeta sigue sin
-  dependencias.
+  viaja dentro de la tarjeta: arma el archivo y ya.
+- **`dependencies`**: librerías que **sí** viajan dentro de `dist/`. La única es
+  `lit` (sección 9), desde la Fase 3b.
 - `"8.3.8"` es una versión **exacta**. Con `"^8.3.8"`, npm podría instalar la 8.4
   cuando salga, y el resultado del build podría cambiar sin que nadie lo decida.
 
@@ -3211,7 +3201,9 @@ Vite hace dos trabajos:
 **1. Servidor de desarrollo** (`npm run dev`). Sirve los archivos del proyecto en
 `http://localhost:5173` y, cuando guardas un cambio, recarga la página. Abre
 `dev/harness.html`, que carga `src/index.js` directamente: el navegador entiende
-módulos ES y va pidiendo cada `import` por separado.
+módulos ES y va pidiendo cada `import` por separado. Vite además traduce los imports
+por nombre de paquete (`from 'lit'`) a archivos de `node_modules`, algo que un
+servidor simple no hace (9.8).
 
 (Muchas herramientas reemplazan solo el módulo cambiado sin recargar, lo que se
 llama HMR. Con custom elements no sirve: un nombre como `tv-control-card` no se puede
@@ -3305,9 +3297,196 @@ se puede comprobar comparando datos, sin mirar la pantalla.
 
 ---
 
-# 9. Glosario y ejercicios
+# 9. Lit: describir la tarjeta en lugar de parcharla
 
-## 9.1 Glosario
+En la Fase 3b la tarjeta y el editor pasaron a usar **Lit**, una librería pequeña de
+Google para hacer custom elements. El propio Home Assistant está hecho con Lit. La
+tarjeta hace exactamente lo mismo que antes; lo que cambió es **cómo se dibuja**.
+
+## 9.1 El problema que resuelve
+
+Antes de Lit, mostrar un dato en la tarjeta tenía tres pasos en tres lugares:
+
+1. Ponerle una marca en el HTML fijo: `<div data-ref="state"></div>`.
+2. Guardar ese nodo en `_build`: `refs.state = ...`.
+3. Actualizarlo en `_update`: `setText(refs.state, now.title)`.
+
+Con Lit se escribe **una vez**, en la plantilla, y Lit se encarga del resto:
+
+```js
+html`<div class="now-title">${v.now.title}</div>`
+```
+
+La idea: `render()` **describe** cómo debe verse la tarjeta ahora. Lit compara con lo
+que ya está en pantalla y solo cambia lo necesario. Es lo mismo que hacía `_update`,
+pero sin escribirlo a mano.
+
+## 9.2 Plantillas: `html` y `${}`
+
+```js
+import { html } from 'lit';
+
+const saludo = (nombre) => html`<p>Hola, ${nombre}</p>`;
+```
+
+- `` html`...` `` parece un template literal (2.5), pero tiene una función delante: es
+  un *tagged template*. JS llama a `html` con los pedazos de texto fijos por un lado
+  y los valores de `${}` por otro.
+- Lit usa eso para algo clave: el texto fijo (`<p>Hola, ` y `</p>`) se procesa
+  **una sola vez**. En cada render solo mira si cambiaron los `${}`.
+- No es `innerHTML`: si `nombre` vale `"<b>x</b>"`, se muestra el texto tal cual,
+  nunca se interpreta como HTML. No hay que escapar nada.
+- Una plantilla puede contener otras plantillas, listas (`array.map(...)`) o
+  `nothing` (no mostrar nada).
+
+## 9.3 Tipos de `${}` según dónde van
+
+Dentro de una etiqueta, el prefijo antes del nombre decide qué hace Lit:
+
+```js
+html`<button
+  class="key"
+  aria-label=${etiqueta}        // atributo normal (texto)
+  ?disabled=${bloqueado}        // atributo booleano: existe si es true, no existe si es false
+  .data=${datos}                // PROPIEDAD de JS (no atributo): para objetos
+  @click=${() => hacerAlgo()}   // listener de evento
+>${texto}</button>`
+```
+
+| Escrito así | Lit hace | Ejemplo en la tarjeta |
+|---|---|---|
+| `attr=${x}` | `setAttribute('attr', x)` | `aria-label=${KEYS[id].label}` |
+| `attr=${x ?? nothing}` | quita el atributo si no hay valor | `icon=${icon(b.icon)}` |
+| `?attr=${x}` | atributo booleano | `?disabled=${v.locked}`, `?hidden=${!v.pickerOpen}` |
+| `.prop=${x}` | `elemento.prop = x` | `.schema=${...}` y `.data=${...}` del `<ha-form>` en el editor |
+| `@evento=${fn}` | `addEventListener` | `@value-changed=${...}` en el editor |
+
+¿Por qué `.data` y no `data=`? Un atributo HTML solo puede ser texto. `<ha-form>`
+necesita un **objeto** (`{ name: 'Sala', ... }`), así que se le pasa como propiedad.
+
+## 9.4 `LitElement`: el ciclo de un render
+
+```js
+import { LitElement, html, nothing, unsafeCSS } from 'lit';
+
+class TvControlCard extends LitElement {
+  static styles = unsafeCSS(CARD_CSS);
+
+  willUpdate() { /* preparar estado antes de dibujar */ }
+  render() { return cardTemplate(this._view()); }
+  firstUpdated() { this._stats.builds++; }
+}
+```
+
+`LitElement` es una clase que ya hereda de `HTMLElement`, así que la tarjeta sigue
+siendo un custom element (1.2). Agrega un ciclo propio:
+
+```text
+ algo cambia → requestUpdate()           (se pide un render)
+                    │  Lit espera una microtarea (2.15): junta varios pedidos en uno
+                    ▼
+               willUpdate()               preparar estado (la tarjeta: ¿se apagó la TV?)
+               render()                   devolver la plantilla
+               (Lit aplica los cambios al DOM)
+               firstUpdated()             solo la primera vez
+               updated()                  después de cada render
+               updateComplete             promesa que se cumple al terminar
+```
+
+- **`static styles`**: el CSS de la clase. Lit lo convierte **una vez** en una hoja
+  compartida por todas las tarjetas (`adoptedStyleSheets`, 5.10). `unsafeCSS` se usa
+  porque `CARD_CSS` es un string normal: "unsafe" solo avisa que Lit no lo revisa, y
+  aquí es nuestro propio CSS fijo.
+- **`requestUpdate()`**: pide un render. Si se llama diez veces seguidas, Lit pinta
+  una sola vez, en la siguiente microtarea.
+- **Propiedades reactivas** (`static properties`): Lit puede llamar `requestUpdate()`
+  solo cuando cambia una propiedad declarada. El editor lo usa para `_config`:
+
+  ```js
+  static properties = { _config: { state: true }, _formReady: { state: true } };
+  ```
+
+  La tarjeta, en cambio, guarda su estado en objetos normales (`this._ui`, `_busy`,
+  `_loading`), y cada cambio llama `_schedule()`, que ahora es solo
+  `this.requestUpdate()`. Así el código de los flujos (encender, streaming, numpad)
+  quedó igual que antes.
+- **`updateComplete`**: una Promise. `await card.updateComplete` espera a que el
+  render termine. La autoprueba la usa cuando necesita revisar el DOM justo después
+  de un toque.
+
+## 9.5 `repeat`: listas que conservan sus elementos
+
+```js
+import { repeat } from 'lit/directives/repeat.js';
+
+html`<div class="ed">${repeat(nodes, (node) => node.key, (node) => this._renderNode(node))}</div>`
+```
+
+`repeat(lista, clave, plantilla)` dibuja una plantilla por elemento, igual que un
+`map`, pero recuerda qué elemento del DOM corresponde a cada **clave**. Si en el
+siguiente render aparece la misma clave, reutiliza el mismo elemento, aunque cambie de
+posición. El editor lo necesita: el `<ha-form>` donde estás escribiendo es el mismo
+objeto entre renders, y por eso **no pierde el foco**. Antes eso lo hacía a mano
+`_reconcile`.
+
+## 9.6 `classMap` y `styleMap`
+
+```js
+html`<button class=${classMap({ dir: true, up: true, empty: !accion })}>`
+html`<ha-card style=${styleMap({ '--tv-accent': color ?? undefined })}>`
+```
+
+- `classMap` recibe un objeto `{ clase: true/false }` y solo agrega o quita **esas**
+  clases. Las que otro código puso por su cuenta se respetan. La tarjeta lo necesita
+  en el touchpad: el hold le pone `pressed` al botón (`el.classList.add('pressed')`)
+  y un render a mitad del hold no debe borrarla. Con `class="dir up ${...}"` Lit
+  reescribiría el atributo completo y la borraría.
+- `styleMap` hace lo mismo con propiedades de estilo; con `undefined` la quita. Así
+  se pone o se borra el color de la app (`--tv-accent`) en cada render.
+- Regla de Lit: `classMap` debe ser la **única** expresión dentro de `class`
+  (puede haber texto fijo, pero no otro `${}`).
+
+## 9.7 Cómo quedó organizada la tarjeta
+
+```text
+ set hass (filtra: ¿cambió algo mío?) ──► _schedule() = requestUpdate()
+                                                │
+                       willUpdate()   TV que cambió de settings, TV que se apagó
+                                      (cierra el numpad, corta el hold), pausa del
+                                      centro tras encender
+                       render()       _view() → objeto con TODO lo que se muestra
+                                      cardTemplate(view) → la plantilla (template.js)
+```
+
+- `_view()` (en `card/tv-control-card.js`) calcula, desde el estado actual, un objeto
+  simple: qué TV, si está prendida, qué ícono, qué botones están bloqueados…
+- `cardTemplate(view)` (en `card/template.js`) solo convierte ese objeto en HTML.
+  Es el mismo HTML que el antiguo `SKELETON`, con las mismas clases, así que el CSS no
+  cambió en nada.
+
+¿Por qué el filtro de `set hass` sigue ahí? HA manda un `hass` nuevo con cada cambio
+de **cualquier** entidad de la casa. Si cada uno pidiera un render, Lit repintaría
+(rápido, pero inútilmente) con cada sensor. Solo se pide cuando cambian la TV, el
+Roku o la entidad de modo, como antes.
+
+## 9.8 Lit en Node y en `dist/`
+
+- `npm install` trajo `lit` como **dependencia** (no de desarrollo): viaja dentro de
+  `dist/`. Suma unos 7 KB con gzip. HA no comparte su propia copia de Lit con las
+  tarjetas custom, así que cada tarjeta trae la suya.
+- El código fuente importa `from 'lit'`, un nombre de paquete, no una ruta. El
+  navegador no sabe dónde está eso; el servidor de Vite (`npm run dev`) sí lo
+  traduce a un archivo de `node_modules`. Por eso, para probar `src/`, hay que usar
+  `npm run dev`. `dist/` ya trae Lit adentro y funciona con cualquier servidor.
+- En Node, Lit usa una versión especial que simula lo mínimo del navegador. Crea un
+  `customElements` de mentira (sin `window`), por eso `index.js` registra los
+  elementos solo si existe `window`.
+
+---
+
+# 10. Glosario y ejercicios
+
+## 10.1 Glosario
 
 | Término | Significado breve |
 |---|---|
@@ -3322,6 +3501,7 @@ se puede comprobar comparando datos, sin mirar la pantalla.
 | **custom element** | Etiqueta HTML propia, registrada con `customElements.define`. |
 | **delegación de eventos** | Un solo listener en un ancestro que decide qué hacer según `event.target`. |
 | **destructuring** | `const [a, b] = arr; const { x } = obj;` |
+| **directiva** (Lit) | Función especial dentro de una plantilla que cambia cómo se aplica un valor: `repeat`, `classMap`, `styleMap`. |
 | **DOM** | El árbol de objetos JS que representa la página. |
 | **driver** | Aquí: el objeto de §3 que sabe hablar con una marca concreta. |
 | **event loop** | El ciclo que toma tareas una por una, corre las microtareas y redibuja. |
@@ -3332,6 +3512,7 @@ se puede comprobar comparando datos, sin mirar la pantalla.
 | **hass** | El objeto con el estado de HA y `callService`. |
 | **host** | El custom element que contiene un shadow root. En CSS, `:host`. |
 | **IIFE** | `(() => { ... })()`: función que se ejecuta al definirse. |
+| **Lit** | Librería para custom elements: `render()` describe el HTML y Lit actualiza solo lo que cambió (sección 9). |
 | **módulo ES** | Archivo JS con `import`/`export` y ámbito propio. |
 | **optional chaining** | `a?.b`: lee `b` solo si `a` no es `null`/`undefined`. |
 | **Promise** | Objeto que representa un resultado futuro: pendiente, cumplida o rechazada. |
@@ -3339,10 +3520,11 @@ se puede comprobar comparando datos, sin mirar la pantalla.
 | **retargeting** | Al salir de un shadow root, `event.target` pasa a ser el host. |
 | **Shadow DOM** | Árbol DOM privado dentro de un elemento, con CSS encapsulado. |
 | **spread / rest** | `...`: desparrama (`{...obj}`, `[...set]`) o junta (`function f(...args)`). |
+| **tagged template** | `` html`...` ``: un template literal con una función delante, que recibe los textos fijos y los valores por separado. |
 | **template literal** | String entre backticks con `${}`. |
 | **unión discriminada** | Objetos con un campo `type` que indica qué otros campos tienen. |
 
-## 9.2 Ejercicios
+## 10.2 Ejercicios
 
 Hazlos con el archivo abierto. Para los que piden ejecutar código, crea un archivo
 de pruebas en tu carpeta temporal (no en el repo) o usa `node` interactivo:
@@ -3382,7 +3564,7 @@ console.log(parseAction('KEY_RETURN'));
 12. En la delegación de eventos (6.4), ¿por qué se usa `e.target.closest('[data-act]')`
     en vez de `e.target.dataset.act`?
 13. (3.6) Llegan 3 updates de `hass` en el mismo cuadro, y en los 3 cambió la TV. ¿Cuántas
-    veces corre `_update`? ¿Y si los 3 updates fueran de un sensor de temperatura?
+    veces corre `render`? ¿Y si los 3 updates fueran de un sensor de temperatura?
 14. (3.6) En `_startHold`, ¿qué pasaría si la condición del `for` fuera solo
     `i < holdMaxRepeats` (sin `&& hold.active`)?
 15. (3.6) ¿Por qué `_turnOn` revisa `tvStatus(...) === 'on'` y sale, en lugar de llamar
@@ -3390,7 +3572,7 @@ console.log(parseAction('KEY_RETURN'));
 16. (3.7) `setPath({ a: { b: 1 }, c: { d: 2 } }, ['a', 'b'], 5)` devuelve un objeto
     nuevo. ¿El `c` del resultado es el **mismo** objeto que el `c` original (`===`)?
 
-## 9.3 Respuestas cortas
+## 10.3 Respuestas cortas
 
 1. `{type:'key', key:'enter'}` (código Roku); `{type:'button', button:'KEY_HDMI'}`;
    `{type:'service', service:'script.turn_on', data:{entity_id:'script.cine'}}`;
@@ -3434,9 +3616,9 @@ console.log(parseAction('KEY_RETURN'));
     `MODE_ALIASES` y los otros dos slots toman sus valores por defecto.
 12. Porque el clic suele caer en un hijo (por ejemplo, el `<ha-icon>`), que no tiene
     `data-act`. `closest` sube hasta encontrar el botón que sí lo tiene.
-13. Una vez: los 3 llaman `_schedule`, pero solo el primero agenda el
-    `requestAnimationFrame`. Con el sensor, ninguna: `_watchedChanged` ve que los
-    objetos de la TV, el Roku y la entidad de modo son los mismos y no agenda nada.
+13. Una vez: los 3 llaman `_schedule()` (`requestUpdate()`), y Lit junta los pedidos
+    en un solo render. Con el sensor, ninguna: `_watchedChanged` ve que los objetos
+    de la TV, el Roku y la entidad de modo son los mismos y no pide nada.
 14. Soltar el dedo ya no detendría la repetición: seguiría mandando la tecla hasta
     completar las 40 repeticiones (unos 10 s). `_stopHold` pondría `active = false`,
     pero nadie lo revisaría.

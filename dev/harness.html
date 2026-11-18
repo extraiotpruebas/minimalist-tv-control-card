@@ -5,11 +5,12 @@
   Cómo abrirlo (los ES modules no cargan desde file://, hace falta un servidor):
     cd ~/HAdesigns/TV-Control-Card
     npm run dev          → http://localhost:5173/dev/harness.html (recarga al guardar)
-  o sin Vite:
-    python3 -m http.server 8000   → http://localhost:8000/dev/harness.html
 
-  Por defecto carga el código fuente (src/index.js). Con ?build=dist carga el
-  archivo final que se instala en HA (dist/, hay que correr `npm run build` antes).
+  Por defecto carga el código fuente (src/index.js), que importa Lit por nombre de
+  paquete (`from 'lit'`): solo el servidor de Vite sabe resolverlo. Con ?build=dist
+  carga el archivo final que se instala en HA (dist/, `npm run build` antes), que ya
+  trae Lit adentro; ese también funciona con un servidor simple:
+    python3 -m http.server 8000   → http://localhost:8000/dev/harness.html?build=dist
 
   Simula:
     - un objeto `hass` inmutable (cada cambio crea objetos nuevos, como HA)

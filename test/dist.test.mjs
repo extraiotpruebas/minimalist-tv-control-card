@@ -7,6 +7,15 @@ import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import * as src from '../src/index.js';
 
 const DIST_URL = new URL('../dist/minimalist-tv-control-card.js', import.meta.url);
+
+// dist/ trae la versión de Lit para NAVEGADOR: al cargarse extiende HTMLElement y
+// prepara un TreeWalker de `document`. Node no tiene ninguno de los dos, así que se
+// simulan lo mínimo para poder importarlo (aquí no se pinta nada: solo se compara la
+// lógica). node --test corre cada archivo en su propio proceso: estos globales no
+// llegan a las demás pruebas.
+globalThis.HTMLElement ??= class {};
+globalThis.document ??= { createTreeWalker: () => ({}), createComment: () => ({}) };
+
 const dist = existsSync(DIST_URL) ? await import(DIST_URL.href) : null;
 const skip = !dist && 'no existe dist/: corre `npm run build`';
 

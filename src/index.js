@@ -13,9 +13,9 @@
  *       config/normalize.js     normalizeConfig()
  *   §6  card/logic.js           Lógica pura de la tarjeta (estado, ruteo, pantalla)
  *       card/styles.js          CSS
- *       card/skeleton.js        HTML base y ayudantes de DOM
- *       card/tv-control-card.js La tarjeta (custom element)
- *   §7  editor/*.js             El editor visual (lógica pura + elemento)
+ *       card/template.js        La plantilla HTML (Lit)
+ *       card/tv-control-card.js La tarjeta (LitElement)
+ *   §7  editor/*.js             El editor visual (lógica pura + LitElement)
  *       util.js, tag.js, version.js
  *
  * Los `export` del final no los usa HA: sirven para que las pruebas de Node
@@ -31,12 +31,14 @@ setCardTag(tagFromUrl(import.meta.url));
 
 /*
  * Registro. Se protege por dos razones:
- *   - En Node no existe customElements (los tests importan este archivo).
+ *   - Solo en un navegador (`window`). En Node (las pruebas importan este archivo)
+ *     Lit crea un customElements simulado, pero no hay window ni nada que mostrar.
  *   - Si HA carga el recurso dos veces (p. ej. con ?v=1 y ?v=2), un segundo
  *     define() con el mismo nombre lanzaría un error y rompería el dashboard.
  */
-if (globalThis.customElements && !customElements.get(EDITOR_TAG)) customElements.define(EDITOR_TAG, TvControlCardEditor);
-if (globalThis.customElements && !customElements.get(CARD_TAG)) {
+const inBrowser = typeof window !== 'undefined' && !!globalThis.customElements;
+if (inBrowser && !customElements.get(EDITOR_TAG)) customElements.define(EDITOR_TAG, TvControlCardEditor);
+if (inBrowser && !customElements.get(CARD_TAG)) {
   customElements.define(CARD_TAG, TvControlCard);
   window.customCards = window.customCards || [];
   if (!window.customCards.some((c) => c.type === CARD_TAG)) {
