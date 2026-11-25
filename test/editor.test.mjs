@@ -6,7 +6,6 @@ import {
   setPath, deletePath, parseAction, mapPaletteRefs, BUILTIN_PALETTES,
 } from '../src/index.js';
 
-/** Configs reales de clientes (test/fixtures/private/, gitignored). Sin la carpeta → lista vacía. */
 const PRIVATE_DIR = new URL('./fixtures/private/', import.meta.url);
 function privateFixtures() {
   if (!existsSync(PRIVATE_DIR)) return [];
@@ -26,9 +25,6 @@ const labels = (nodes) => nodes.flatMap((n) => [...(n.items ?? []), ...(n.action
 
 const V4 = { card_id: 'sala', tvs: [{ name: 'Sala', entity: 'media_player.lg', platform: 'lg' }], modes: ['menu', 'busqueda', 'audio'] };
 
-// ---------------------------------------------------------------------------
-// Utilidades inmutables
-// ---------------------------------------------------------------------------
 test('setPath/deletePath no mutan el original y crean/podan lo necesario', () => {
   const orig = Object.freeze({ a: Object.freeze({ b: 1 }) });
   assert.deepEqual(setPath(orig, ['a', 'c'], 2), { a: { b: 1, c: 2 } });
@@ -37,9 +33,6 @@ test('setPath/deletePath no mutan el original y crean/podan lo necesario', () =>
   assert.deepEqual(orig, { a: { b: 1 } });
 });
 
-// ---------------------------------------------------------------------------
-// La regla: solo se muestra lo activo
-// ---------------------------------------------------------------------------
 test('YAML viejo: solo el aviso con "Convertir a formato v4"', () => {
   const nodes = view({ entity: 'media_player.lg', type: 'LG TV', exit_value: 'EXIT' });
   assert.deepEqual(keys(nodes), ['legacy']);
@@ -86,9 +79,6 @@ test('avisos de normalizeConfig arriba del editor', () => {
   assert.match(nodes[0].text, /no_existe/);
 });
 
-// ---------------------------------------------------------------------------
-// Cambios
-// ---------------------------------------------------------------------------
 test('formulario general: escribe solo lo que cambió y nunca los valores por defecto', () => {
   const n = node(view(V4), 'general.f');
   assert.equal(applyFormChange(V4, n, { ...n.data, style: 'halo' }).style, 'halo');
@@ -168,9 +158,6 @@ test('quitar la única TV no está permitido; agregar sugiere una entidad libre'
   assert.equal(applyOp(V4, add).tvs[1].entity, 'media_player.samsung');
 });
 
-// ---------------------------------------------------------------------------
-// Acordeón: paneles plegables con resumen
-// ---------------------------------------------------------------------------
 const folds = (nodes) => nodes.filter((n) => n.fold);
 const BIG = {
   ...V4,
@@ -186,7 +173,6 @@ const BIG = {
   ],
 };
 
-/** Reglas que debe cumplir CUALQUIER config: si fallan, el DOM perdería nodos o los pintaría mal. */
 function assertFoldIntegrity(nodes, label = '') {
   const all = new Set(keys(nodes));
   assert.equal(all.size, nodes.length, `${label} claves únicas`);
@@ -202,7 +188,6 @@ function assertFoldIntegrity(nodes, label = '') {
     assert.equal(typeof f.fold.open, 'boolean');
     assert.ok(Number.isFinite(f.fold.base));
   }
-  // Todo nodo llega a la raíz (sin ciclos): así childrenByParent no deja nada sin pintar.
   const tree = childrenByParent(nodes);
   const seen = new Set();
   const walk = (parent) => (tree.get(parent) ?? []).forEach((n) => { seen.add(n.key); if (n.fold) walk(n.key); });
@@ -278,9 +263,6 @@ test('acordeón: cada botón "+ Agregar" abre un panel que existe en la vista si
   assert.ok(node(view(applyOp(V4, personalizar.op)), 'bt.back').fold);
 });
 
-// ---------------------------------------------------------------------------
-// Paletas: el panel y los selectores de asignación
-// ---------------------------------------------------------------------------
 const NONE = '__none__';
 const withPalettes = (extra = {}) => ({ ...V4, palettes: { mia: { base: 'light', background: '#ffffff' } }, ...extra });
 const optionValues = (formNode, fieldName = 'value') => {
@@ -420,9 +402,6 @@ test('paletas: la estructura del acordeón sigue válida con paletas y asignacio
   assertFoldIntegrity(view({ ...cfg, palettes: { x: 'no-es-un-bloque' } }), 'paleta inválida');
 });
 
-// ---------------------------------------------------------------------------
-// Convertir a v4: ida y vuelta sin cambiar el comportamiento
-// ---------------------------------------------------------------------------
 function assertSameBehavior(raw) {
   const a = normalizeConfig(raw);
   const v4 = serializeV4(raw);
@@ -473,7 +452,6 @@ test('conversión: un YAML v4 completo se queda igual en comportamiento', () => 
   });
 });
 
-// Los nombres de los clientes no se escriben aquí: se descubren en la carpeta privada.
 for (const { name, config } of privateFixtures()) {
   test(`conversión: config real "${name}" (fixture privado)`, () => assertSameBehavior(config));
 }

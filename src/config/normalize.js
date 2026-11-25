@@ -1,13 +1,8 @@
-/*
- * Módulo §5, segunda parte: normalizeConfig y sus ayudantes. Los catálogos que usa
- * están en config/catalogs.js.
- */
 import { parseAction } from '../actions/parse.js';
 import { CUSTOM_MODE_IDS, DEFAULT_BUTTONS, DEFAULT_PAD, DEFAULT_STREAMING, DIRECTIONS, FIXED_MODES, MODE_ALIASES, RESERVED_MODES, SOURCES_BY_ID, pad } from './catalogs.js';
 import { checkPaletteRef, normalizePalettes, paletteRef } from './palettes.js';
 import { deepFreeze, firstDefined, has } from '../util.js';
 
-/** 'LG TV' | 'lg' | 'samsung' | undefined → 'lg' | 'samsung' | 'roku' */
 function normalizePlatform(value, warnings) {
   const v = String(value || '').toLowerCase();
   if (v.includes('samsung')) return 'samsung';
@@ -16,7 +11,6 @@ function normalizePlatform(value, warnings) {
   return 'lg';
 }
 
-/** Convierte acentos de color: '229, 9, 20' → 'rgb(229, 9, 20)'; '#e50914' se queda igual. */
 function normalizeColor(value) {
   if (!value) return null;
   const str = String(value).trim();
@@ -24,7 +18,6 @@ function normalizeColor(value) {
   return str;
 }
 
-/** Normaliza un companion (dispositivo extra conectado a la TV, hoy solo Roku). */
 function normalizeCompanion(raw) {
   if (!raw || typeof raw !== 'object') return null;
   const entity = raw.media_entity || raw.entity;
@@ -34,16 +27,10 @@ function normalizeCompanion(raw) {
     platform: normalizePlatform(raw.platform || 'roku'),
     entity: entity || null,
     remote: remote || null,
-    palette: paletteRef(raw.palette),   // paleta mientras está en modo Roku
+    palette: paletteRef(raw.palette),
   };
 }
 
-/**
- * Lee una acción de un custom mode del formato viejo. Si hay valores distintos por
- * marca (`_value_lg` / `_value_samsung`), arma una acción {type:'platform'}.
- * Como parseAction ya traduce 'VOLUMEUP' y 'KEY_VOLUP' a la misma tecla, en la
- * mayoría de los casos las variantes coinciden y queda una acción simple.
- */
 function legacyPerBrandAction(generic, lg, samsung) {
   const a = parseAction(generic);
   const aLg = parseAction(lg);
@@ -58,12 +45,10 @@ function legacyPerBrandAction(generic, lg, samsung) {
   return { type: 'platform', by };
 }
 
-/** Lee un pad del formato nuevo: { up: { icon, action }, ... } */
 function readPad(rawPad, fallback) {
   const result = {};
   for (const dir of DIRECTIONS) {
     let entry = rawPad?.[dir];
-    // Atajo en YAML: `up: vol_up` equivale a `up: { action: vol_up }`.
     if (entry !== undefined && entry !== null && typeof entry !== 'object') entry = { action: entry };
     result[dir] = {
       icon: firstDefined(entry?.icon, fallback?.[dir]?.icon) ?? null,
@@ -72,8 +57,6 @@ function readPad(rawPad, fallback) {
   }
   return result;
 }
-
-/* ---------- partes de la configuración ---------- */
 
 function resolveModes(raw, warnings) {
   let ids = Array.isArray(raw.modes)
@@ -100,7 +83,6 @@ function resolveCustomMode(raw, id, warnings) {
       pad: readPad(fromNew, pad()),
     };
   }
-  // Formato viejo: custom1_label, custom1_up_icon, custom1_up_value(_lg|_samsung)...
   const legacyPad = {};
   for (const dir of DIRECTIONS) {
     const base = `${id}_${dir}`;
@@ -118,7 +100,6 @@ function resolveCustomMode(raw, id, warnings) {
 
 function resolveDefaultPad(raw) {
   if (raw.default_pad) return readPad(raw.default_pad, DEFAULT_PAD);
-  // Variante v3: default_up_icon / default_up_value ...
   const result = {};
   for (const dir of DIRECTIONS) {
     const value = raw[`default_${dir}_value`];
@@ -140,9 +121,9 @@ function makeStreamingSlot(index, sourceId, icon, action, accent, palette, warni
     index,
     source,
     icon: firstDefined(icon, source.icon),
-    action: parseAction(action),   // null = comportamiento normal: seleccionar la fuente
+    action: parseAction(action),
     accent: normalizeColor(accent),
-    palette: paletteRef(palette),   // paleta de toda la tarjeta mientras esta app está activa
+    palette: paletteRef(palette),
   };
 }
 
@@ -154,11 +135,6 @@ function resolveStreaming(raw, warnings) {
     });
   }
 
-  // Formato viejo. Los slots se identifican por un prefijo de clave:
-  //   repo (producción): netflix_, disney_, YouTube_, appletv_  (+ <slot>_source)
-  //   variante v3:       netflix_, disney_, YouTube_, prime_    (fuentes fijas)
-  // Si hay cualquier clave appletv_* o *_source, manda el formato del repo y las
-  // claves prime_* se ignoran (así se comporta hoy producción).
   const keys = Object.keys(raw);
   const repoFlavor = keys.some((k) => k.startsWith('appletv_') || /^(netflix|disney|YouTube|appletv)_source$/.test(k));
   const hasPrime = keys.some((k) => k.startsWith('prime_'));
@@ -175,7 +151,7 @@ function resolveStreaming(raw, warnings) {
       raw[`${prefix}_icon`],
       raw[`${prefix}_value`],
       firstDefined(raw[`${prefix}_accent_color`], raw[`${prefix}_accent_hex`]),
-      null,   // el formato viejo no tenía paletas
+      null,
       warnings,
     );
   });
@@ -183,9 +159,6 @@ function resolveStreaming(raw, warnings) {
 
 function resolveButtons(raw, warnings) {
   const fromNew = raw.buttons || {};
-  // Claves viejas: el "exit" viejo es el botón top_left de la v4.
-  // En la v3, `back_type: numpad` (o home/menu/exit) hacía que ese botón abriera el
-  // teclado numérico. En la v4 eso es la acción `numpad`.
   const legacyAction = (prefix) => (raw[`${prefix}_type`] === 'numpad' ? 'numpad' : raw[`${prefix}_value`]);
   const legacy = {
     top_left: { icon: raw.exit_icon, action: legacyAction('exit') },
@@ -200,7 +173,6 @@ function resolveButtons(raw, warnings) {
   const result = {};
   for (const [id, def] of Object.entries(DEFAULT_BUTTONS)) {
     let n = fromNew[id] || {};
-    // Atajo en YAML: `power: script.x` equivale a `power: { action: script.x }`.
     if (typeof n !== 'object') n = { action: n };
     const l = legacy[id] || {};
     const actionRaw = 'action' in n ? n.action : firstDefined(l.action, def.action);
@@ -212,10 +184,6 @@ function resolveButtons(raw, warnings) {
   return result;
 }
 
-/**
- * Resuelve todo lo que puede variar por TV (modos, pads, streaming, botones).
- * Se llama una vez con la config global y otra por cada TV que tenga overrides.
- */
 function resolveSettings(raw, warnings) {
   const modes = resolveModes(raw, warnings);
   const modeDefs = {};
@@ -230,16 +198,10 @@ function resolveSettings(raw, warnings) {
     defaultPad: resolveDefaultPad(raw),
     streaming: resolveStreaming(raw, warnings),
     buttons: resolveButtons(raw, warnings),
-    // Paleta de la tarjeta. Con overrides por TV (`overrides: { palette }`) cada TV
-    // puede tener la suya: es la misma cascada que los modos y botones.
     palette: paletteRef(raw.palette),
   };
 }
 
-/**
- * Estilos visuales. Los tres usan el mismo HTML y los mismos nombres de tokens;
- * solo cambia el CSS (§6). El primero es el predeterminado.
- */
 const STYLES = ['relieve', 'halo', 'cristal'];
 
 function resolveStyle(value, warnings) {
@@ -250,36 +212,20 @@ function resolveStyle(value, warnings) {
   return STYLES[0];
 }
 
-/** 'light' | 'dark' | 'auto' (auto = sigue el modo oscuro de HA). Por defecto oscuro, como producción. */
 function resolveTheme(value) {
   const v = String(value ?? '').trim().toLowerCase();
   return v === 'light' || v === 'auto' ? v : 'dark';
 }
 
-/* Claves de una entrada de `tvs` que NO son overrides. */
 const TV_OWN_KEYS = new Set(['name', 'entity', 'type', 'platform', 'roku', 'companion', 'overrides']);
 
-/**
- * Punto de entrada. Lanza un Error si la config no se puede usar; HA lo muestra
- * como tarjeta roja con el mensaje.
- *
- * @param {object} raw  config tal como viene de setConfig()
- * @returns {{
- *   format: 'v4'|'legacy', cardId: string, theme: 'light'|'dark'|'auto', style: string,
- *   palettes: { [name]: { base, background?, button?, text?, accent?, on? } },
- *   controlModeEntity: string|null,
- *   tvs: Array<{ name, entity, platform, companion, settings }>, warnings: string[]
- * }}
- */
 function normalizeConfig(raw) {
   if (!raw || typeof raw !== 'object') throw new Error('Configuración inválida.');
   const warnings = [];
 
-  // ¿Formato nuevo? Lo detectamos por claves que solo existen en v4.
   const isV4 = ['modes', 'buttons', 'streaming', 'custom_modes', 'default_pad', 'theme', 'palette', 'palettes'].some((k) => k in raw)
     || (Array.isArray(raw.tvs) && raw.tvs.some((tv) => tv && ('platform' in tv || 'companion' in tv)));
 
-  // 1. Lista de TVs: `tvs` (multi) o `entity` (formato viejo de una sola TV).
   let rawTvs;
   if (Array.isArray(raw.tvs) && raw.tvs.length > 0) {
     rawTvs = raw.tvs;
@@ -289,14 +235,11 @@ function normalizeConfig(raw) {
     throw new Error('Define al menos una TV: usa "tvs" (lista) o "entity".');
   }
 
-  // 2. Lo global (sirve de base para todas las TVs).
   const globalSettings = resolveSettings(raw, warnings);
 
-  // 3. Cada TV, con sus overrides si los tiene.
   const tvs = rawTvs.map((tv, i) => {
     if (!tv || !tv.entity) throw new Error(`La TV #${i + 1} no tiene "entity".`);
 
-    // Overrides: formato nuevo (`overrides: {...}`) o claves sueltas (variante v3).
     const overrides = { ...(tv.overrides || {}) };
     for (const [k, v] of Object.entries(tv)) {
       if (!TV_OWN_KEYS.has(k)) overrides[k] = v;
@@ -304,11 +247,8 @@ function normalizeConfig(raw) {
     const hasOverrides = Object.keys(overrides).length > 0;
     const name = String(firstDefined(tv.name, tv.entity)).trim();
     const companion = normalizeCompanion(tv.companion || tv.roku);
-    // Si no hay overrides se reutiliza el MISMO objeto global (no se copia).
     const settings = hasOverrides ? resolveSettings({ ...raw, ...overrides }, warnings) : globalSettings;
 
-    // Con Roku, el botón de arriba a la izquierda es el selector TV ↔ Roku. Si
-    // tenía otra acción (p. ej. un script), se avisa en lugar de perderla en silencio.
     const topLeft = settings.buttons.top_left.action;
     if (companion && topLeft && !(topLeft.type === 'key' && topLeft.key === 'exit')) {
       warnings.push(`"${name}": con Roku, el botón propio del encabezado se reemplaza por el selector TV | Roku; su acción configurada se ignora.`);
@@ -323,8 +263,6 @@ function normalizeConfig(raw) {
     };
   });
 
-  // 4. Paletas: las incluidas + las del YAML. Se avisa de cada nombre asignado que
-  //    no existe (la tarjeta lo salta y usa el siguiente nivel).
   const palettes = normalizePalettes(raw.palettes, warnings);
   for (const tv of tvs) {
     const { settings, companion } = tv;
@@ -335,8 +273,6 @@ function normalizeConfig(raw) {
     }
   }
 
-  // 5. card_id: identifica la tarjeta para recordar la TV elegida por usuario.
-  //    Antes era obligatorio con `tvs`; ahora, si falta, se deriva de las entidades.
   const cardId = firstDefined(raw.card_id, `auto:${tvs.map((t) => t.entity).join(',')}`);
 
   return deepFreeze({
@@ -347,7 +283,6 @@ function normalizeConfig(raw) {
     palettes,
     controlModeEntity: firstDefined(raw.control_mode_entity) ?? null,
     tvs,
-    // Set elimina avisos repetidos (p. ej. el mismo aviso por cada TV con overrides).
     warnings: [...new Set(warnings)],
   });
 }

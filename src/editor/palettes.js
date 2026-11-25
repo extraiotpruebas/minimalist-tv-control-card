@@ -1,32 +1,12 @@
-/* Módulo §7: editor de paletas (la lista de paletas y los selectores de asignación). */
 import { BUILTIN_PALETTES, PALETTE_FIELDS, contrastRatio, normalizeHex } from '../config/palettes.js';
 import { fold } from './fold.js';
 import { deletePath, getPath, isPlainObject, setPath } from './paths.js';
 
-/* ============================================================================
- * PALETAS EN EL EDITOR
- * ----------------------------------------------------------------------------
- * Dos partes, igual que el resto del editor (nodos puros + DOM delgado):
- *   1. paletteSection(config)      el panel "Paletas": crear, copiar, renombrar,
- *                                  editar colores y borrar.
- *   2. assignmentNodes(config...)  el selector que ASIGNA una paleta (tarjeta, TV,
- *                                  Roku, botón de streaming), con o sin par
- *                                  claro/oscuro.
- * Renombrar o borrar una paleta toca todas las asignaciones que la usan: por eso
- * existe mapPaletteRefs, que recorre los 5 lugares donde puede haber `palette:`.
- * ========================================================================== */
-
-/** Valor del selector para "sin paleta" (un select de HA no maneja bien el texto vacío). */
 const NONE = '__none__';
 
 const FIELD_LABELS = { background: 'Fondo', button: 'Botones', text: 'Texto', accent: 'Acento', on: 'Encendido' };
 const BASE_LABELS = { dark: 'oscura', light: 'clara' };
 
-/**
- * Colores de Relieve por base: lo que vale un campo vacío. Sirven de punto de
- * partida del selector de color y para el aviso de contraste (en oscuro, `button`
- * es el blanco translúcido de Relieve ya mezclado con el fondo).
- */
 const BASE_COLORS = {
   dark: { background: '#16181c', button: '#27292d', text: '#eef0f3', accent: '#dce6f5', on: '#64e3a6' },
   light: { background: '#eef1f5', button: '#ffffff', text: '#1b1f25', accent: '#1b1f25', on: '#1f9d63' },
@@ -35,12 +15,10 @@ const BASE_COLORS = {
 const hexToRgb = (hex) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
 const baseOf = (palette) => (palette?.base === 'light' ? 'light' : 'dark');
 
-/** Todas las paletas disponibles: las incluidas + las del YAML (una propia reemplaza a la incluida). */
 function allPalettes(config) {
   return { ...BUILTIN_PALETTES, ...(isPlainObject(config.palettes) ? config.palettes : {}) };
 }
 
-/** Nombre libre para una paleta nueva: "paleta", "paleta-2", "paleta-3"… */
 function uniqueName(config, stem = 'paleta') {
   const taken = allPalettes(config);
   let name = stem;
@@ -48,24 +26,6 @@ function uniqueName(config, stem = 'paleta') {
   return name;
 }
 
-/* ---------- asignaciones: recorrer y cambiar los `palette:` de toda la config ---------- */
-
-/**
- * Una asignación de paleta (lo que hay bajo una clave `palette:`) → la misma
- * asignación con el nombre `from` cambiado por `to`.
- *
- *   ref:  'grafito'                          (una sola paleta, claro y oscuro)
- *         { light: 'nube', dark: 'grafito' } (un par; puede traer solo un lado)
- *         undefined                          (sin asignación)
- *   to:   un nombre nuevo, o null = QUITAR el nombre (así se borra una paleta)
- *
- * Devuelve la asignación nueva, o undefined si ya no queda ningún nombre.
- * NO muta `ref` (HA congela la config) y lo que no se llame `from` queda igual.
- * Pruebas: test/palette-refs.test.mjs
- *
- * VERSIÓN PROVISIONAL del asistente, para poder probar el editor en HA. Es el
- * ejercicio "Learn by Doing" de Ian: su versión reemplaza a esta (mismas pruebas).
- */
 function renameRef(ref, from, to) {
   const swap = (name) => (name === from ? (to ?? undefined) : name);
   if (typeof ref === 'string') return swap(ref);
@@ -76,11 +36,6 @@ function renameRef(ref, from, to) {
   return { ...(light !== undefined && { light }), ...(dark !== undefined && { dark }) };
 }
 
-/**
- * Aplica `fn(ref)` a cada asignación de paleta de la config y devuelve la config
- * nueva (sin mutar). Los 5 lugares: la tarjeta, `tvs[i].overrides` (y su streaming),
- * `tvs[i].companion` y `streaming[j]`. Si fn devuelve undefined, se quita la clave.
- */
 function mapPaletteRefs(config, fn) {
   const fix = (obj) => {
     if (!isPlainObject(obj) || obj.palette === undefined) return obj;
@@ -107,10 +62,6 @@ function mapPaletteRefs(config, fn) {
   return out;
 }
 
-/**
- * Renombra una paleta (conservando su lugar en la lista) y actualiza todo lo que la
- * usaba. Sin cambios si el nombre nuevo está vacío, es igual, o ya lo tiene otra paleta propia.
- */
 function renamePalette(config, from, to) {
   const name = String(to ?? '').trim();
   const own = isPlainObject(config.palettes) ? config.palettes : {};
@@ -119,23 +70,12 @@ function renamePalette(config, from, to) {
   return mapPaletteRefs({ ...config, palettes }, (ref) => renameRef(ref, from, name));
 }
 
-/**
- * Borra una paleta. Si la ASIGNACIÓN apuntaba a ella y ya no existe ninguna con ese
- * nombre (ni incluida), se quita de las asignaciones; si era una incluida que se había
- * reemplazado, las asignaciones siguen siendo válidas (vuelve la incluida).
- */
 function removePalette(config, name) {
   const next = deletePath(config, ['palettes', name]);
   if (Object.hasOwn(BUILTIN_PALETTES, name)) return next;
   return mapPaletteRefs(next, (ref) => renameRef(ref, name, null));
 }
 
-/* ---------- nodos: selector de asignación ---------- */
-
-/**
- * El selector que asigna una paleta en `path` (…`.palette`). Con una sola paleta es un
- * desplegable; con un par claro/oscuro son dos. Los botones pasan de una forma a la otra.
- */
 function assignmentNodes(config, path, key, depth, label, { init } = {}) {
   const raw = getPath(config, path);
   const palettes = allPalettes(config);
@@ -167,9 +107,6 @@ function assignmentNodes(config, path, key, depth, label, { init } = {}) {
   return nodes;
 }
 
-/* ---------- nodos: el panel "Paletas" ---------- */
-
-/** Un color de la paleta: el suyo si lo tiene, si no el de la base (se marca como `base`). */
 function effectiveColors(raw, base) {
   return PALETTE_FIELDS.map((field) => {
     const own = raw[field] !== undefined ? normalizeHex(raw[field]) : null;
@@ -177,7 +114,6 @@ function effectiveColors(raw, base) {
   });
 }
 
-/** "Contraste texto/fondo 12.1:1 · texto/botones 9.3:1" con ⚠ si no llega a 4.5 (mínimo para texto normal). */
 function contrastNote(colors) {
   const by = Object.fromEntries(colors.map((c) => [c.field, c.color]));
   const part = (name, ratio) => `${ratio < 4.5 ? '⚠ ' : ''}${name} ${ratio.toFixed(1)}:1`;
@@ -186,7 +122,6 @@ function contrastNote(colors) {
     ? `${text}. Menos de 4.5:1 cuesta leer; prueba un texto más claro u oscuro.` : text;
 }
 
-/** La key usa la POSICIÓN, no el nombre: renombrar (se emite en cada tecla) no debe recrear el campo ni cerrar el panel. */
 function paletteFold(config, name, index) {
   const raw = isPlainObject(config.palettes[name]) ? config.palettes[name] : {};
   const base = baseOf(raw);
@@ -221,7 +156,6 @@ function paletteFold(config, name, index) {
   return fold(head, children, { summary: `${BASE_LABELS[base]} · ${own} de ${PALETTE_FIELDS.length} colores` });
 }
 
-/** El panel "Paletas" completo (siempre existe: ahí se crea la primera). */
 function paletteSection(config) {
   const own = isPlainObject(config.palettes) ? config.palettes : {};
   const names = Object.keys(own);
@@ -241,9 +175,6 @@ function paletteSection(config) {
   return fold(head, children, { summary: `${names.length ? `${names.length} propias` : 'ninguna propia'} · ${builtin} incluidas` });
 }
 
-/* ---------- formularios: datos → config nueva (los usa applyFormChange) ---------- */
-
-/** Un formulario de paletas cambió. `config` ya viene con los atajos expandidos. */
 function applyPaletteForm(config, node, data) {
   const set = (path, value) => (value === undefined ? deletePath(config, path) : setPath(config, path, value));
   switch (node.codec) {

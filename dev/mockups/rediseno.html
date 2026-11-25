@@ -1,11 +1,4 @@
 <!doctype html>
-<!--
-  Paso 4.5: tres propuestas de rediseño para la tarjeta (mockups estáticos).
-  Abrir con el servidor del harness:  http://localhost:8000/dev/mockups/rediseno.html
-  El HTML de cada tarjeta es el MISMO; solo cambia el CSS de cada variante. Así la
-  elegida se traslada casi tal cual a §6.
-  Los íconos de Disney+ y Prime son aproximados (en HA vienen de custom-brand-icons).
--->
 <html lang="es">
 <head>
 <meta charset="utf-8">
@@ -13,9 +6,6 @@
 <title>Rediseño · propuestas</title>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@mdi/font@7.4.47/css/materialdesignicons.min.css">
 <style>
-/* =========================================================================
-   Página de comparación (no es parte de la tarjeta)
-   ========================================================================= */
 :root { color-scheme: dark; --page: #101216; --page-ink: #c9ced6; --page-muted: #7d848e; --page-line: #262a31; }
 :root[data-page="light"] { color-scheme: light; --page: #eef0f3; --page-ink: #2a2f36; --page-muted: #6c737d; --page-line: #d7dbe0; }
 * { box-sizing: border-box; }
@@ -36,12 +26,9 @@ body { margin: 0; background: var(--page); color: var(--page-ink); font: 15px/1.
 .variant p { margin: 0 0 14px; color: var(--page-muted); font-size: 13.5px; max-width: 46ch; }
 .frame { container-type: inline-size; }
 
-/* =========================================================================
-   Tarjeta: estructura común (las tres variantes la comparten)
-   ========================================================================= */
 .tv {
-  --accent: #dce6f5;            /* sin fuente: blanco 6500 K, como un bias light */
-  --accent-ink: #14171b;        /* texto/ícono sobre --accent */
+  --accent: #dce6f5;
+  --accent-ink: #14171b;
   position: relative; display: grid; gap: 18px; padding: 20px;
   grid-template-areas: "head" "screen" "apps" "pad" "modes" "keys";
   font-family: var(--ha-font-family-body, Roboto, "Segoe UI", system-ui, sans-serif);
@@ -89,15 +76,12 @@ body { margin: 0; background: var(--page); color: var(--page-ink); font: 15px/1.
 .key { display: grid; place-items: center; height: 48px; }
 .key .mdi { font-size: 24px; }
 
-/* Apagada / sin conexión: los controles se apagan, power queda como protagonista. */
 .tv:is([data-status="off"], [data-status="unavailable"]) :is(.apps, .pad, .modes, .keys) { opacity: .38; transition: opacity .5s; }
 
-/* Celular angosto: los modos solo con ícono. */
 @container (max-width: 340px) {
   .tv { padding: 16px; gap: 14px; }
   .mode span { display: none; }
 }
-/* Tablet de pared / columna ancha: dos columnas, el touchpad a la derecha. */
 @container (min-width: 600px) {
   .tv {
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); column-gap: 32px; align-items: center;
@@ -109,11 +93,6 @@ body { margin: 0; background: var(--page); color: var(--page-ink); font: 15px/1.
 }
 @media (prefers-reduced-motion: reduce) { .tv * { transition: none !important; animation: none !important; } }
 
-/* =========================================================================
-   VARIANTE 1 · OBJETO
-   Un control maquinado: superficie con luz cenital, bordes de 1px que simulan
-   aristas, y el touchpad como bisel con 4 marcas que se encienden.
-   ========================================================================= */
 .v-objeto .tv {
   --surface: #1c1e22; --surface-hi: #24272c; --key: #25282d; --ink: #edeff2; --ink-2: #959ca6;
   --edge-hi: rgb(255 255 255 / .07); --edge-lo: rgb(0 0 0 / .45); --ring: #3b4048;
@@ -135,7 +114,6 @@ body { margin: 0; background: var(--page); color: var(--page-ink); font: 15px/1.
 .v-objeto .tv[data-status="busy"] .led { animation: blink 1s steps(2) infinite; }
 .v-objeto .tv-status { color: var(--ink-2); }
 
-/* Teclas "maquinadas": arista clara arriba, sombra abajo. Sin sombras difusas. */
 .v-objeto :is(.power, .custom, .key, .app) {
   background: var(--key); border-radius: 16px;
   box-shadow: inset 0 1px 0 var(--edge-hi), 0 1px 0 var(--edge-lo), 0 2px 6px -2px var(--edge-lo);
@@ -153,7 +131,6 @@ body { margin: 0; background: var(--page); color: var(--page-ink); font: 15px/1.
   background: radial-gradient(circle at 50% 35%, var(--surface-hi), var(--surface) 70%);
   box-shadow: inset 0 0 0 1.5px var(--ring), inset 0 2px 10px var(--edge-lo), 0 1px 0 var(--edge-hi);
 }
-/* Las 4 marcas del bisel (como un reloj). */
 .v-objeto .pad::before {
   content: ""; position: absolute; inset: 0; border-radius: 50%; pointer-events: none;
   background:
@@ -189,11 +166,6 @@ body { margin: 0; background: var(--page); color: var(--page-ink); font: 15px/1.
 .v-objeto .key { color: var(--ink-2); }
 .v-objeto .key.pressed, .v-objeto .app.pressed { transform: translateY(1px); box-shadow: inset 0 1px 3px var(--edge-lo); }
 
-/* =========================================================================
-   VARIANTE 2 · AMBIENTE
-   La "pantalla" de arriba dice qué se está viendo, y el color de la app se
-   derrama detrás como el bias light de una TV real. Todo lo demás es callado.
-   ========================================================================= */
 .v-ambiente .tv {
   --surface: #1e2024; --ink: #eef0f3; --ink-2: #8f96a0; --line: #2d3036; --glass: #050608;
   border-radius: 26px; background: var(--surface); color: var(--ink);
@@ -210,8 +182,6 @@ body { margin: 0; background: var(--page); color: var(--page-ink); font: 15px/1.
 .v-ambiente .screen {
   display: block; position: relative; isolation: isolate; margin: 2px 0 8px;
 }
-/* La luz detrás de la pantalla. Es el único efecto "decorativo" de esta variante,
-   y solo aparece cuando la TV está prendida: es información, no adorno. */
 .v-ambiente .screen::before {
   content: ""; position: absolute; inset: 18% 6% -16%; z-index: -1; border-radius: 40%;
   background: var(--accent); filter: blur(30px); opacity: .55; transition: opacity .8s ease, background-color .8s ease;
@@ -225,7 +195,6 @@ body { margin: 0; background: var(--page); color: var(--page-ink); font: 15px/1.
   box-shadow: inset 0 0 0 1px rgb(255 255 255 / .06), 0 1px 0 rgb(255 255 255 / .04);
   overflow: hidden;
 }
-/* Reflejo del vidrio: una diagonal tenue. */
 .v-ambiente .glass::after { content: ""; position: absolute; inset: 0; background: linear-gradient(115deg, transparent 40%, rgb(255 255 255 / .05) 41%, transparent 62%); pointer-events: none; }
 .v-ambiente .now-icon { font-size: 34px; color: var(--accent); }
 .v-ambiente .now-icon .wm { font-size: 17px; font-weight: 800; }
@@ -254,11 +223,6 @@ body { margin: 0; background: var(--page); color: var(--page-ink); font: 15px/1.
 .v-ambiente .key { color: var(--ink-2); border-radius: 14px; }
 .v-ambiente .key.pressed, .v-ambiente .app.pressed { background: color-mix(in srgb, var(--ink) 7%, transparent); }
 
-/* =========================================================================
-   VARIANTE 3 · TECLAS
-   Teclas físicas con recorrido real. Los modos se quedan "enclavados" (hundidos)
-   como los botones de las TVs de antes. El OK toma el color de la fuente.
-   ========================================================================= */
 .v-teclas .tv {
   --surface: #e9ebee; --cap: #fbfbfc; --cap-side: #cfd3d9; --ink: #1d2127; --ink-2: #6a717b; --well: #dadde2;
   --led-on: #1f9d63; --led-off: #9aa1aa; --led-na: #b7791f;
@@ -277,7 +241,6 @@ body { margin: 0; background: var(--page); color: var(--page-ink); font: 15px/1.
 .v-teclas .tv[data-status="busy"] .led { animation: blink 1s steps(2) infinite; }
 .v-teclas .tv-status { color: var(--ink-2); }
 
-/* La tecla: cara clara + lateral de 3px. Al presionar baja 3px (recorrido real). */
 .v-teclas :is(.power, .custom, .key, .app, .mode, .dir, .ok) {
   background: var(--cap); border-radius: 12px; color: var(--ink-2);
   box-shadow: 0 3px 0 var(--cap-side), 0 4px 8px -4px rgb(0 0 0 / .25);
@@ -294,7 +257,6 @@ body { margin: 0; background: var(--page); color: var(--page-ink); font: 15px/1.
 .v-teclas .switch button[aria-pressed="true"] { transform: translateY(3px); box-shadow: inset 0 1px 3px rgb(0 0 0 / .12); color: var(--ink); background: color-mix(in srgb, var(--cap) 70%, var(--well)); }
 .v-teclas .app.active { color: var(--ink); box-shadow: 0 3px 0 var(--cap-side), inset 0 0 0 2px var(--accent); }
 
-/* D-pad en cruz: 4 teclas + OK cuadrado, sin círculo. */
 .v-teclas .pad {
   border-radius: 22px; padding: 10px; width: min(100%, 248px);
   display: grid; grid-template: repeat(3, 1fr) / repeat(3, 1fr); gap: 8px;
@@ -305,7 +267,6 @@ body { margin: 0; background: var(--page); color: var(--page-ink); font: 15px/1.
 .v-teclas .dir.right { grid-area: 2 / 3; } .v-teclas .dir.down { grid-area: 3 / 2; }
 .v-teclas .ok { position: static; grid-area: 2 / 2; inset: auto; border-radius: 12px; background: var(--accent); color: var(--accent-ink); box-shadow: 0 3px 0 color-mix(in srgb, var(--accent) 55%, #000); }
 .v-teclas .ok.pressed { box-shadow: inset 0 1px 3px rgb(0 0 0 / .3); }
-/* Apagada: el OK deja de ser protagonista; el power toma ese lugar. */
 .v-teclas .tv:not([data-status="on"]) .ok { background: var(--cap); color: var(--ink-2); box-shadow: 0 3px 0 var(--cap-side); }
 .v-teclas .modes { gap: 8px; }
 .v-teclas .mode { height: 42px; }
@@ -418,7 +379,6 @@ body { margin: 0; background: var(--page); color: var(--page-ink); font: 15px/1.
 </template>
 
 <script>
-  // Datos de ejemplo: qué muestra cada estado.
   const SOURCES = {
     netflix: { status: 'on', title: 'Netflix', app: 'netflix', icon: '<i class="mdi mdi-netflix"></i>', accent: '#e50914' },
     disney:  { status: 'on', title: 'Disney+', app: 'disney', icon: '<span class="wm">D+</span>', accent: '#2f6bff' },
@@ -436,7 +396,6 @@ body { margin: 0; background: var(--page); color: var(--page-ink); font: 15px/1.
   };
   const state = { status: 'netflix', roku: 'none', rokuActive: false, theme: 'dark', width: 390, mode: 'none' };
 
-  // Montar una tarjeta por variante.
   const tpl = document.getElementById('card');
   for (const frame of document.querySelectorAll('.frame')) frame.append(tpl.content.cloneNode(true));
   const cards = [...document.querySelectorAll('.tv')];
@@ -467,7 +426,6 @@ body { margin: 0; background: var(--page); color: var(--page-ink); font: 15px/1.
     }
   }
 
-  // Controles de la página
   document.querySelector('.controls').addEventListener('click', (e) => {
     const b = e.target.closest('button[data-value]');
     if (!b) return;
@@ -478,7 +436,6 @@ body { margin: 0; background: var(--page); color: var(--page-ink); font: 15px/1.
     render();
   });
 
-  // Interacción dentro de las tarjetas (solo visual)
   document.querySelector('.stage').addEventListener('click', (e) => {
     const mode = e.target.closest('.mode');
     if (mode) { state.mode = state.mode === mode.dataset.mode ? 'none' : mode.dataset.mode; render(); }
@@ -491,12 +448,10 @@ body { margin: 0; background: var(--page); color: var(--page-ink); font: 15px/1.
     document.addEventListener(type, () => document.querySelectorAll('.pressed').forEach((el) => el.classList.remove('pressed')), true);
   }
 
-  // ?status=off&theme=light&width=640&roku=tv&rokuActive=1&mode=audio&press=up  (para capturas)
   const params = new URLSearchParams(location.search);
   for (const k of ['status', 'theme', 'roku', 'mode']) if (params.has(k)) state[k] = params.get(k);
   if (params.has('width')) state.width = Number(params.get('width'));
   if (params.get('rokuActive') === '1') state.rokuActive = true;
-  // Reflejar en la barra lo que vino por URL.
   for (const fs of document.querySelectorAll('.controls fieldset')) {
     const v = String(state[fs.dataset.group]);
     for (const x of fs.querySelectorAll('button')) x.setAttribute('aria-pressed', String(x.dataset.value === v));

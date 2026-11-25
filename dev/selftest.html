@@ -1,13 +1,4 @@
 <!doctype html>
-<!--
-  Autoprueba de la tarjeta en un navegador real (complementa los tests de Node,
-  que no tienen DOM). Abrir con el mismo servidor que el harness:
-    npm run dev → http://localhost:5173/dev/selftest.html            (código fuente, src/)
-    cualquier servidor → /dev/selftest.html?build=dist                (archivo final, dist/)
-  En Chrome headless usa un perfil NUEVO en cada corrida: con un perfil reutilizado,
-  los módulos que importa src/index.js pueden salir de la caché (código viejo).
-  Muestra ✓/✗ por cada verificación.
--->
 <html lang="es">
 <head>
 <meta charset="utf-8">
@@ -19,7 +10,6 @@
   #cards > * { width: 340px; }
 </style>
 <script>
-  // Stubs mínimos: aquí no importan los íconos, solo que existan los elementos.
   customElements.define('ha-icon', class extends HTMLElement {});
   customElements.define('ha-card', class extends HTMLElement {});
 </script>
@@ -30,15 +20,12 @@
 <div id="cards"></div>
 
 <script>
-  // Si algo truena, que se vea en la página (y en el --dump-dom del headless).
-  // Los errores se guardan en window.__errors para que check() no los tape al reescribir el texto.
   window.__errors = [];
   const showError = (msg) => { window.__errors.push(`✗ ERROR: ${msg}`); document.getElementById('out').textContent += `\n✗ ERROR: ${msg}`; document.title = 'ERROR'; };
   addEventListener('error', (e) => showError(`${e.message} @ ${e.filename}:${e.lineno}`));
   addEventListener('unhandledrejection', (e) => showError(e.reason?.stack ?? e.reason));
 </script>
 <script type="module">
-  // Import dinámico con ?t=…: el navegador no puede reutilizar una versión vieja en caché.
   const ENTRY = new URLSearchParams(location.search).get('build') === 'dist' ? '../dist/minimalist-tv-control-card.js' : '../src/index.js';
   await import(`${ENTRY}?t=${Date.now()}`);
 
@@ -47,19 +34,18 @@
   const check = (cond, msg) => {
     for (const e of window.__errors.splice(0)) { out.push(e); failures++; }
     out.push(`${cond ? '✓' : '✗'} ${msg}`);
-    console.log(`${cond ? '✓' : '✗'} ${msg}`);   // también a la consola (útil con --enable-logging en headless)
+    console.log(`${cond ? '✓' : '✗'} ${msg}`);
     if (!cond) failures++;
-    document.getElementById('out').textContent = out.join('\n');   // progreso en vivo
+    document.getElementById('out').textContent = out.join('\n');
   };
   const frame = () => new Promise((r) => requestAnimationFrame(() => r()));
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-  // ---- hass falso ----
   let states = {};
   const calls = [];
   let failNext = false;
-  let latency = 5;            // ms que tarda cada callService
-  let ignoreSource = false;   // simula una TV que no reporta el cambio de fuente
+  let latency = 5;
+  let ignoreSource = false;
   let inflight = 0, maxInflight = 0;
   const S = (id, state, attributes = {}) => Object.freeze({ entity_id: id, state, attributes: Object.freeze(attributes) });
   const cards = [];
@@ -78,7 +64,6 @@
       await sleep(latency);
       if (failNext) { failNext = false; throw { code: 'x', message: 'Fallo simulado' }; }
       if (domain === 'media_player' && service === 'select_source' && !ignoreSource) {
-        // Como en HA: el Roku publica app_name; las TVs solo source.
         set(data.entity_id, undefined, data.entity_id.includes('roku') ? { source: data.source, app_name: data.source } : { source: data.source });
       }
     } finally {
@@ -87,7 +72,6 @@
   }
   const callsSince = (n) => calls.slice(n);
 
-  // ---- montaje ----
   const config = {
     card_id: 'selftest',
     control_mode_entity: 'input_select.modo',
@@ -124,7 +108,6 @@
   const padIcon = (dir) => q(`[data-dir="${dir}"] ha-icon`).getAttribute('icon');
   const click = (sel, r = root) => q(sel, r).click();
 
-  // 1. Construir una vez y parchar
   check(card._stats.builds === 1, `un solo build (builds=${card._stats.builds})`);
   check(!!root.adoptedStyleSheets?.length && root.adoptedStyleSheets[0] === card2.shadowRoot.adoptedStyleSheets[0],
     'las dos tarjetas comparten la MISMA hoja de estilos');
@@ -139,7 +122,6 @@
   check(card._stats.updates === updates0 + 1, 'dos cambios relevantes en el mismo frame → 1 update');
   check(q('[data-dir="up"]') === upButton && card._stats.builds === 1, 'el nodo del pad es el mismo objeto (no se reconstruyó)');
 
-  // 2. Estado y textos
   check(q('[data-ref="name"]').textContent === 'Sala' && q('[data-ref="state"]').textContent === 'HDMI 1', 'nombre y pantalla con la fuente (HDMI 1)');
   check(q('.card').dataset.style === 'relieve', 'sin "style" en el YAML → estilo relieve');
   check(q('[data-act="top_left"]').hidden, 'el botón propio se oculta si solo repite el EXIT de abajo');
@@ -147,7 +129,6 @@
   await frame();
   check(q('.card').dataset.status === 'unavailable' && q('[data-ref="state"]').textContent === 'Sin conexión', 'unavailable se muestra como "Sin conexión"');
 
-  // 3. Power con TV no disponible → turn_on, nunca off/toggle
   let n = calls.length;
   click('[data-act="power"]');
   await sleep(30);
@@ -160,13 +141,11 @@
   check(callsSince(n)[0]?.startsWith('media_player.turn_off'), 'power con TV on → turn_off');
   check(!calls.some((c) => c.includes('toggle')), 'nunca se llamó media_player.toggle');
 
-  // 4. Pad y teclas
   n = calls.length;
   click('[data-dir="up"]');
   await sleep(20);
   check(callsSince(n)[0] === 'webostv.button {"entity_id":"media_player.sala","button":"UP"}', 'flecha arriba → webostv.button UP');
 
-  // 5. Streaming con TV apagada: turn_on, espera 'on', luego select_source
   set('media_player.sala', 'off');
   await frame();
   n = calls.length;
@@ -185,7 +164,6 @@
   check(q('.card').style.getPropertyValue('--tv-accent') === '' && !q('[data-act="stream"][data-index="0"]').classList.contains('active'),
     'al pasar a HDMI 1 el acento se borra (sin "tema pegado")');
 
-  // 6. Modos
   check(padIcon('up') === 'mdi:chevron-up', 'pad default');
   click('[data-act="mode"][data-id="menu"]');
   await frame();
@@ -205,9 +183,6 @@
   await frame();
   check(q('.card').dataset.mode === 'menu', 'control_mode_entity = navegacion (alias) → modo Menú');
 
-  // 7. Selector de TV
-  // Lit pinta en una microtarea después de cada cambio: updateComplete es la promesa
-  // que se cumple cuando ya terminó de pintar.
   click('[data-act="picker"]');
   await card.updateComplete;
   check(!q('[data-ref="picker"]').hidden, 'el selector se abre');
@@ -221,14 +196,13 @@
   check(q('[data-ref="modes"]').children.length === 1 && q('[data-act="mode"][data-id="audio"]'), 'override: Recámara solo tiene el modo Audio');
   check(card._stats.builds === 1 && card._stats.applies === 2, 'cambiar de TV no reconstruye, solo re-aplica settings');
   check(localStorage.getItem('tv-card__selftest__selftest') === '1', 'la TV elegida se guarda en localStorage');
-  set('media_player.rec', 'on');   // con la TV apagada el touchpad está bloqueado
+  set('media_player.rec', 'on');
   await frame();
   n = calls.length;
   click('[data-dir="up"]');
   await sleep(20);
   check(callsSince(n)[0]?.includes('"media_content_id":"KEY_UP"'), 'en Samsung, arriba = KEY_UP por play_media');
 
-  // 8. Errores visibles
   failNext = true;
   click('[data-dir="up"]');
   await sleep(30);
@@ -236,7 +210,6 @@
   set('media_player.rec', 'off');
   await frame();
 
-  // 9. setConfig otra vez: Lit reutiliza el DOM (no hay rebuild) y no lo duplica; la config inválida lanza
   card.setConfig({ ...config, card_id: 'otro' });
   await frame();
   check(card._stats.builds === 1 && root.querySelectorAll('ha-card').length === 1, 'setConfig nuevo → mismo DOM, sin reconstruir ni duplicar');
@@ -244,9 +217,6 @@
   try { card.setConfig({ type: 'x' }); } catch { threw = true; }
   check(threw, 'config sin TVs → setConfig lanza (HA muestra el error)');
 
-  // =====================================================================
-  // PASO 4: hold seguro, Roku, power y fuentes (tarjeta nueva con Roku)
-  // =====================================================================
   out.push('', '— paso 4 —');
   const card3 = document.createElement('tv-control-card');
   document.getElementById('cards').append(card3);
@@ -265,7 +235,6 @@
   const q3 = (sel) => r3.querySelector(sel);
   const pointer = (type, el) => el.dispatchEvent(new PointerEvent(type, { bubbles: true, composed: true, pointerId: 7, button: 0, isPrimary: true }));
 
-  // --- Roku: estado inicial y ruteo ---
   check(q3('.card').dataset.roku === 'true', 'TV con Roku y nada guardado → arranca en modo Roku (como producción)');
   check(!q3('[data-ref="switch"]').hidden && q3('[data-act="target"][data-id="roku"]').getAttribute('aria-pressed') === 'true' && q3('[data-act="top_left"]').hidden,
     'con Roku: selector TV | Roku visible (Roku activo) y sin botón propio');
@@ -282,18 +251,17 @@
   await frame();
   n = calls.length;
   pointer('pointerdown', q3('[data-dir="up"]'));
-  await sleep(700);                                  // mantener presionado "subir volumen"
+  await sleep(700);
   pointer('pointerup', q3('[data-dir="up"]'));
   check(callsSince(n).length === 0, 'subir volumen NO se repite al mantener (no es una flecha)');
-  q3('[data-dir="up"]').click();                     // el click al soltar lo envía una vez
+  q3('[data-dir="up"]').click();
   await sleep(30);
   check(callsSince(n).length === 1 && callsSince(n)[0].includes('"button":"VOLUMEUP"'), 'modo Roku + modo Audio: volumen → TV, una sola vez');
   q3('[data-act="mode"][data-id="audio"]').click();
   await frame();
 
-  // --- Hold: repite, se detiene al soltar, el click siguiente no re-envía ---
   const upBtn = q3('[data-dir="up"]');
-  q3('[data-act="target"][data-id="tv"]').click();   // modo TV
+  q3('[data-act="target"][data-id="tv"]').click();
   await frame();
   check(q3('.card').dataset.roku === 'false' && localStorage.getItem('tv-card__roku__selftest4__selftest__media_player.sala') === '0',
     'el selector cambia a modo TV y lo recuerda');
@@ -302,14 +270,13 @@
   check(upBtn.classList.contains('pressed'), 'el botón se marca presionado');
   await sleep(330);
   pointer('pointerup', upBtn);
-  upBtn.click();                          // el click que el navegador dispara al soltar
+  upBtn.click();
   const sentWhileHeld = calls.length - n;
   await sleep(250);
   check(sentWhileHeld >= 3 && sentWhileHeld <= 7, `mantener ~330 ms → 1 envío inmediato + repeticiones (${sentWhileHeld})`);
   check(calls.length - n === sentWhileHeld, 'al soltar se detiene y el click de después no re-envía');
   check(callsSince(n).every((c) => c === 'webostv.button {"entity_id":"media_player.sala","button":"UP"}'), 'todas las repeticiones son UP a la TV');
 
-  // --- Hold con updates de hass cada 20 ms: el nodo no se reemplaza y se detiene ---
   n = calls.length;
   pointer('pointerdown', upBtn);
   const noise = setInterval(() => { set('sensor.ruido', String(Math.random())); set('media_player.sala', undefined, { volume_level: Math.random() }); }, 20);
@@ -321,13 +288,11 @@
   check(q3('[data-dir="up"]') === upBtn && calls.length === afterRelease && card3._hold === null,
     'con hass actualizando cada 20 ms: mismo nodo y se detiene al soltar');
 
-  // --- Tope de repeticiones aunque nunca llegue el pointerup ---
   n = calls.length;
   pointer('pointerdown', upBtn);
   await sleep(100 + 8 * 60 + 300);
   check(calls.length - n === 9 && card3._hold === null, `sin soltar: se detiene solo tras 1 + 8 envíos (${calls.length - n})`);
 
-  // --- Latencia alta: nunca hay dos envíos en vuelo ---
   latency = 120; maxInflight = 0;
   pointer('pointerdown', upBtn);
   await sleep(700);
@@ -336,7 +301,6 @@
   latency = 5;
   check(maxInflight === 1, `con 120 ms de latencia, máximo de llamadas en vuelo = ${maxInflight}`);
 
-  // --- Otros motivos de parada ---
   n = calls.length;
   pointer('pointerdown', upBtn);
   await sleep(20);
@@ -345,27 +309,23 @@
   check(calls.length - n === 1, 'pointercancel (p. ej. scroll) detiene el hold');
   pointer('pointerdown', upBtn);
   await sleep(20);
-  q3('[data-act="mode"][data-id="menu"]').click();   // cambiar de modo
+  q3('[data-act="mode"][data-id="menu"]').click();
   check(card3._hold === null, 'cambiar de modo detiene el hold');
   q3('[data-act="mode"][data-id="menu"]').click();
   pointer('pointerdown', upBtn);
   await sleep(20);
-  card3.remove();                                     // la tarjeta sale de la página
+  card3.remove();
   n = calls.length;
   await sleep(200);
   check(calls.length === n && card3._hold === null, 'si la tarjeta sale de la página, el hold se detiene');
   document.getElementById('cards').append(card3);
   await frame();
-  await sleep(700);   // deja vencer la supresión de click del hold anterior
+  await sleep(700);
   n = calls.length;
-  upBtn.click();      // activación por teclado: click sin pointerdown
+  upBtn.click();
   await sleep(30);
   check(calls.length - n === 1, 'click sin pointerdown (teclado) envía una vez');
 
-  // --- Power: nunca toggle, ignora toques extra, avisa si no enciende ---
-  // Ojo: en Chrome headless (tiempo virtual) cada frame adelanta mucho el reloj.
-  // Por eso las verificaciones que esperan un frame usan timeouts largos y las de
-  // timeout no esperan frames.
   card3._timing = { ...card3._timing, powerOn: 60000 };
   set('media_player.sala', 'off');
   await frame();
@@ -389,13 +349,10 @@
   set('media_player.sala', 'on');
   await frame();
 
-  // --- Centro del touchpad = Encender con la TV apagada ---
   const center = q3('[data-act="center"]');
   const opacity = (sel) => getComputedStyle(q3(sel)).opacity;
   set('media_player.sala', 'off');
   await frame();
-  // En el tiempo virtual del headless las transiciones no avanzan con sleep: se
-  // terminan a mano para leer el valor final.
   for (const a of r3.getAnimations()) a.finish();
   check(center.getAttribute('aria-label') === 'Encender' && q3('[data-ref="centerPower"]').getAttribute('icon') === 'mdi:power',
     'TV apagada: el centro se anuncia como "Encender" con el ícono de power');
@@ -420,18 +377,15 @@
   pointer('pointerdown', center);
   pointer('pointerup', center);
   center.click();
-  center.click();     // doble toque
+  center.click();
   await frame();
   check(callsSince(n).length === 1 && callsSince(n)[0].startsWith('media_player.turn_on'),
     `tocar el centro apagado → 1 solo turn_on y ningún OK (${callsSince(n)})`);
   check(q3('[data-ref="centerPower"]').getAttribute('icon') === 'mdi:loading', 'mientras enciende, el centro muestra un indicador de carga');
   set('media_player.sala', 'on');
-  // Se espera al render (la tarjeta ya muestra la TV prendida), no a un frame: en el
-  // tiempo virtual del headless, esperar un frame puede adelantar el reloj varios
-  // segundos y la pausa de 800 ms ya habría pasado.
   await card3.updateComplete;
   n = calls.length;
-  center.click();     // justo después de encender
+  center.click();
   await sleep(30);
   check(callsSince(n).length === 0 && center.getAttribute('aria-label') === 'OK', 'recién encendida: el centro vuelve a OK pero ignora un toque inmediato');
   await sleep(900);
@@ -443,7 +397,7 @@
   await frame();
   await sleep(900);
   n = calls.length;
-  set('media_player.sala', 'on');   // HA ya dice "on" pero la tarjeta aún muestra "Encender"
+  set('media_player.sala', 'on');
   center.click();
   await sleep(30);
   check(callsSince(n).length === 0, 'estado viejo en pantalla: el centro nunca apaga (no manda nada si la TV ya está on)');
@@ -451,14 +405,13 @@
   await frame();
   await sleep(900);
 
-  // --- Fuentes: spinner, confirmación y reintento (fuente por NOMBRE: Netflix) ---
   card3._timing = { ...card3._timing, sourceConfirm: 60000 };
   ignoreSource = true;
-  q3('[data-act="stream"][data-index="0"]').click();   // Netflix, la TV "no contesta"
+  q3('[data-act="stream"][data-index="0"]').click();
   await frame();
   check(q3('[data-act="stream"][data-index="0"]').classList.contains('loading') &&
         q3('[data-act="stream"][data-index="0"] ha-icon').getAttribute('icon') === 'mdi:loading', 'spinner mientras cambia de fuente');
-  set('media_player.sala', undefined, { source: 'Netflix' });   // la TV por fin reporta Netflix
+  set('media_player.sala', undefined, { source: 'Netflix' });
   await sleep(30);
   await frame();
   check(!card3._loading.size && q3('[data-act="stream"][data-index="0"]').classList.contains('active'), 'al confirmarse: sin spinner y botón activo');
@@ -467,7 +420,7 @@
   set('media_player.sala', undefined, { source: 'HDMI 1' });
   n = calls.length;
   q3('[data-act="stream"][data-index="0"]').click();
-  q3('[data-act="stream"][data-index="3"]').click();   // otro toque durante el cambio
+  q3('[data-act="stream"][data-index="3"]').click();
   await sleep(450);
   const sel = callsSince(n).filter((c) => c.includes('select_source'));
   check(sel.length === 2 && sel.every((c) => c.includes('"source":"Netflix"')) && !callsSince(n).some((c) => c.includes('switchInput')),
@@ -475,7 +428,6 @@
   check(q3('.toast').textContent.includes('No se pudo confirmar') && !card3._loading.size, 'aviso y fin del spinner');
   ignoreSource = false;
 
-  // --- Entrada por PUERTO (HDMI 2): una llamada, sin esperar confirmación ---
   n = calls.length;
   q3('[data-act="stream"][data-index="3"]').click();
   await sleep(30);
@@ -484,7 +436,7 @@
   q3('[data-act="mode"][data-id="fuentes"]').click();
   await card3.updateComplete;
   n = calls.length;
-  q3('[data-dir="right"]').click();                    // derecha = HDMI 3
+  q3('[data-dir="right"]').click();
   await sleep(30);
   check(callsSince(n).length === 1 && callsSince(n)[0].includes('"command":"tv/switchInput","payload":{"inputId":"HDMI_3"}'),
     `modo Fuentes: derecha → HDMI 3 por puerto (${callsSince(n)})`);
@@ -492,29 +444,27 @@
   await card3.updateComplete;
 
   n = calls.length;
-  q3('[data-act="stream"][data-index="2"]').click();   // Roku como entrada de la TV
+  q3('[data-act="stream"][data-index="2"]').click();
   await sleep(60);
   check(callsSince(n)[0] === 'media_player.select_source {"entity_id":"media_player.sala","source":"Roku"}',
     'fuente "Roku": se usa el nombre del source_list de la TV ("Roku", no "Roku OTT")');
 
-  // --- Streaming por Roku ---
   n = calls.length;
-  q3('[data-act="stream"][data-index="1"]').click();   // Fubo: solo existe en el Roku
+  q3('[data-act="stream"][data-index="1"]').click();
   await sleep(80);
   check(callsSince(n)[0]?.includes('"entity_id":"media_player.sala","source":"Roku"') &&
         callsSince(n)[1] === 'media_player.select_source {"entity_id":"media_player.roku","source":"Fubo: Watch Live TV & Sports"}',
     'Fubo en modo TV: TV → entrada Roku, luego abre la app en el Roku');
-  q3('[data-act="target"][data-id="roku"]').click();   // modo Roku
+  q3('[data-act="target"][data-id="roku"]').click();
   await frame();
   n = calls.length;
-  q3('[data-act="stream"][data-index="0"]').click();   // Netflix en modo Roku
+  q3('[data-act="stream"][data-index="0"]').click();
   await sleep(60);
   await frame();
   check(callsSince(n).length === 1 && callsSince(n)[0] === 'media_player.select_source {"entity_id":"media_player.roku","source":"Netflix"}',
     'Netflix en modo Roku → select_source en el Roku');
   check(q3('[data-act="stream"][data-index="0"]').classList.contains('active'), 'botón activo según la app del Roku');
 
-  // --- Estilos: cambiar style/theme por config ---
   out.push('', '— estilos —');
   for (const style of ['halo', 'cristal', 'relieve']) {
     card3.setConfig({ card_id: 'selftest4', style, theme: 'light', tvs: [{ name: 'Sala', entity: 'media_player.sala', platform: 'lg' }] });
@@ -540,7 +490,6 @@
   pushDark(false); await frame();
   check(t1 === 'dark' && card3.shadowRoot.querySelector('.card').dataset.theme === 'light', 'theme: auto sigue el modo oscuro de HA');
 
-  // --- Paso 7: numpad y secuencias ---
   out.push('', '— numpad y secuencias —');
   card3.setConfig({
     card_id: 'selftest5',
@@ -592,15 +541,14 @@
     'con la TV apagada su botón está bloqueado: no abre');
   set('media_player.sala', 'on', { source: 'HDMI 1' });
   await frame();
-  await sleep(900);   // pasa la pausa del centro tras encender
+  await sleep(900);
   n = calls.length;
-  q3('[data-dir="up"]').click();   // modo PIN: secuencia 1-2-3-4-OK
-  q3('[data-dir="up"]').click();   // doble toque
+  q3('[data-dir="up"]').click();
+  q3('[data-dir="up"]').click();
   await sleep(400);
   check(callsSince(n).length === 5 && callsSince(n).every((c) => c.includes('"entity_id":"media_player.sala"')),
     `secuencia: 5 pasos una sola vez (el doble toque se ignora) y todos a la TV en modo Roku (${callsSince(n).length})`);
 
-  // --- Fase 4: paletas (tarjeta → modo Roku → app activa) ---
   out.push('', '— paletas —');
   set('media_player.pal', 'on', { source: 'HDMI 1' });
   const card4 = document.createElement('tv-control-card');
@@ -618,7 +566,7 @@
   const r4 = card4.shadowRoot;
   const hc4 = () => r4.querySelector('ha-card.card');
   const tok4 = (name) => hc4().style.getPropertyValue(name).trim();
-  r4.querySelector('[data-act="target"][data-id="tv"]').click();   // modo TV (con companion arranca en Roku)
+  r4.querySelector('[data-act="target"][data-id="tv"]').click();
   await card4.updateComplete;
   check(hc4().dataset.theme === 'light' && tok4('--tv-accent-default') === '#0a8fb8' && tok4('--tv-surface') === '',
     'paleta de la tarjeta: su base (claro) manda sobre theme: dark y solo escribe los tokens que define');
@@ -640,7 +588,6 @@
   card4.remove();
   cards.splice(cards.indexOf(card4), 1);
 
-  // --- Paso 9: editor visual (con el ha-form simulado) ---
   out.push('', '— editor visual —');
   const ed = document.createElement('tv-control-card-editor');
   document.getElementById('cards').append(ed);
@@ -650,7 +597,6 @@
   const eq = (sel) => ed.shadowRoot.querySelector(sel);
   const edButton = (text) => [...ed.shadowRoot.querySelectorAll('button')].find((b) => b.textContent === text);
   const typeInto = (input, value, evt = 'input') => { input.value = value; input.dispatchEvent(new Event(evt, { bubbles: true })); };
-  // Los paneles cerrados no crean sus campos: se abren con un clic en su título, como haría una persona.
   const fold = (key) => eq(`details[data-key="${key}"]`) ?? (() => { throw new Error(`no hay panel "${key}" (hay: ${[...ed.shadowRoot.querySelectorAll('details')].map((d) => d.dataset.key)})`); })();
   const openFold = async (key) => { if (!fold(key).open) { fold(key).querySelector('summary').click(); await frame(); await frame(); } };
 
@@ -675,7 +621,7 @@
   await frame(); await frame();
   check(!fold('modes').open && !eq('[data-key="modes.f"]'), 'otro clic lo cierra');
   const rapid = ['dp', 'st', 'bt'];
-  rapid.forEach((k) => fold(k).querySelector('summary').click());   // sin esperar entre clics
+  rapid.forEach((k) => fold(k).querySelector('summary').click());
   await frame(); await frame();
   check(rapid.every((k) => fold(k).open), 'varios clics seguidos abren todos sus paneles (el estado no se pierde)');
   rapid.forEach((k) => fold(k).querySelector('summary').click());
@@ -728,7 +674,6 @@
   await frame();
   check(!('buttons' in emitted.at(-1)), 'Restablecer borra el botón (y "buttons" si quedó vacío): YAML mínimo');
 
-  // --- paletas en el editor ---
   emitted = [];
   await openFold('pal');
   edButton('+ Nueva paleta').click();

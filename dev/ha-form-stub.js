@@ -1,15 +1,3 @@
-/*
- * <ha-form> simulado para probar el editor fuera de Home Assistant.
- *
- * NO imita el aspecto de HA: es un formulario HTML básico que respeta el mismo
- * "contrato" que el ha-form real:
- *   entrada:  .schema (lista de campos con `selector`), .data, .hass,
- *             .computeLabel(campo), .computeHelper(campo)
- *   salida:   evento 'value-changed' con detail.value = TODOS los datos del form
- * Solo se reconstruye cuando cambia la ESTRUCTURA del schema; si solo cambian los
- * datos, actualiza los valores sin tocar el campo que tiene el foco (igual que el
- * real, que usa Lit).
- */
 customElements.define('ha-form', class extends HTMLElement {
   constructor() {
     super();
@@ -18,8 +6,6 @@ customElements.define('ha-form', class extends HTMLElement {
     this._sig = '';
   }
 
-  // Los atributos (style incluido) no se pueden poner en el constructor de un
-  // elemento creado con createElement: se ponen al entrar al DOM.
   connectedCallback() { this.style.display = 'block'; }
 
   set hass(h) { this._hass = h; }
@@ -28,10 +14,6 @@ customElements.define('ha-form', class extends HTMLElement {
   get schema() { return this._schema; }
   set data(d) { this._data = d || {}; this._sync(); }
   get data() { return this._data; }
-  // Las etiquetas pueden llegar DESPUÉS del schema (Lit asigna las propiedades en el
-  // orden en que aparecen en la plantilla): si cambian, se rehace el formulario. Ojo:
-  // Lit vuelve a asignar objetos y funciones en CADA render aunque sean los mismos,
-  // así que solo se rehace si la función es otra (si no, se perdería el foco).
   set computeLabel(fn) { if (fn === this._computeLabel) return; this._computeLabel = fn; this._sig = ''; this._sync(); }
   get computeLabel() { return this._computeLabel; }
   set computeHelper(fn) { if (fn === this._computeHelper) return; this._computeHelper = fn; this._sig = ''; this._sync(); }
@@ -113,7 +95,7 @@ customElements.define('ha-form', class extends HTMLElement {
       queueMicrotask(() => input.after(list));
     } else if (sel.color_rgb) {
       input = document.createElement('input');
-      input.type = 'color';   // el color_rgb de HA entrega [r, g, b], igual que se convierte abajo
+      input.type = 'color';
     } else if (sel.number) {
       input = document.createElement('input');
       input.type = 'number';
@@ -135,7 +117,7 @@ customElements.define('ha-form', class extends HTMLElement {
       else if (input.type === 'number') value = input.value === '' ? undefined : Number(input.value);
       else if (input.tagName === 'TEXTAREA') {
         if (input.value.trim() === '') value = {};
-        else { try { value = JSON.parse(input.value); } catch { return; } }   // JSON inválido: se ignora hasta que se corrija
+        else { try { value = JSON.parse(input.value); } catch { return; } }
       } else value = input.value;
       this._data = { ...this._data, [field.name]: value };
       this.dispatchEvent(new CustomEvent('value-changed', { detail: { value: this._data }, bubbles: true, composed: true }));

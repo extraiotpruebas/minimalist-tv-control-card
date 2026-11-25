@@ -1,5 +1,3 @@
-/* Módulo §7: estilos del editor. */
-
 const EDITOR_CSS = `
 :host { display: block; }
 .ed { display: grid; gap: 8px; padding-bottom: 16px; }
@@ -24,12 +22,10 @@ const EDITOR_CSS = `
 .ed-alert.info { border-color: var(--info-color, #039be5); }
 .ed-alert .ed-btns { margin-top: 8px; }
 
-/* Muestras de color de una paleta; las punteadas vienen de la base (la paleta no las define). */
 .ed-swatches { display: flex; gap: 8px; }
 .ed-sw { width: 30px; height: 30px; border-radius: 50%; border: 2px solid var(--divider-color, rgb(127 127 127 / 0.5)); box-sizing: border-box; }
 .ed-sw.base { border-style: dashed; opacity: 0.6; }
 
-/* Paneles plegables (acordeón): cada sección es un <details> con su resumen. */
 .ed-fold { border: 1px solid var(--divider-color, rgb(127 127 127 / 0.3)); border-radius: 12px; background: var(--card-background-color, transparent); }
 .ed-fold .ed-fold { background: var(--secondary-background-color, rgb(127 127 127 / 0.06)); }
 .ed-fold > summary { display: flex; align-items: center; gap: 8px; padding: 10px 12px; cursor: pointer; list-style: none; border-radius: 12px; }

@@ -1,16 +1,10 @@
-/* Módulo §7: aplicar un cambio del editor (formulario o botón) a la config. */
 import { formToAction } from './action-form.js';
 import { clone, deletePath, expandShortcuts, fieldNames, getPath, sameJson, setPath } from './paths.js';
 import { applyPaletteForm, removePalette } from './palettes.js';
 import { serializeV4 } from './serialize.js';
 
-/* ---------- cambios: nodo + datos → config nueva ---------- */
-
-/** Un formulario cambió: devuelve la config nueva (no toca la original). */
 function applyFormChange(rawConfig, node, data) {
   let config = expandShortcuts(rawConfig);
-  // Algunos formularios necesitan que exista su contenedor completo (p. ej. los 4
-  // botones de streaming): se crea con los valores por defecto antes de escribir.
   if (node.init && getPath(config, node.init.path) === undefined) config = setPath(config, node.init.path, clone(node.init.value));
 
   switch (node.codec) {
@@ -29,7 +23,7 @@ function applyFormChange(rawConfig, node, data) {
       let out = config;
       for (const name of fieldNames(node.schema)) {
         const value = data[name];
-        if (sameJson(value, node.data[name])) continue;   // solo lo que cambió
+        if (sameJson(value, node.data[name])) continue;
         const empty = value === undefined || value === null || value === '' || node.defaults?.[name] === value;
         out = setPath(out, [...node.path, name], empty ? undefined : value);
       }
@@ -38,7 +32,6 @@ function applyFormChange(rawConfig, node, data) {
   }
 }
 
-/** Un botón del editor (agregar, quitar, mover, convertir…): devuelve la config nueva. */
 function applyOp(rawConfig, op) {
   const config = expandShortcuts(rawConfig);
   switch (op.op) {

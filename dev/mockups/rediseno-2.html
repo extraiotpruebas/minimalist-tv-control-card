@@ -1,11 +1,4 @@
 <!doctype html>
-<!--
-  Paso 4.5 · ronda 2: tres variaciones de "Ambiente".
-  Abrir con:  http://localhost:8000/dev/mockups/rediseno-2.html
-  Vista inicial: tablet horizontal, tema claro (la favorita de la ronda 1).
-  El HTML de la tarjeta es idéntico en las tres; solo cambia el CSS.
-  Íconos de Disney+ y Prime aproximados (en HA vienen de custom-brand-icons).
--->
 <html lang="es">
 <head>
 <meta charset="utf-8">
@@ -13,9 +6,6 @@
 <title>Rediseño · ronda 2</title>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@mdi/font@7.4.47/css/materialdesignicons.min.css">
 <style>
-/* =========================================================================
-   Página de comparación (no es parte de la tarjeta)
-   ========================================================================= */
 :root { color-scheme: light; --page: #e6e9ee; --page-ink: #2a2f36; --page-muted: #69707a; --page-line: #d0d5dc; }
 :root[data-page="dark"] { color-scheme: dark; --page: #0c0d10; --page-ink: #c9ced6; --page-muted: #7d848e; --page-line: #23262c; }
 * { box-sizing: border-box; }
@@ -35,18 +25,14 @@ body { margin: 0; background: var(--page); color: var(--page-ink); font: 15px/1.
 .variant p { margin: 0 0 16px; color: var(--page-muted); font-size: 13.5px; max-width: 62ch; }
 .frame { container-type: inline-size; }
 
-/* =========================================================================
-   Tarjeta: estructura común
-   ========================================================================= */
 .tv {
-  --accent: #dce6f5;   /* sin fuente: blanco 6500 K */
+  --accent: #dce6f5;
   --brand-netflix: #e50914; --brand-disney: #1f5bff; --brand-youtube: #ff0033; --brand-prime: #00a8e1;
   position: relative; isolation: isolate; display: grid; gap: 18px; padding: 22px;
   grid-template-areas: "head" "screen" "apps" "pad" "modes" "keys";
   font-family: var(--ha-font-family-body, Roboto, "Segoe UI", system-ui, sans-serif);
   -webkit-tap-highlight-color: transparent; user-select: none; overflow: hidden;
 }
-/* :where() = especificidad 0: el reset nunca le gana a una clase (.round, .tv-name...). */
 :where(.tv) button { appearance: none; border: 0; margin: 0; padding: 0; background: none; color: inherit; font: inherit; cursor: pointer; touch-action: manipulation; }
 .tv button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .tv .mdi { line-height: 1; display: block; }
@@ -60,7 +46,6 @@ body { margin: 0; background: var(--page); color: var(--page-ink); font: 15px/1.
 .tv:not([data-has-roku="true"]) .switch { display: none; }
 .round { width: 42px; height: 42px; border-radius: 50%; display: grid; place-items: center; font-size: 21px; }
 
-/* La pantalla de vidrio (común a las tres variantes) */
 .screen { grid-area: screen; position: relative; isolation: isolate; margin: 0 0 6px; }
 .screen::before {
   content: ""; position: absolute; inset: 18% 6% -16%; z-index: -1; border-radius: 40%;
@@ -115,7 +100,6 @@ body { margin: 0; background: var(--page); color: var(--page-ink); font: 15px/1.
   .tv { padding: 16px; gap: 14px; }
   .mode span { display: none; }
 }
-/* Tablet / panel: dos columnas, touchpad a la derecha. */
 @container (min-width: 600px) {
   .tv {
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); column-gap: 36px; align-items: center; padding: 26px;
@@ -128,11 +112,6 @@ body { margin: 0; background: var(--page); color: var(--page-ink); font: 15px/1.
 @container (min-width: 860px) { .pad { width: min(100%, 360px); } }
 @media (prefers-reduced-motion: reduce) { .tv *, .tv { transition: none !important; animation: none !important; } }
 
-/* =========================================================================
-   VARIANTE A · RELIEVE
-   Ambiente + las formas del diseño 1: losetas con elevación suave y el bisel
-   con marcas que se encienden. Vidrio sutil en oscuro.
-   ========================================================================= */
 .v-relieve .tv {
   --surface: #eef1f5; --raised: #ffffff; --raised-2: #f6f8fa; --ink: #1b1f25; --ink-2: #565e69; --line: #d9dee5; --track: #e1e5eb;
   --hi: rgb(255 255 255 / 1); --shadow: rgb(25 35 55 / .16); --shadow-2: rgb(25 35 55 / .07);
@@ -145,7 +124,6 @@ body { margin: 0; background: var(--page); color: var(--page-ink); font: 15px/1.
   --hi: rgb(255 255 255 / .12); --shadow: rgb(0 0 0 / .6); --shadow-2: rgb(0 0 0 / .4);
   background: radial-gradient(120% 50% at 50% 0%, color-mix(in srgb, var(--accent) 9%, transparent), transparent 70%), linear-gradient(180deg, #1c1f24, var(--surface) 50%);
 }
-/* Superficie elevada: degradado cenital + arista clara + sombra suave (sin borde duro inferior). */
 .v-relieve :is(.round, .app, .key) {
   background: linear-gradient(180deg, var(--raised), var(--raised-2)); border-radius: 16px; color: var(--ink-2);
   box-shadow: inset 0 1px 0 var(--hi), 0 0 0 1px var(--line), 0 6px 14px -8px var(--shadow);
@@ -199,11 +177,6 @@ body { margin: 0; background: var(--page); color: var(--page-ink); font: 15px/1.
 .v-relieve .mode[aria-checked="true"] { background: var(--raised); color: var(--ink); box-shadow: inset 0 1px 0 var(--hi), 0 2px 8px -3px var(--shadow); }
 .v-relieve .tv[data-theme="dark"] .mode[aria-checked="true"] { background: rgb(255 255 255 / .12); }
 
-/* =========================================================================
-   VARIANTE B · HALO
-   La luz de la TV llega al touchpad: un anillo fino toma el color de la app y
-   al presionar se enciende el arco de esa dirección. Controles redondos.
-   ========================================================================= */
 .v-halo .tv {
   --surface: #f0f2f6; --raised: #ffffff; --ink: #1b1f25; --ink-2: #555d68; --line: #d8dde4; --shadow: rgb(25 35 55 / .15);
   --hi: #fff; --soft: rgb(25 35 55 / .05);
@@ -239,7 +212,6 @@ body { margin: 0; background: var(--page); color: var(--page-ink); font: 15px/1.
   background: radial-gradient(circle at 50% 40%, var(--raised), transparent 80%), var(--raised);
   box-shadow: inset 0 1px 0 var(--hi), 0 0 0 1px var(--line), 0 18px 40px -22px var(--shadow);
 }
-/* El halo: anillo interior del color de la app (solo con la TV prendida). */
 .v-halo .pad::before {
   content: ""; position: absolute; inset: 0; border-radius: 50%; pointer-events: none; z-index: 1;
   box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--accent) 55%, transparent), inset 0 0 22px -6px color-mix(in srgb, var(--accent) 60%, transparent);
@@ -247,7 +219,6 @@ body { margin: 0; background: var(--page); color: var(--page-ink); font: 15px/1.
 }
 .v-halo .tv[data-status="on"] .pad::before { opacity: 1; }
 .v-halo .dir { color: var(--ink-2); border-radius: 50%; transition: box-shadow .2s, color .2s; }
-/* Truco: un anillo de círculo completo, recortado por la cuña, deja ver solo el arco de esa dirección. */
 .v-halo .dir.pressed { color: var(--ink); box-shadow: inset 0 0 0 4px var(--accent), inset 0 0 30px -4px var(--accent); }
 .v-halo .ok {
   background: var(--surface); color: var(--ink-2);
@@ -259,11 +230,6 @@ body { margin: 0; background: var(--page); color: var(--page-ink); font: 15px/1.
 .v-halo .mode { border-radius: 999px; color: var(--ink-2); height: 40px; }
 .v-halo .mode[aria-checked="true"] { background: var(--ink); color: var(--surface); }
 
-/* =========================================================================
-   VARIANTE C · CRISTAL
-   La luz de la app se difunde por todo el fondo y los controles se agrupan
-   en paneles de vidrio esmerilado con brillo en el borde.
-   ========================================================================= */
 .v-cristal .tv {
   --base: #e9edf3; --pane: rgb(255 255 255 / .62); --pane-2: rgb(255 255 255 / .35); --rim: rgb(255 255 255 / .95);
   --ink: #1b1f25; --ink-2: #545c67; --line: rgb(30 45 70 / .1); --shadow: rgb(30 45 70 / .22); --blob-2: #9fb7ff;
@@ -279,9 +245,8 @@ body { margin: 0; background: var(--page); color: var(--page-ink); font: 15px/1.
 .v-cristal .tv[data-theme="dark"] {
   --base: #0d0f13; --pane: rgb(255 255 255 / .07); --pane-2: rgb(255 255 255 / .025); --rim: rgb(255 255 255 / .2);
   --ink: #f0f2f5; --ink-2: #a1a8b2; --line: rgb(255 255 255 / .08); --shadow: rgb(0 0 0 / .75);
-  --blob-2: color-mix(in srgb, var(--accent) 45%, #3d5cff);   /* armoniza con la app en lugar de competir */
+  --blob-2: color-mix(in srgb, var(--accent) 45%, #3d5cff);
 }
-/* El vidrio: translúcido, desenfoca lo que hay detrás, brillo en la arista superior. */
 .v-cristal :is(.round, .switch, .apps, .pad, .modes, .keys) {
   background: linear-gradient(180deg, var(--pane), var(--pane-2));
   backdrop-filter: blur(20px) saturate(160%);
@@ -315,7 +280,6 @@ body { margin: 0; background: var(--page); color: var(--page-ink); font: 15px/1.
 .v-cristal .tv[data-theme="dark"] .mode[aria-checked="true"] { background: rgb(255 255 255 / .13); }
 .v-cristal .keys { border-radius: 22px; padding: 6px; gap: 4px; }
 .v-cristal .key { color: var(--ink-2); border-radius: 16px; height: 46px; }
-/* Sin backdrop-filter (navegadores viejos): paneles opacos, sigue siendo legible. */
 @supports not (backdrop-filter: blur(1px)) {
   .v-cristal .tv :is(.round, .switch, .apps, .pad, .modes, .keys) { background: color-mix(in srgb, var(--base) 80%, #fff); }
   .v-cristal .tv[data-theme="dark"] :is(.round, .switch, .apps, .pad, .modes, .keys) { background: #1b1e24; }
@@ -488,7 +452,6 @@ body { margin: 0; background: var(--page); color: var(--page-ink); font: 15px/1.
     document.addEventListener(type, () => document.querySelectorAll('.pressed').forEach((el) => el.classList.remove('pressed')), true);
   }
 
-  // ?status=off&theme=dark&width=390&roku=tv&rokuActive=1&mode=audio&press=up  (para capturas)
   const params = new URLSearchParams(location.search);
   for (const k of ['status', 'theme', 'roku', 'mode']) if (params.has(k)) state[k] = params.get(k);
   if (params.has('width')) state.width = Number(params.get('width'));

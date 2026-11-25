@@ -1,41 +1,10 @@
-/**
- * Minimalist TV Control Card — v4
- *
- * Punto de entrada. Vite parte de este archivo, sigue sus `import` y junta todo en
- * UN solo archivo: dist/minimalist-tv-control-card.js (el que se instala en HA).
- *
- * Mapa de módulos (las secciones § son las del antiguo archivo único):
- *   §1  actions/keys.js         Tabla de teclas semánticas (KEYS)
- *   §2  actions/parse.js        parseAction(): lo que venga del YAML → un objeto
- *   §3  platforms.js            Drivers: cómo habla cada marca con Home Assistant
- *   §4  execute.js              executeAction(): ejecuta una acción sobre un dispositivo
- *   §5  config/catalogs.js      Catálogos (fuentes, modos, botones)
- *       config/normalize.js     normalizeConfig()
- *   §6  card/logic.js           Lógica pura de la tarjeta (estado, ruteo, pantalla)
- *       card/styles.js          CSS
- *       card/template.js        La plantilla HTML (Lit)
- *       card/tv-control-card.js La tarjeta (LitElement)
- *   §7  editor/*.js             El editor visual (lógica pura + LitElement)
- *       util.js, tag.js, version.js
- *
- * Los `export` del final no los usa HA: sirven para que las pruebas de Node
- * importen las funciones puras sin navegador.
- */
 import { CARD_VERSION } from './version.js';
 import { DEFAULT_CARD_TAG, CARD_TAG, EDITOR_TAG, tagFromUrl, setCardTag } from './tag.js';
 import { TvControlCard } from './card/tv-control-card.js';
 import { TvControlCardEditor } from './editor/tv-control-card-editor.js';
 
-// El ?tag= viaja en la URL de ESTE archivo (ver tag.js).
 setCardTag(tagFromUrl(import.meta.url));
 
-/*
- * Registro. Se protege por dos razones:
- *   - Solo en un navegador (`window`). En Node (las pruebas importan este archivo)
- *     Lit crea un customElements simulado, pero no hay window ni nada que mostrar.
- *   - Si HA carga el recurso dos veces (p. ej. con ?v=1 y ?v=2), un segundo
- *     define() con el mismo nombre lanzaría un error y rompería el dashboard.
- */
 const inBrowser = typeof window !== 'undefined' && !!globalThis.customElements;
 if (inBrowser && !customElements.get(EDITOR_TAG)) customElements.define(EDITOR_TAG, TvControlCardEditor);
 if (inBrowser && !customElements.get(CARD_TAG)) {
@@ -53,9 +22,6 @@ if (inBrowser && !customElements.get(CARD_TAG)) {
   console.info(`%c TV-CONTROL-CARD %c ${CARD_VERSION} `, 'background:#0a84ff;color:#fff;border-radius:3px 0 0 3px', 'background:#333;color:#fff;border-radius:0 3px 3px 0');
 }
 
-/* ============================================================================
- * EXPORTS (para los tests de Node; HA los ignora)
- * ========================================================================== */
 export { CARD_VERSION, TvControlCard };
 export { KEYS, HOLDABLE_KEYS, TV_ONLY_KEYS, CODE_TO_KEY } from './actions/keys.js';
 export { parseAction, resolveForPlatform, isHoldable, stripSsap } from './actions/parse.js';

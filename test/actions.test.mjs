@@ -5,9 +5,6 @@ import {
 } from '../src/index.js';
 import { createFakeHass, LG_TV, SAMSUNG_TV, ROKU } from './helpers.mjs';
 
-// ---------------------------------------------------------------------------
-// parseAction: strings del formato viejo
-// ---------------------------------------------------------------------------
 test('vacío, null y "pendiente" no son acciones', () => {
   for (const raw of [null, undefined, '', '   ', 'pendiente', 'PENDIENTE']) {
     assert.equal(parseAction(raw), null, `raw=${JSON.stringify(raw)}`);
@@ -50,9 +47,6 @@ test('source: y command: (con o sin ssap://)', () => {
   assert.deepEqual(parseAction('command:ssap://tv/channelUp'), { type: 'command', command: 'tv/channelUp' });
 });
 
-// ---------------------------------------------------------------------------
-// parseAction: objetos del formato nuevo
-// ---------------------------------------------------------------------------
 test('objetos válidos se copian y los inválidos dan null', () => {
   const cmd = { type: 'command', command: 'system.launcher/launch', payload: { id: 'netflix' } };
   const parsed = parseAction(cmd);
@@ -91,7 +85,7 @@ test('isHoldable solo permite las flechas (como producción)', () => {
 });
 
 test('la tabla KEYS no tiene códigos duplicados dentro de una misma plataforma (salvo excepciones conocidas)', () => {
-  const allowed = new Set(['roku:play']); // play y pause comparten la tecla play/pause del Roku
+  const allowed = new Set(['roku:play']);
   for (const platform of ['lg', 'samsung', 'roku']) {
     const seen = new Map();
     for (const [key, def] of Object.entries(KEYS)) {
@@ -105,9 +99,6 @@ test('la tabla KEYS no tiene códigos duplicados dentro de una misma plataforma 
   }
 });
 
-// ---------------------------------------------------------------------------
-// executeAction: qué servicio de HA se llama
-// ---------------------------------------------------------------------------
 test('la misma tecla genera la llamada correcta en cada plataforma', async () => {
   const hass = createFakeHass();
   const up = parseAction('up');
@@ -184,9 +175,6 @@ test('secuencias mal formadas no truenan; delay acepta string numérico', () => 
   assert.equal(parseAction({ type: 'sequence', steps: ['up'], delay: '500' }).delay, 500);
 });
 
-// ---------------------------------------------------------------------------
-// numpad (paso 7)
-// ---------------------------------------------------------------------------
 test('"numpad" es una acción de la tarjeta (string u objeto)', () => {
   assert.deepEqual(parseAction('numpad'), { type: 'numpad' });
   assert.deepEqual(parseAction('NUMPAD'), { type: 'numpad' });
@@ -204,9 +192,6 @@ test('executeAction nunca manda "numpad" a un dispositivo', async () => {
   assert.equal(hass.calls.length, 0);
 });
 
-// ---------------------------------------------------------------------------
-// Entradas por puerto (acción input)
-// ---------------------------------------------------------------------------
 test('input: forma corta, objeto, inválidos y dentro de secuencias', () => {
   assert.deepEqual(parseAction('input:hdmi2'), { type: 'input', input: 'hdmi2' });
   assert.deepEqual(parseAction({ type: 'input', input: 'tv' }), { type: 'input', input: 'tv' });

@@ -1,15 +1,4 @@
 <!doctype html>
-<!--
-  MOCKUP del editor de paletas (Fase 4, #1). No es código de la tarjeta: es una maqueta
-  para decidir el diseño antes de programarlo.
-
-    Con Vite corriendo:  http://localhost:5199/dev/mockups/paletas.html
-    Con el build final:  ...paletas.html?build=dist
-
-  Usa la tarjeta REAL. Las paletas se aplican como lo haría la implementación: escribiendo
-  unos pocos tokens (--tv-surface, --tv-ink...) en el style del ha-card. La lista de
-  paletas, la prioridad y el contraste son prototipos de las funciones puras de la Fase A.
--->
 <html lang="es">
 <head>
 <meta charset="utf-8">
@@ -31,7 +20,6 @@
   .bench { max-width: 1240px; margin: 0 auto; padding: 18px 24px 32px; display: grid; grid-template-columns: 440px minmax(0, 1fr); gap: 28px; align-items: start; }
   @media (max-width: 960px) { .bench { grid-template-columns: 1fr; } }
 
-  /* ---------- el "diálogo" del editor de HA ---------- */
   .dialog { background: var(--panel); border-radius: 24px; box-shadow: 0 1px 3px rgb(0 0 0 / 0.08), 0 20px 40px -24px rgb(0 0 0 / 0.25); overflow: hidden; }
   .dlg-head { padding: 18px 22px; font-size: 18px; font-weight: 500; border-bottom: 1px solid var(--line); }
   .dlg-head span { display: block; font-size: 12px; font-weight: 400; color: var(--ink-2); }
@@ -87,7 +75,6 @@
   .assign .sub { grid-column: 1 / -1; font-size: 12px; font-weight: 500; color: var(--ink-2); margin-top: 6px; }
   .check { display: flex; gap: 8px; align-items: center; font-size: 13px; grid-column: 1 / -1; }
 
-  /* ---------- vista previa ---------- */
   .preview { display: grid; gap: 16px; position: sticky; top: 16px; }
   .sim { display: flex; flex-wrap: wrap; gap: 10px 18px; align-items: center; }
   .sim .lbl { font-size: 12px; color: var(--ink-2); display: block; margin-bottom: 4px; }
@@ -108,7 +95,6 @@
   details.yaml pre { margin: 0; padding: 0 16px 16px; font-size: 12.5px; line-height: 1.55; overflow-x: auto; }
   pre .k { color: #8ab4f8; } pre .c { color: #7c8591; } pre .s { color: #f2c27b; } pre .hl { background: rgb(138 180 248 / 0.16); display: inline-block; width: 100%; }
 
-  /* ---------- galería ---------- */
   .gallery { padding: 32px 24px 48px; background: #c9ced6; }
   .gallery > * { max-width: 1240px; margin-inline: auto; }
   .gallery h2 { margin: 0 auto 4px; font-size: 20px; font-weight: 600; }
@@ -120,7 +106,6 @@
   .strip i { width: 18px; height: 18px; border-radius: 5px; box-shadow: inset 0 0 0 1px rgb(0 0 0 / 0.15); }
 </style>
 <script>
-  /* ha-icon y ha-card falsos (igual que dev/screenshots.html): fuera de HA no existen. */
   const MDI_CSS = 'https://cdn.jsdelivr.net/npm/@mdi/font@7.4.47/css/materialdesignicons.min.css';
   customElements.define('ha-icon', class extends HTMLElement {
     static observedAttributes = ['icon'];
@@ -176,13 +161,10 @@
 
 <script type="module">
   const ENTRY = new URLSearchParams(location.search).get('build') === 'dist' ? '../../dist/minimalist-tv-control-card.js' : '../../src/index.js';
-  // Las paletas incluidas salen de la tarjeta real (config/palettes.js), no de una copia.
   const { BUILTIN_PALETTES } = await import(ENTRY);
 
-  /* ======================= datos de la maqueta ======================= */
   const BUILTIN = BUILTIN_PALETTES;
 
-  // Valores de `base` que se usan cuando un campo está vacío (los de Relieve).
   const BASE_DEFAULTS = {
     light: { background: '#eef1f5', button: '#ffffff', text: '#1b1f25', accent: '#1b1f25', on: '#1f9d63' },
     dark:  { background: '#16181c', button: '#2a2d32', text: '#eef0f3', accent: '#dce6f5', on: '#64e3a6' },
@@ -205,7 +187,6 @@
     assign: { card: 'nube', cardLight: 'nube', cardDark: 'grafito', pair: false, tv: '', roku: 'medianoche', sources: { netflix: 'cine' } },
     sim: 'hdmi', style: 'relieve', width: 380, haDark: false,
   };
-  // Para capturas: ?sim=netflix&style=cristal&width=720&sel=nube
   const QS = new URLSearchParams(location.search);
   if (QS.get('sim')) S.sim = QS.get('sim');
   if (QS.get('style')) S.style = QS.get('style');
@@ -214,9 +195,6 @@
   const all = () => ({ ...BUILTIN, ...S.palettes });
   const isBuiltin = (n) => n in BUILTIN && !(n in S.palettes);
 
-  /* ============ prototipos de las funciones puras de la Fase A ============ */
-
-  /** Paleta → tokens CSS. Solo 5 colores de entrada; lo demás se DERIVA con color-mix. */
   function paletteTokens(p) {
     if (!p) return {};
     const t = {}, dark = p.base === 'dark', bg = p.background ?? 'var(--tv-surface)';
@@ -225,7 +203,6 @@
       t['--tv-surface-top'] = `color-mix(in srgb, ${p.background} ${dark ? 95 : 55}%, #fff)`;
     }
     if (p.button) {
-      // En oscuro el botón queda translúcido: así el vidrio (backdrop-filter) sigue viéndose.
       t['--tv-raised'] = dark ? `color-mix(in srgb, ${p.button} 75%, transparent)` : p.button;
       t['--tv-raised-2'] = dark ? `color-mix(in srgb, ${p.button} 40%, transparent)` : `color-mix(in srgb, ${p.button} 80%, ${bg})`;
       t['--tv-thumb'] = p.button;
@@ -244,7 +221,6 @@
   }
   const TOKEN_NAMES = Object.keys(paletteTokens({ base: 'dark', background: '#000', button: '#000', text: '#000', accent: '#000', on: '#000' }));
 
-  /** ¿Qué paleta aplica ahora? Gana la más específica. Devuelve cada nivel para explicarlo. */
   function resolvePalette({ assign, app, roku, haDark }) {
     const cardName = assign.pair ? (haDark ? assign.cardDark : assign.cardLight) : assign.card;
     const levels = [
@@ -257,7 +233,6 @@
     return { levels, win, name: win >= 0 ? levels[win].name : null };
   }
 
-  /** Contraste WCAG 2 entre dos colores #rrggbb (1 a 21). */
   function contrast(a, b) {
     const lum = (hex) => {
       const [r, g, bl] = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255)
@@ -269,7 +244,6 @@
   }
   const effective = (p, k) => p[k] ?? BASE_DEFAULTS[p.base][k];
 
-  /* ======================= la tarjeta en vivo ======================= */
   const SOURCES = ['HDMI 1', 'HDMI 2', 'Netflix', 'YouTube', 'Spotify', 'Twitch', 'Roku OTT'];
   const st = (entity_id, state, attributes = {}) => ({ entity_id, state, attributes });
   const SIMS = {
@@ -293,7 +267,6 @@
   };
   const frame = () => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
 
-  /** Pinta una tarjeta: config (estilo + tema de la paleta), hass, Roku sí/no y los tokens. */
   async function paint(card, { cfg, sim, palette }) {
     const key = JSON.stringify(cfg);
     if (card._mockKey !== key) { card.setConfig(cfg); card._mockKey = key; }
@@ -325,7 +298,6 @@
     renderWhy(r);
   }
 
-  /* ======================= piezas de la página ======================= */
   const $ = (id) => document.getElementById(id);
   const opt = (v, label, sel) => `<option value="${v}"${v === sel ? ' selected' : ''}>${label}</option>`;
   const paletteOptions = (sel) => opt('', 'Ninguna', sel) + Object.keys(all()).map((n) => opt(n, n, sel)).join('');
@@ -402,7 +374,6 @@
       ${r.win < 0 ? '<p class="help" style="margin:8px 0 0">Ninguna paleta asignada: se usa el estilo y tema de siempre.</p>' : ''}`;
   }
 
-  /* YAML con resaltado mínimo; solo las partes que tocan las paletas. */
   function renderYaml() {
     const a = S.assign, q = (v) => `<span class="s">'${v}'</span>`, k = (s) => `<span class="k">${s}</span>`, c = (s) => `<span class="c">${s}</span>`;
     const L = [];
@@ -423,7 +394,6 @@
     $('yaml').innerHTML = L.join('\n');
   }
 
-  /* ======================= galería ======================= */
   const galleryCards = Object.keys(BUILTIN).map((n) => {
     const fig = document.createElement('figure');
     fig.className = 'gal-item'; fig.style.margin = '0';
@@ -441,7 +411,6 @@
     })));
   }
 
-  /* ======================= eventos ======================= */
   function refresh({ gallery = false } = {}) {
     renderSim(); renderPalettes(); renderAssign(); renderYaml(); paintLive();
     if (gallery) paintGallery();
@@ -479,7 +448,7 @@
 
   document.addEventListener('input', (e) => {
     const t = e.target;
-    if (t.dataset.color) {   // arrastrando en el selector: solo color + tarjeta, sin re-pintar el formulario
+    if (t.dataset.color) {
       editable()[t.dataset.color] = t.value;
       t.parentElement.style.background = t.value; t.parentElement.classList.remove('inherit');
       const hex = document.querySelector(`[data-hex="${t.dataset.color}"]`); if (hex) hex.value = t.value;

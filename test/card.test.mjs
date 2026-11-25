@@ -5,9 +5,6 @@ import {
   routeAction, sourceMatches, resolveSourceName, describeNow, STYLES,
 } from '../src/index.js';
 
-// Que este archivo se pueda importar ya prueba el guard de §6: en Node no existe
-// HTMLElement ni customElements, y aun así la clase se declara sin error.
-
 const hassWith = (states) => ({ states });
 const st = (state, attributes = {}) => ({ state, attributes });
 
@@ -52,7 +49,7 @@ test('StateWaiters: cancelAll y predicate que truena', async () => {
   const w = new StateWaiters();
   const boom = w.wait(hassWith({ 'x.y': st('on') }), 'x.y', () => { throw new Error('boom'); }, 1000);
   const other = w.wait(hassWith({}), 'x.z', () => true, 1000);
-  w.check(hassWith({ 'x.y': st('on') }));   // no debe lanzar
+  w.check(hassWith({ 'x.y': st('on') }));
   w.cancelAll();
   assert.deepEqual(await Promise.all([boom, other]), [false, false]);
 });
@@ -66,9 +63,6 @@ test('getStubConfig usa el primer media_player y produce una config válida', ()
   assert.deepEqual(model.tvs[0].settings.modes, ['menu', 'busqueda', 'audio']);
 });
 
-// ---------------------------------------------------------------------------
-// Ruteo TV / Roku
-// ---------------------------------------------------------------------------
 const TV_WITH_ROKU = {
   platform: 'lg', entity: 'media_player.lg',
   companion: { platform: 'roku', entity: 'media_player.roku', remote: 'remote.roku' },
@@ -117,9 +111,6 @@ test('routeAction: companion sin remote → todo a la TV', () => {
   assert.equal(routeAction(parseAction('up'), { tv, rokuMode: true, mode: null }).platform, 'lg');
 });
 
-// ---------------------------------------------------------------------------
-// Fuentes
-// ---------------------------------------------------------------------------
 test('resolveSourceName usa el nombre exacto del source_list', () => {
   const tv = st('on', { source_list: ['HDMI 1', 'ROKU', 'Netflix'] });
   assert.equal(resolveSourceName(tv, ['Roku OTT', 'Roku']), 'ROKU');
@@ -144,9 +135,6 @@ test('aviso: TV con Roku y botón de arriba con acción propia', () => {
   assert.match(custom.warnings.join(), /selector TV \| Roku/);
 });
 
-// ---------------------------------------------------------------------------
-// Estilos y temas
-// ---------------------------------------------------------------------------
 const ONE_TV = { tvs: [{ entity: 'media_player.tv' }] };
 
 test('style: relieve por defecto, acepta los tres, avisa si no existe', () => {
@@ -164,9 +152,6 @@ test('theme: light, dark, auto; por defecto oscuro (como producción)', () => {
   assert.equal(normalizeConfig({ ...ONE_TV, colorMode: 'light' }).theme, 'light');
 });
 
-// ---------------------------------------------------------------------------
-// describeNow: qué dice la pantalla de vidrio
-// ---------------------------------------------------------------------------
 const slots = normalizeConfig({ ...ONE_TV, streaming: [{ source: 'netflix', accent: '#ff0000' }, { source: 'disney' }] }).tvs[0].settings.streaming;
 const now = (o) => describeNow({ status: 'on', busy: null, roku: false, hasCompanion: false, tvState: null, rokuState: null, streaming: slots, ...o });
 

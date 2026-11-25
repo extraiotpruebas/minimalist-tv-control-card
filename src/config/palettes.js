@@ -1,29 +1,7 @@
-/* Módulo §5c: paletas de color (catálogo incluido, lectura del YAML, contraste). */
 import { has } from '../util.js';
 
-/* ============================================================================
- * PALETAS
- * ----------------------------------------------------------------------------
- * Una paleta son 5 colores + la base (claro u oscuro). No son los ~15 tokens del
- * CSS: el resto se DERIVA de estos 5 (ver paletteTokens en card/logic.js), así es
- * difícil armar una combinación ilegible. Todos los colores son opcionales: lo que
- * falta sale de la base (el tema claro u oscuro del estilo elegido).
- *
- *   background → fondo de la tarjeta     accent → color de la interfaz sin app
- *   button     → apps, teclas, touchpad  on     → indicador de "encendida"
- *   text       → texto e íconos
- *
- * Se asignan en tres lugares; gana el más específico (resolvePalette, logic.js):
- *   streaming[i].palette  →  companion.palette (modo Roku)  →  palette (tarjeta,
- *   o la TV con overrides). Cada asignación es un nombre o { light, dark }.
- * ========================================================================== */
 const PALETTE_FIELDS = ['background', 'button', 'text', 'accent', 'on'];
 
-/*
- * Paletas incluidas: cada una es UNA línea de datos, así que agregar más casi no
- * pesa. Todas cumplen contraste 4.5:1 del texto sobre el fondo y sobre los botones
- * (lo comprueba test/config.test.mjs).
- */
 const BUILTIN_PALETTES = {
   grafito:    { base: 'dark',  background: '#1b1d21', button: '#2c2f35', text: '#eceef1', accent: '#f0b44c', on: '#62d6a0' },
   medianoche: { base: 'dark',  background: '#0c1424', button: '#1b2a45', text: '#e8eef8', accent: '#5cc8ff', on: '#43dba0' },
@@ -35,11 +13,6 @@ const BUILTIN_PALETTES = {
   menta:      { base: 'light', background: '#e3eeea', button: '#fbfefc', text: '#16241e', accent: '#0f7c8c', on: '#1d9a5d' },
 };
 
-/**
- * Color del YAML → '#rrggbb' (minúsculas), o null si no es un color válido.
- * Acepta '#1a2b3c', '1a2b3c', '#abc', '26, 43, 60' y [26, 43, 60] (el selector
- * color_rgb de HA entrega un arreglo).
- */
 function normalizeHex(value) {
   if (Array.isArray(value)) value = value.join(',');
   const str = String(value ?? '').trim().toLowerCase();
@@ -54,7 +27,6 @@ function normalizeHex(value) {
   return null;
 }
 
-/** Una paleta del YAML → { base, ...colores válidos }. Los colores inválidos se avisan y se omiten. */
 function normalizePalette(name, raw, warnings) {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
     warnings.push(`La paleta "${name}" no es un bloque de colores; se ignoró.`);
@@ -72,10 +44,6 @@ function normalizePalette(name, raw, warnings) {
   return palette;
 }
 
-/**
- * `palettes:` del YAML + las incluidas. Una paleta propia con el mismo nombre que
- * una incluida la reemplaza (así un instalador puede ajustar "grafito" a su gusto).
- */
 function normalizePalettes(raw, warnings) {
   const result = { ...BUILTIN_PALETTES };
   if (raw === undefined || raw === null) return result;
@@ -90,11 +58,6 @@ function normalizePalettes(raw, warnings) {
   return result;
 }
 
-/**
- * Una asignación (`palette: grafito` o `palette: { light: nube, dark: grafito }`)
- * → { light, dark } con nombres o null. Así el resto del código no distingue entre
- * las dos formas. Devuelve null si no hay asignación.
- */
 function paletteRef(value) {
   if (typeof value === 'string' && value.trim()) return { light: value.trim(), dark: value.trim() };
   if (value && typeof value === 'object' && !Array.isArray(value)) {
@@ -105,7 +68,6 @@ function paletteRef(value) {
   return null;
 }
 
-/** Avisa de los nombres asignados que no existen (en vez de ignorarlos en silencio). */
 function checkPaletteRef(ref, palettes, where, warnings) {
   for (const name of new Set([ref?.light, ref?.dark])) {
     if (name && !has(palettes, name)) {
@@ -114,10 +76,6 @@ function checkPaletteRef(ref, palettes, where, warnings) {
   }
 }
 
-/**
- * Contraste WCAG 2 entre dos colores '#rrggbb': de 1 (iguales) a 21 (negro y
- * blanco). 4.5 es el mínimo recomendado para texto normal.
- */
 function contrastRatio(a, b) {
   const luminance = (hex) => {
     const [r, g, bl] = [1, 3, 5]

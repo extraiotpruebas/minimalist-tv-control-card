@@ -1,24 +1,3 @@
-/* ============================================================================
- * §7  EDITOR VISUAL
- * ----------------------------------------------------------------------------
- * Lo usan los programadores de ExtraIoT (los clientes no). Una sola regla:
- *
- *   LO QUE ESTÁ EN EL YAML SE MUESTRA. Lo que no, aparece como "+ Agregar…" o
- *   "Personalizar". Quitarlo lo borra del YAML. El editor nunca escribe valores
- *   por defecto, así el YAML queda mínimo y "activo" = "presente en la config".
- *
- * Igual que la tarjeta, se divide en dos:
- *   - Lógica PURA (se prueba en Node, sin DOM):
- *       buildEditorView(config, ctx)  QUÉ se muestra: una lista plana de "nodos"
- *                                     (títulos, formularios, botones, avisos).
- *       applyFormChange / applyOp     la config NUEVA tras un cambio. Nunca mutan
- *                                     la original (HA congela la config que pasa).
- *       serializeV4(raw)              YAML viejo → YAML v4 con el mismo resultado.
- *   - DOM delgado (TvControlCardEditor): pinta los nodos reutilizando cada
- *     elemento por su `key`. Un <ha-form> que ya existe solo recibe datos nuevos,
- *     no se vuelve a crear: por eso no se pierde el foco mientras se escribe
- *     (el editor de producción rehacía todo con innerHTML en cada tecla).
- * ========================================================================== */
 import { KEYS } from '../actions/keys.js';
 import { parseAction } from '../actions/parse.js';
 import { CUSTOM_MODE_IDS, DEFAULT_BUTTONS, DEFAULT_PAD, DEFAULT_STREAMING, DIRECTIONS, FIXED_MODES } from '../config/catalogs.js';
@@ -29,9 +8,6 @@ import { fold } from './fold.js';
 import { assignmentNodes, paletteSection } from './palettes.js';
 import { clone, expandShortcuts, getPath, isPlainObject } from './paths.js';
 
-/* ---------- vista: config → nodos ---------- */
-
-/** Botones ↑ ↓ ✕ de un elemento de una lista. */
 function listActions(arrayPath, index, length, { canRemove = true } = {}) {
   return [
     { label: '↑', title: 'Subir', op: { op: 'move', path: arrayPath, index, delta: -1 }, disabled: index === 0 },
@@ -40,7 +16,6 @@ function listActions(arrayPath, index, length, { canRemove = true } = {}) {
   ];
 }
 
-/** "Relieve (predeterminado)" → "Relieve": el nombre corto de una opción, para los resúmenes. */
 function shortLabel(options, value) {
   const found = options.find((o) => o.value === value);
   return found ? found.label.replace(/ \(.*\)$/, '') : String(value ?? '');
@@ -51,7 +26,6 @@ const ACTION_SHORT = {
   button: 'botón crudo', sequence: 'secuencia', numpad: 'teclado numérico', platform: 'distinta por marca',
 };
 
-/** Una acción en pocas palabras, para el resumen de un panel cerrado ("tecla Home"). */
 function describeAction(raw, { allowDefault = false, defaultText = 'predeterminada' } = {}) {
   const form = actionToForm(raw);
   if (form.type === 'default') return allowDefault ? defaultText : 'sin acción';
@@ -60,12 +34,10 @@ function describeAction(raw, { allowDefault = false, defaultText = 'predetermina
   return ACTION_SHORT[form.type] ?? ACTION_UI_TYPES[form.type] ?? form.type;
 }
 
-/** Nombres de las secciones que una TV puede tener propias (para su resumen). */
 const OVERRIDE_NAMES = { modes: 'modos', custom_modes: 'modos personalizados', default_pad: 'touchpad', streaming: 'streaming', buttons: 'botones', palette: 'paleta' };
 
 const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
 
-/** Nodos del editor de UNA acción (se llama a sí misma para secuencias y "por marca"). */
 function actionNodes(config, path, key, depth, opts = {}) {
   const raw = getPath(config, path);
   const form = actionToForm(raw);
@@ -99,7 +71,6 @@ function actionNodes(config, path, key, depth, opts = {}) {
   return nodes;
 }
 
-/** Las 4 direcciones de un pad: ícono + acción de cada una. */
 function padNodes(config, basePath, key, depth, { allowDefault }) {
   const nodes = [];
   for (const dir of DIRECTIONS) {
@@ -117,29 +88,18 @@ function padNodes(config, basePath, key, depth, { allowDefault }) {
   return nodes;
 }
 
-/** Descripción corta de la acción por defecto de un botón ("tecla Atrás"). */
 function describeDefaultButton(id) {
   const action = parseAction(DEFAULT_BUTTONS[id].action);
   if (id === 'power') return 'encender/apagar la TV';
   return action?.type === 'key' ? `tecla ${KEYS[action.key].label}` : 'sin acción';
 }
 
-/**
- * Secciones que pueden ser globales o propias de una TV (overrides): modos,
- * modos personalizados, touchpad sin modo, streaming y botones.
- *
- * Ojo con los overrides: se aplican con un merge SUPERFICIAL
- * (`{ ...global, ...overrides }`), así que `overrides.buttons` reemplaza TODOS
- * los botones globales, no solo los que cambian. Por eso, al activar una
- * categoría propia se copia la global como punto de partida.
- */
 function settingsNodes(config, base, kp, depth, ctx, override) {
   const nodes = [];
   const here = getPath(config, base) ?? {};
   const present = (k) => here[k] !== undefined;
-  const level = override ? 2 : 1;   // las secciones de una TV cuelgan de su panel "propia"
+  const level = override ? 2 : 1;
 
-  // --- Modos ---
   const effectiveModes = (present('modes') ? here.modes : config.modes) ?? DEFAULT_MODES;
   const customDefs = (override && here.custom_modes) || config.custom_modes || {};
   const modeLabel = (id) => FIXED_MODES[id]?.label ?? customDefs[id]?.label ?? id;
@@ -160,8 +120,6 @@ function settingsNodes(config, base, kp, depth, ctx, override) {
     nodes.push({ kind: 'buttons', key: `${kp}modes.add`, depth, items: [{ label: '+ Modos propios', op: { op: 'set', path: [...base, 'modes'], value: [...(config.modes ?? DEFAULT_MODES)], open: `${kp}modes` } }] });
   }
 
-  // --- Modos personalizados: solo los que están asignados a un modo ---
-  // Van DENTRO del panel de modos si existe (global, o TV con modos propios).
   const customNodes = modesHead ? modesChildren : nodes;
   const usedCustom = CUSTOM_MODE_IDS.filter((id) => effectiveModes.includes(id));
   if (usedCustom.length) {
@@ -201,8 +159,6 @@ function settingsNodes(config, base, kp, depth, ctx, override) {
     nodes.push(...fold(modesHead, modesChildren, { summary: names.join(', ') }));
   }
 
-  // --- Touchpad sin modo (default_pad) ---
-  // En lo global el panel siempre existe (con el botón dentro si está sin personalizar).
   if (present('default_pad')) {
     const head = { kind: 'heading', key: `${kp}dp`, depth, level, text: 'Touchpad sin modo',
       actions: [{ label: '✕', title: 'Volver al predeterminado (flechas)', op: { op: 'delete', path: [...base, 'default_pad'] } }] };
@@ -215,7 +171,6 @@ function settingsNodes(config, base, kp, depth, ctx, override) {
     else nodes.push(...fold({ kind: 'heading', key: `${kp}dp`, depth, level, text: 'Touchpad sin modo' }, [add], { summary: 'predeterminado (flechas)' }));
   }
 
-  // --- Streaming ---
   if (!override || present('streaming')) {
     const head = { kind: 'heading', key: `${kp}st`, depth, level, text: override ? 'Streaming propio' : 'Botones de streaming',
       actions: override ? [{ label: '✕', title: 'Usar el streaming global', op: { op: 'delete', path: [...base, 'streaming'] } }] : undefined };
@@ -257,7 +212,6 @@ function settingsNodes(config, base, kp, depth, ctx, override) {
       items: [{ label: '+ Streaming propio', op: { op: 'set', path: [...base, 'streaming'], value: clone(config.streaming ?? DEFAULT_STREAMING.map((source) => ({ source }))), open: `${kp}st` } }] });
   }
 
-  // --- Botones ---
   if (!override || present('buttons')) {
     const head = { kind: 'heading', key: `${kp}bt`, depth, level, text: override ? 'Botones propios' : 'Botones',
       actions: override ? [{ label: '✕', title: 'Usar los botones globales', op: { op: 'delete', path: [...base, 'buttons'] } }] : undefined };
@@ -291,13 +245,6 @@ function settingsNodes(config, base, kp, depth, ctx, override) {
   return nodes;
 }
 
-/**
- * QUÉ muestra el editor para esta config. Pura: misma entrada → mismos nodos.
- *
- * @param {object} rawConfig  la config tal como la tiene HA
- * @param {{ model?: object, error?: string, expanded?: Set<string>, mediaPlayers?: string[] }} ctx
- * @returns {Array<object>} nodos: { kind: 'alert'|'heading'|'note'|'buttons'|'form', key, ... }
- */
 function buildEditorView(rawConfig, ctx = {}) {
   const config = expandShortcuts(rawConfig);
   const nodes = [];
@@ -310,7 +257,6 @@ function buildEditorView(rawConfig, ctx = {}) {
   }
   (ctx.model?.warnings ?? []).forEach((text, i) => nodes.push({ kind: 'alert', key: `warn${i}`, level: 'info', text }));
 
-  // --- General ---
   const generalHead = { kind: 'heading', key: 'general', depth: 0, level: 1, text: 'General' };
   const general = [];
   general.push({ kind: 'form', key: 'general.f', depth: 0, path: [], defaults: { style: 'relieve', theme: 'dark' },
@@ -336,7 +282,6 @@ function buildEditorView(rawConfig, ctx = {}) {
   const generalSummary = [config.card_id, shortLabel(STYLE_OPTIONS, config.style ?? 'relieve'), shortLabel(THEME_OPTIONS, config.theme ?? 'dark'), paletteName].filter(Boolean).join(' · ');
   nodes.push(...fold(generalHead, general, { summary: generalSummary, open: true }));
 
-  // --- TVs ---
   const tvsHead = { kind: 'heading', key: 'tvs', depth: 0, level: 1, text: 'Televisores' };
   const tvNodes = [];
   const tvs = Array.isArray(config.tvs) ? config.tvs : [];
@@ -346,9 +291,6 @@ function buildEditorView(rawConfig, ctx = {}) {
     const tvHead = { kind: 'heading', key: `${kp}h`, depth: 0, level: 2, text: `TV ${i + 1}${t.name ? ` · ${t.name}` : ''}`,
       actions: listActions(['tvs'], i, tvs.length, { canRemove: tvs.length > 1 }) };
     const children = [];
-    // El selector de entidad de HA dibuja su etiqueta ARRIBA de la caja, y los campos
-    // de texto/select la llevan DENTRO: si comparten fila del grid quedan a distinta
-    // altura. Por eso la entidad va sola, a todo el ancho, y Nombre+Marca comparten fila.
     children.push({ kind: 'form', key: `${kp}f`, depth: 1, path: ['tvs', i],
       schema: [
         { name: '', type: 'grid', schema: [
@@ -361,7 +303,6 @@ function buildEditorView(rawConfig, ctx = {}) {
 
     children.push(...assignmentNodes(config, ['tvs', i, 'overrides', 'palette'], `${kp}pal`, 1, 'Paleta de esta TV'));
 
-    // Lo que falta activar va justo debajo de los datos de la TV (no al final del bloque).
     const adds = [];
     if (t.companion === undefined) adds.push({ label: '+ Roku conectado', op: { op: 'set', path: ['tvs', i, 'companion'], value: {} } });
     if (t.overrides === undefined) adds.push({ label: '+ Configuración propia de esta TV', op: { op: 'set', path: ['tvs', i, 'overrides'], value: {}, open: `${kp}ov` } });

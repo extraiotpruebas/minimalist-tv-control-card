@@ -6,9 +6,6 @@ import {
 
 const ONE_TV = { tvs: [{ name: 'Sala', entity: 'media_player.tv' }] };
 
-// ---------------------------------------------------------------------------
-// Colores y paletas del YAML
-// ---------------------------------------------------------------------------
 test('normalizeHex: acepta #rrggbb, sin #, #rgb, "r, g, b" y [r, g, b]', () => {
   assert.equal(normalizeHex('#1A2B3C'), '#1a2b3c');
   assert.equal(normalizeHex('1a2b3c'), '#1a2b3c');
@@ -24,7 +21,6 @@ test('paletas incluidas: siempre disponibles, con los 5 colores y buen contraste
   for (const [name, p] of Object.entries(BUILTIN_PALETTES)) {
     assert.ok(['light', 'dark'].includes(p.base), name);
     for (const f of PALETTE_FIELDS) assert.equal(normalizeHex(p[f]), p[f], `${name}.${f}`);
-    // 4.5:1 = mínimo recomendado (WCAG) para texto normal. El texto va sobre el fondo y sobre los botones.
     assert.ok(contrastRatio(p.text, p.background) >= 4.5, `${name}: texto sobre fondo`);
     assert.ok(contrastRatio(p.text, p.button) >= 4.5, `${name}: texto sobre botones`);
   }
@@ -87,9 +83,6 @@ test('nombre de paleta que no existe → aviso claro con las incluidas', () => {
   assert.ok(m.warnings.some((w) => /streaming 1: la paleta "cine" no existe/.test(w)));
 });
 
-// ---------------------------------------------------------------------------
-// Qué paleta se usa ahora (cascada)
-// ---------------------------------------------------------------------------
 const PALETTES = { ...BUILTIN_PALETTES, cine: { base: 'dark', background: '#170d0e' } };
 const ref = (name) => paletteRef(name);
 const pick = (o) => resolvePalette({ palettes: PALETTES, theme: 'dark', roku: false, ...o });
@@ -119,9 +112,6 @@ test('resolvePalette: un nombre que no existe se salta (pasa al siguiente nivel)
   assert.equal(pick({}), null, 'nada asignado: estilo de siempre');
 });
 
-// ---------------------------------------------------------------------------
-// Paleta → tokens CSS
-// ---------------------------------------------------------------------------
 test('paletteTokens: sin paleta, nada; solo escribe los tokens de los campos definidos', () => {
   assert.deepEqual(paletteTokens(null), {});
   assert.deepEqual(Object.keys(paletteTokens({ base: 'light', accent: '#0a8fb8' })).sort(), ['--tv-accent-default', '--tv-blob']);

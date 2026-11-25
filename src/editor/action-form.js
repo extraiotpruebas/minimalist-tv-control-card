@@ -1,15 +1,7 @@
-/* Módulo §7: una acción del YAML ↔ los datos de su formulario. */
 import { parseAction } from '../actions/parse.js';
 import { ACTION_UI_TYPES, ALL_ACTION_TYPES, INPUT_OPTIONS, KEY_OPTIONS, LG_COMMANDS } from './catalogs.js';
 import { isPlainObject } from './paths.js';
 
-/* ---------- acciones: config ↔ formulario ---------- */
-
-/**
- * Acción tal como está en el YAML → datos del formulario { type, ...campos }.
- * Lee la forma CRUDA (no parseAction) para no perder lo que está a medio
- * escribir: { type: 'key', key: '' } sigue siendo "Tecla" aunque aún no sirva.
- */
 function actionToForm(raw) {
   if (raw === undefined) return { type: 'default' };
   if (raw === null) return { type: 'none' };
@@ -36,11 +28,6 @@ function actionToForm(raw) {
   }
 }
 
-/**
- * Datos del formulario → acción para el YAML (la forma más legible que
- * parseAction entiende). undefined = quitar la clave (usar la predeterminada).
- * Si cambió el tipo, los campos del tipo anterior se descartan.
- */
 function formToAction(data, prevRaw) {
   const prev = actionToForm(prevRaw);
   const changed = data.type !== prev.type;
@@ -72,7 +59,6 @@ function formToAction(data, prevRaw) {
   }
 }
 
-/** Schema del formulario de una acción: el tipo y SOLO los campos de ese tipo. */
 function actionSchema(form, { allowDefault = false, allowNone = true, types = ALL_ACTION_TYPES, defaultLabel } = {}) {
   const options = [];
   if (allowDefault) options.push({ value: 'default', label: defaultLabel ?? ACTION_UI_TYPES.default });

@@ -2,9 +2,6 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { normalizeConfig, resolveForPlatform } from '../src/index.js';
 
-// ---------------------------------------------------------------------------
-// Errores de validación
-// ---------------------------------------------------------------------------
 test('sin TVs ni entity → error claro', () => {
   assert.throws(() => normalizeConfig({ type: 'custom:tv-control-card' }), /al menos una TV/);
   assert.throws(() => normalizeConfig({ tvs: [{ name: 'Sala' }] }), /TV #1 no tiene "entity"/);
@@ -16,9 +13,6 @@ test('card_id ya no es obligatorio: se deriva de las entidades', () => {
   assert.equal(m.tvs[0].name, 'media_player.a', 'sin name, se usa la entidad');
 });
 
-// ---------------------------------------------------------------------------
-// Formato viejo mínimo (README)
-// ---------------------------------------------------------------------------
 test('config mínima del README: una TV LG, modos por defecto y navegacion → menu', () => {
   const m = normalizeConfig({ type: 'custom:tv-control-card', entity: 'media_player.mi_tv' });
   assert.equal(m.format, 'legacy');
@@ -67,9 +61,6 @@ test('custom mode con valores por marca distintos → acción por plataforma', (
   assert.equal(resolveForPlatform(action, 'roku').type, 'command', 'roku cae en la variante default');
 });
 
-// ---------------------------------------------------------------------------
-// Formato nuevo v4
-// ---------------------------------------------------------------------------
 test('formato v4 completo', () => {
   const m = normalizeConfig({
     card_id: 'sala',
@@ -103,14 +94,13 @@ test('overrides por TV: solo la TV con overrides cambia, las demás comparten la
     tvs: [
       { entity: 'media_player.a' },
       { entity: 'media_player.b', overrides: { modes: ['fuentes'] } },
-      { entity: 'media_player.c', mode_slot_1: 'info' }, // variante v3: override con clave suelta
+      { entity: 'media_player.c', mode_slot_1: 'info' },
       { entity: 'media_player.d' },
     ],
   });
   assert.deepEqual(m.tvs[0].settings.modes, ['menu', 'audio']);
   assert.deepEqual(m.tvs[1].settings.modes, ['fuentes']);
   assert.strictEqual(m.tvs[0].settings, m.tvs[3].settings, 'sin overrides se reutiliza el mismo objeto');
-  // Nota: en c, la clave vieja mode_slot_1 pierde contra la clave nueva global `modes`.
   assert.deepEqual(m.tvs[2].settings.modes, ['menu', 'audio']);
 });
 
@@ -119,13 +109,6 @@ test('acentos viejos "r, g, b" se convierten a rgb()', () => {
   assert.equal(m.tvs[0].settings.streaming[0].accent, 'rgb(229, 9, 20)');
 });
 
-// ---------------------------------------------------------------------------
-// Configs reales de clientes: sus pruebas viven en test/fixtures/private/
-// (gitignored) porque mencionan entidades y scripts reales. Ver *.test.mjs ahí.
-// ---------------------------------------------------------------------------
-// ---------------------------------------------------------------------------
-// Robustez (hallazgos de la revisión del agente de documentación)
-// ---------------------------------------------------------------------------
 test('atajos de YAML: un string como acción de pad o de botón', () => {
   const m = normalizeConfig({
     entity: 'media_player.tv', modes: ['custom1'],
@@ -150,9 +133,6 @@ test('el modelo normalizado y los catálogos están congelados', () => {
   assert.throws(() => { m.tvs[0].settings.modes.push('info'); }, TypeError);
 });
 
-// ---------------------------------------------------------------------------
-// numpad (paso 7)
-// ---------------------------------------------------------------------------
 test('v3: back_type/exit_type: numpad → acción numpad (antes era un aviso)', () => {
   const m = normalizeConfig({
     entity: 'media_player.lg', type: 'LG TV',

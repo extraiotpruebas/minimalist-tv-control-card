@@ -2,12 +2,6 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { removePalette, renamePalette, renameRef } from '../src/index.js';
 
-/*
- * Pruebas de renameRef (src/editor/palettes.js): el ejercicio "Learn by Doing" de la
- * Fase B. Una asignación de paleta es un nombre ('grafito') o un par ({ light, dark });
- * `to === null` significa quitar el nombre (así se borra una paleta).
- */
-
 test('renameRef: un nombre suelto', () => {
   assert.equal(renameRef('grafito', 'grafito', 'carbon'), 'carbon');
   assert.equal(renameRef('nube', 'grafito', 'carbon'), 'nube', 'otro nombre: igual');
@@ -35,8 +29,6 @@ test('renameRef: no muta lo que recibe (HA congela la config)', () => {
   assert.deepEqual(pair, { light: 'nube', dark: 'grafito' });
   assert.notEqual(renameRef(pair, 'otra', 'carbon'), undefined);
 });
-
-// ---- con renameRef funcionando, renombrar y borrar actualizan toda la config ----
 
 const CFG = Object.freeze({
   palettes: { mia: { base: 'dark' }, otra: { base: 'light' } },

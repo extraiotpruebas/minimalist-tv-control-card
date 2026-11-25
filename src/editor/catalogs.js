@@ -1,9 +1,6 @@
-/* Módulo §7: catálogos de los selectores del editor. */
 import { INPUTS } from '../actions/inputs.js';
 import { KEYS } from '../actions/keys.js';
 import { SOURCES } from '../config/catalogs.js';
-
-/* ---------- catálogos para los selectores ---------- */
 
 const ACTION_UI_TYPES = {
   default: 'Predeterminada',
@@ -25,17 +22,11 @@ const BRAND_ACTION_TYPES = ['key', 'input', 'source', 'script', 'service', 'comm
 const BRANDS = [['lg', 'LG'], ['samsung', 'Samsung'], ['roku', 'Roku'], ['default', 'Otras marcas']];
 
 const PLATFORM_NAMES = { lg: 'LG', samsung: 'Samsung', roku: 'Roku' };
-/** Teclas para el selector: "Subir volumen (vol_up) · LG, Samsung, Roku". */
 const KEY_OPTIONS = Object.entries(KEYS).map(([id, def]) => {
   const brands = ['lg', 'samsung', 'roku'].filter((p) => def[p]).map((p) => PLATFORM_NAMES[p]);
   return { value: id, label: `${def.label} (${id}) · ${brands.join(', ') || 'ninguna'}` };
 });
 
-/**
- * Commands de webOS más útiles (webostv.command). Los URIs vienen de aiowebostv y
- * de la documentación de HA; los que se marcan con payload necesitan datos.
- * POR VERIFICAR en una TV real antes de usarlos con clientes.
- */
 const LG_COMMANDS = [
   { value: 'system.launcher/launch', label: 'Abrir app · payload: { id: "netflix" }' },
   { value: 'tv/switchInput', label: 'Cambiar entrada · payload: { inputId: "HDMI_1" }' },
@@ -51,7 +42,6 @@ const LG_COMMANDS = [
   { value: 'system.launcher/open', label: 'Abrir URL en el navegador · payload: { target: "https://…" }' },
 ];
 
-/** Entradas por puerto: LG y Samsung (el Roku no tiene entradas). */
 const INPUT_OPTIONS = Object.entries(INPUTS).map(([id, def]) => ({ value: id, label: def.label }));
 const SOURCE_OPTIONS = SOURCES.map((s) => ({ value: s.id, label: s.service ? s.name : `${s.name} (solo por Roku)` }));
 const STYLE_OPTIONS = [

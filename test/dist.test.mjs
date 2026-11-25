@@ -1,6 +1,3 @@
-// El archivo que se instala en HA (dist/) debe comportarse EXACTAMENTE igual que src/.
-// Las demás pruebas usan src/; esta compara las dos versiones con las mismas entradas.
-// Requiere `npm run build` antes (sin dist/ la prueba se salta con un aviso).
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
@@ -8,19 +5,12 @@ import * as src from '../src/index.js';
 
 const DIST_URL = new URL('../dist/minimalist-tv-control-card.js', import.meta.url);
 
-// dist/ trae la versión de Lit para NAVEGADOR: al cargarse extiende HTMLElement y
-// prepara un TreeWalker de `document`. Node no tiene ninguno de los dos, así que se
-// simulan lo mínimo para poder importarlo (aquí no se pinta nada: solo se compara la
-// lógica). node --test corre cada archivo en su propio proceso: estos globales no
-// llegan a las demás pruebas.
 globalThis.HTMLElement ??= class {};
 globalThis.document ??= { createTreeWalker: () => ({}), createComment: () => ({}) };
 
 const dist = existsSync(DIST_URL) ? await import(DIST_URL.href) : null;
 const skip = !dist && 'no existe dist/: corre `npm run build`';
 
-// Copia "plana" para comparar solo datos (las clases y funciones de cada copia son
-// objetos distintos aunque hagan lo mismo).
 const plain = (x) => JSON.parse(JSON.stringify(x));
 
 const CONFIGS = [
@@ -38,7 +28,6 @@ const CONFIGS = [
     buttons: { menu: { icon: 'mdi:dialpad', action: 'numpad' }, home: { action: { type: 'platform', by: { lg: 'HOME', samsung: 'KEY_HOME' } } } },
   },
 ];
-// Configs reales de clientes (test/fixtures/private/, gitignored), si existen.
 const PRIVATE_DIR = new URL('./fixtures/private/', import.meta.url);
 if (existsSync(PRIVATE_DIR)) {
   for (const f of readdirSync(PRIVATE_DIR).filter((n) => n.endsWith('.json'))) {

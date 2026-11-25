@@ -5,7 +5,6 @@ var CARD_VERSION = "4.0.0-dev";
 var DEFAULT_CARD_TAG = "tv-control-card";
 var CARD_TAG = DEFAULT_CARD_TAG;
 var EDITOR_TAG = `${DEFAULT_CARD_TAG}-editor`;
-/** Lee `?tag=` de una URL. Si falta o no es un nombre válido de custom element, da el de siempre. */
 function tagFromUrl(url) {
 	try {
 		const tag = new URL(url).searchParams.get("tag");
@@ -14,7 +13,6 @@ function tagFromUrl(url) {
 		return DEFAULT_CARD_TAG;
 	}
 }
-/** Lo llama index.js UNA vez, antes de registrar los elementos. */
 function setCardTag(tag) {
 	CARD_TAG = tag;
 	EDITOR_TAG = `${tag}-editor`;
@@ -838,16 +836,6 @@ var TV_ONLY_KEYS = /* @__PURE__ */ new Set([
 	"vol_down",
 	"mute"
 ]);
-/**
-* Índice inverso: código de plataforma → tecla semántica.
-* Ej.: 'VOLUMEUP' → 'vol_up', 'KEY_VOLUP' → 'vol_up', 'select' → 'enter'.
-*
-* Gracias a esto, un YAML viejo que dice `VOLUMEUP` funciona también en una
-* Samsung (antes se mandaba 'VOLUMEUP' a la Samsung y no pasaba nada).
-*
-* Se construye una vez al cargar el archivo (es como una tabla `static const`
-* inicializada al arrancar el programa).
-*/
 var CODE_TO_KEY = (() => {
 	const map = /* @__PURE__ */ new Map();
 	for (const [key, def] of Object.entries(KEYS)) for (const platform of [
@@ -894,10 +882,6 @@ var INPUTS = {
 	}
 };
 var INPUT_IDS = Object.keys(INPUTS);
-/**
-* Lo que escribió el usuario → id del catálogo ('hdmi2'), o null si no es una
-* entrada conocida. La forma exacta ('hdmi2') siempre funciona.
-*/
 function normalizeInputId(value) {
 	const str = String(value ?? "").trim();
 	if (INPUT_IDS.includes(str)) return str;
@@ -906,19 +890,8 @@ function normalizeInputId(value) {
 	return null;
 }
 // src/util.js
-/**
-* ¿`obj` tiene la propiedad `key` PROPIA? Un objeto normal hereda propiedades
-* como 'toString' o 'constructor', así que `KEYS['toString']` NO es undefined.
-* Object.hasOwn solo mira las propiedades escritas en el propio objeto.
-*/
 var has = (obj, key) => typeof key === "string" && Object.hasOwn(obj, key);
 var delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-/**
-* Object.freeze impide modificar un objeto (en modo módulo, intentarlo lanza
-* TypeError). Solo congela el primer nivel, por eso se recorre recursivamente.
-* Los catálogos y el modelo normalizado se comparten por referencia entre TVs:
-* congelarlos garantiza que nadie los cambie "por accidente" desde la tarjeta.
-*/
 function deepFreeze(obj) {
 	if (obj && typeof obj === "object" && !Object.isFrozen(obj)) {
 		Object.freeze(obj);
@@ -926,7 +899,6 @@ function deepFreeze(obj) {
 	}
 	return obj;
 }
-/** Devuelve el primer valor "útil": ni undefined, ni null, ni string vacío. */
 function firstDefined(...values) {
 	for (const v of values) if (v !== void 0 && v !== null && v !== "") return v;
 }
@@ -942,17 +914,9 @@ var ACTION_TYPES = [
 	"platform",
 	"numpad"
 ];
-/** Quita un `ssap://` que alguien haya escrito de más: aiowebostv ya lo agrega. */
 function stripSsap(uri) {
 	return String(uri).trim().replace(/^ssap:\/\//i, "");
 }
-/**
-* Convierte cualquier representación de acción en un objeto normalizado.
-* Devuelve `null` si no hay acción (vacío, 'pendiente', o algo inválido).
-*
-* @param {string|object|null|undefined} raw
-* @returns {object|null}
-*/
 function parseAction(raw) {
 	if (raw === null || raw === void 0) return null;
 	if (typeof raw === "object") {
@@ -1072,22 +1036,15 @@ function parseAction(raw) {
 		button: str
 	};
 }
-/**
-* Si la acción depende de la plataforma ({type:'platform'}), elige la variante
-* correcta: primero la de esa plataforma y, si no existe, la de `default`.
-* Si no hay ninguna de las dos, devuelve null.
-*/
 function resolveForPlatform(action, platformId) {
 	if (!action) return null;
 	if (action.type !== "platform") return action;
 	return action.by[platformId] || action.by.default || null;
 }
-/** ¿Se puede auto-repetir esta acción al mantener presionado? */
 function isHoldable(action) {
 	return !!action && action.type === "key" && HOLDABLE_KEYS.has(action.key);
 }
 // src/config/catalogs.js
-/** Fuentes/apps que se pueden asignar a los 4 botones de streaming. */
 var SOURCES = [
 	{
 		id: "netflix",
@@ -1240,7 +1197,6 @@ var SOURCES = [
 	}
 ];
 var SOURCES_BY_ID = new Map(SOURCES.map((s) => [s.id, s]));
-/** Fuentes de los 4 botones de streaming cuando el usuario no eligió nada (igual que producción). */
 var DEFAULT_STREAMING = [
 	"netflix",
 	"disney",
@@ -1264,11 +1220,6 @@ var NUMPAD_DIGITS = [
 	8,
 	9
 ];
-/**
-* Atajo para escribir los "pads" (las 4 direcciones del touchpad) de forma compacta:
-*   pad(['mdi:plus', 'ch_up'], ...)  →  { up: { icon, action }, left: ..., right: ..., down: ... }
-* El orden de los argumentos es siempre: up, left, right, down.
-*/
 function pad(...entries) {
 	const result = {};
 	DIRECTIONS.forEach((dir, i) => {
@@ -1280,12 +1231,6 @@ function pad(...entries) {
 	});
 	return result;
 }
-/**
-* Modos "fijos": vienen con la tarjeta. `navegacion` (la maqueta deprecada) se
-* migra a `menu`, que hace lo mismo pero con íconos que corresponden a la acción.
-* `text` y `amplificador` están reservados para la Fase 4: si un YAML los trae,
-* se descartan con un aviso.
-*/
 var FIXED_MODES = {
 	menu: {
 		label: "Menú",
@@ -1320,14 +1265,7 @@ var CUSTOM_MODE_IDS = [
 	"custom2",
 	"custom3"
 ];
-/** Touchpad cuando no hay modo activo: las 4 flechas (producción usaba puntos; el rediseño, chevrones). */
 var DEFAULT_PAD = pad(["mdi:chevron-up", "up"], ["mdi:chevron-left", "left"], ["mdi:chevron-right", "right"], ["mdi:chevron-down", "down"]);
-/**
-* Botones fijos de la tarjeta.
-* `top_left` es el botón de arriba a la izquierda. En los YAML viejos se llamaba
-* "exit" (exit_icon / exit_value), aunque muchos clientes lo usan para scripts
-* (p. ej. control del Frame). Por eso en v4 se separa del EXIT de abajo.
-*/
 var DEFAULT_BUTTONS = {
 	top_left: {
 		icon: "mdi:exit-to-app",
@@ -1373,25 +1311,10 @@ var BOTTOM_BUTTONS = [
 	DEFAULT_BUTTONS
 ].forEach(deepFreeze);
 // src/card/logic.js
-/**
-* Estado de la TV en 3 valores. Antes 'unavailable' se trataba como 'off' y un
-* "encender" podía terminar en un toggle que APAGABA la TV (bug B2).
-*/
 function tvStatus(stateObj) {
 	if (!stateObj || stateObj.state === "unavailable" || stateObj.state === "unknown") return "unavailable";
 	return stateObj.state === "off" || stateObj.state === "standby" ? "off" : "on";
 }
-/**
-* Esperas del tipo "avísame cuando la entidad X cumpla tal condición, o cuando
-* pasen N ms". Reemplaza al `delay(5000)` + "revisar una vez" de
-* selectSourceWithRetry: en vez de adivinar cuánto esperar, se espera a que HA
-* avise (cada `set hass` llama a check()).
-*
-*   const ok = await waiters.wait(hass, 'media_player.tv', (s) => s.state === 'on', 20000);
-*   // ok === true si se cumplió, false si se acabó el tiempo
-*
-* Es una clase aparte (no un método de la tarjeta) para poder probarla en Node.
-*/
 var StateWaiters = class {
 	constructor() {
 		this._pending = /* @__PURE__ */ new Set();
@@ -1419,7 +1342,6 @@ var StateWaiters = class {
 			this._pending.add(waiter);
 		});
 	}
-	/** Se llama con cada hass nuevo. Copiamos a un arreglo porque finish() borra del Set. */
 	check(hass) {
 		for (const waiter of [...this._pending]) if (waiter.test(hass)) waiter.finish(true);
 	}
@@ -1430,10 +1352,6 @@ var StateWaiters = class {
 		return this._pending.size;
 	}
 };
-/**
-* localStorage puede lanzar excepciones (modo privado, storage lleno o bloqueado
-* en algunos WebViews). Nunca debe tumbar la tarjeta por eso.
-*/
 var storage = {
 	get(key) {
 		try {
@@ -1458,18 +1376,6 @@ var TIMING = Object.freeze({
 });
 var ROKU_ACCENT = "#6f1ab1";
 var TV_MODES = /* @__PURE__ */ new Set(["audio", "fuentes"]);
-/**
-* ¿A qué dispositivo va una acción? Función pura (se prueba en Node).
-*
-* Con el modo Roku activo, al Roku solo van:
-*   - teclas que el Roku SÍ tiene (KEYS[x].roku), excepto volumen/mute;
-*   - acciones por plataforma que traen variante `roku`.
-* Todo lo demás va a la TV: teclas sin código Roku (EXIT, MENU, GUIDE...),
-* códigos crudos, commands, fuentes y secuencias. Producción mandaba 'EXIT' o
-* 'MENU' al remote del Roku, donde no hacen nada; así el EXIT siempre funciona.
-*
-* @returns {{platform, entity, remote?}}
-*/
 function routeAction(action, { tv, rokuMode, mode }) {
 	const tvDevice = {
 		platform: tv.platform,
@@ -1495,23 +1401,11 @@ function routeAction(action, { tv, rokuMode, mode }) {
 	return tvDevice;
 }
 var normSource = (s) => String(s ?? "").trim().toLowerCase();
-/**
-* ¿La entidad ya está en alguna de esas fuentes?
-* El Roku reporta la app en `app_name`: con `preferAppName` se usa ese atributo
-* y, si no existe, `source` (igual que producción). Para las TVs se mira solo
-* `source`: un `app_name` viejo no debe hacer creer que sigue en Netflix.
-*/
 function sourceMatches(stateObj, candidates, preferAppName = false) {
 	const attrs = stateObj?.attributes ?? {};
 	const current = normSource(preferAppName ? attrs.app_name || attrs.source : attrs.source);
 	return current !== "" && candidates.some((c) => normSource(c) === current);
 }
-/**
-* Nombre exacto que hay que mandar a select_source: el que aparece en el
-* source_list de la TV (sin importar mayúsculas), probando los candidatos en
-* orden. Si la TV no publica source_list, se usa el primer candidato.
-* Ej.: candidatos ['Roku OTT', 'Roku'] y source_list [..., 'ROKU'] → 'ROKU'.
-*/
 function resolveSourceName(stateObj, candidates) {
 	const list = stateObj?.attributes?.source_list;
 	if (Array.isArray(list)) for (const candidate of candidates) {
@@ -1520,13 +1414,6 @@ function resolveSourceName(stateObj, candidates) {
 	}
 	return candidates[0];
 }
-/**
-* Qué muestra la pantalla de vidrio: título, subtítulo, ícono, color y qué
-* fuente del catálogo está activa (para marcar el botón de streaming).
-* Función pura: recibe estados de HA y settings, no toca el DOM (se prueba en Node).
-*
-* @returns {{ title: string, sub: string, icon: string, accent: string|null, sourceId: string|null }}
-*/
 function describeNow({ status, busy, roku, hasCompanion, tvState, rokuState, streaming }) {
 	const blank = {
 		sub: "",
@@ -1571,17 +1458,6 @@ function describeNow({ status, busy, roku, hasCompanion, tvState, rokuState, str
 		sourceId: null
 	};
 }
-/**
-* ¿Qué paleta se usa ahora? Gana la asignación MÁS ESPECÍFICA:
-*   1. appRef:  la del botón de streaming de la app activa (Netflix → "cine");
-*   2. rokuRef: la del companion, solo si el modo Roku está activo;
-*   3. cardRef: la de la tarjeta (o la de la TV, si tiene overrides).
-* Cada ref es { light, dark } (o null): se toma el nombre del tema actual.
-* Si un nivel nombra una paleta que no existe, se salta al siguiente (normalizeConfig
-* ya avisó). Función pura: la cascada se prueba en Node sin navegador.
-*
-* @returns {object|null} la paleta ({ base, background?, ... }) o null = estilo de siempre
-*/
 function resolvePalette({ palettes, theme, roku, appRef, rokuRef, cardRef }) {
 	const levels = [
 		appRef,
@@ -1594,13 +1470,6 @@ function resolvePalette({ palettes, theme, roku, appRef, rokuRef, cardRef }) {
 	}
 	return null;
 }
-/**
-* Paleta → tokens CSS para el style del ha-card. Solo entran 5 colores; el resto
-* se DERIVA con color-mix(), así el texto secundario siempre queda entre el texto
-* y el fondo, y las líneas son el texto muy transparente, con cualquier paleta.
-* Un campo vacío no escribe nada: queda el valor del estilo y la base.
-* El style inline le gana a `.card[data-style=...]`, por eso no hace falta CSS nuevo.
-*/
 function paletteTokens(palette) {
 	const t = {};
 	if (!palette) return t;
@@ -1633,18 +1502,16 @@ var CARD_CSS = `
 * { box-sizing: border-box; }
 .card [hidden] { display: none !important; }
 
-/* ===================== 1. ESTRUCTURA COMÚN ===================== */
 ha-card.card {
   display: block; height: 100%; overflow: hidden; container-type: inline-size;
   border: none; border-radius: 28px;
   background: var(--tv-bg); color: var(--tv-ink); box-shadow: var(--tv-card-shadow);
   font-family: var(--ha-font-family-body, var(--paper-font-body1_-_font-family, Roboto, system-ui, sans-serif));
   user-select: none; -webkit-user-select: none; -webkit-tap-highlight-color: transparent;
-  --tv-accent: var(--tv-accent-default);   /* acento de la interfaz (JS lo cambia por el de la app) */
-  --tv-glow: #dce6f5;                      /* luz de la pantalla: blanco 6500 K si no hay app */
+  --tv-accent: var(--tv-accent-default);
+  --tv-glow: #dce6f5;
   transition: background 0.8s;
 }
-/* :where() tiene especificidad 0: este reset nunca le gana a una clase. */
 :where(.card) button {
   appearance: none; border: 0; margin: 0; padding: 0; background: none; color: inherit; font: inherit;
   cursor: pointer; -webkit-tap-highlight-color: transparent; -webkit-touch-callout: none; touch-action: manipulation;
@@ -1668,8 +1535,6 @@ ha-card.card {
 .switch button[aria-pressed="true"] { color: var(--tv-ink); }
 .round { width: 42px; height: 42px; border-radius: 50%; display: grid; place-items: center; color: var(--tv-ink-2); --mdc-icon-size: 21px; }
 
-/* Selector de TVs: sale debajo del nombre. La forma (fondo, sombras, cómo se
-   marca la TV activa) la pone cada estilo en la capa 3. */
 .picker {
   position: absolute; z-index: 5; top: 70px; left: 14px; width: min(calc(100% - 28px), 320px);
   display: grid; gap: 2px; padding: 6px; max-height: 60%; overflow: auto;
@@ -1688,8 +1553,6 @@ ha-card.card {
 .picker-item.active .check { visibility: visible; }
 @media (hover: hover) { .picker-item:not(.active):hover { color: var(--tv-ink); background: color-mix(in srgb, var(--tv-ink) 5%, transparent); } }
 
-/* La pantalla de vidrio: dice qué se está viendo. Detrás, la luz de la app
-   (como el bias light de una TV). Es igual en los tres estilos. */
 .screen { grid-area: screen; position: relative; isolation: isolate; margin-bottom: 6px; }
 .screen::before {
   content: ""; position: absolute; inset: 18% 6% -16%; z-index: -1; border-radius: 40%;
@@ -1717,8 +1580,6 @@ ha-card.card {
 .app.active { color: var(--tv-accent); }
 .app.loading ha-icon { animation: tv-spin 0.9s linear infinite; }
 
-/* Touchpad: 4 cuñas (clip-path) que cubren todo el círculo, así toda el área es
-   tocable, y el OK encima. */
 .pad { grid-area: pad; position: relative; justify-self: center; width: min(100%, 280px); aspect-ratio: 1; border-radius: 50%; overflow: hidden; }
 .dir { position: absolute; inset: 0; display: flex; justify-content: center; align-items: center; color: var(--tv-ink-2); --mdc-icon-size: 26px; transition: background 0.2s, color 0.2s, box-shadow 0.2s; }
 .dir.up    { clip-path: polygon(0 0, 100% 0, 50% 50%);       align-items: flex-start; padding-top: 11%; }
@@ -1728,23 +1589,15 @@ ha-card.card {
 .dir.empty { pointer-events: none; }
 .dir.empty ha-icon { opacity: 0.35; }
 .dir:is(.pressed, :active) { color: var(--tv-ink); }
-/* Dónde nace el brillo al presionar (lo usan Relieve y Cristal). La elipse es
-   chica a propósito: queda DENTRO de la cuña sin tocar sus lados y se apaga antes
-   del OK, así nunca se ve la forma de triángulo, solo luz que entra desde el borde. */
 .dir.up    { --tv-press-at: 50% 0%;   --tv-press-size: 40% 29%; }
 .dir.down  { --tv-press-at: 50% 100%; --tv-press-size: 40% 29%; }
 .dir.left  { --tv-press-at: 0% 50%;   --tv-press-size: 29% 40%; }
 .dir.right { --tv-press-at: 100% 50%; --tv-press-size: 29% 40%; }
 .ok { position: absolute; z-index: 2; inset: 31%; border-radius: 50%; display: grid; place-items: center; font-size: 15px; font-weight: 600; color: var(--tv-ink-2); --mdc-icon-size: 26px; transition: color 0.3s, transform 0.12s; }
-/* El centro tiene DOS caras apiladas en la misma celda del grid: OK y Encender.
-   Con la TV apagada se cruzan (opacidad + escala), así se nota que el botón cambió
-   de función en lugar de cambiar de golpe. */
 .ok > span { grid-area: 1 / 1; position: relative; display: grid; place-items: center; transition: opacity 0.3s ease, transform 0.3s ease; }
 .ok-face ha-icon:not([icon]) { display: none; }
 .ok-face ha-icon[icon] + span { display: none; }
 .ok-power { --mdc-icon-size: 32px; opacity: 0; transform: scale(0.7); }
-/* Fondo de "botón principal" en una capa aparte: así aparece con un fundido
-   también en los estilos cuyo fondo es un degradado (los degradados no se animan). */
 .ok::before { content: ""; position: absolute; inset: 0; border-radius: 50%; background: var(--tv-cta-bg); box-shadow: var(--tv-cta-shadow); opacity: 0; transition: opacity 0.3s ease; }
 
 .modes { grid-area: modes; display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; }
@@ -1756,15 +1609,9 @@ ha-card.card {
 .keys { grid-area: keys; display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
 .key { display: grid; place-items: center; height: 50px; color: var(--tv-ink-2); --mdc-icon-size: 24px; }
 
-/* Numpad: mientras está abierto ocupa el lugar del touchpad (misma área del grid).
-   Sus teclas son .key, así que cada estilo les da la misma forma que a la fila de abajo. */
-/* aspect-ratio: 1 = la misma huella cuadrada que el touchpad: abrirlo no cambia la
-   altura de la tarjeta (en Masonry, eso movería las tarjetas de abajo). */
 .numpad { grid-area: pad; display: none; justify-self: center; width: min(100%, 280px); aspect-ratio: 1; grid-template-columns: repeat(3, 1fr); grid-template-rows: repeat(4, minmax(0, 1fr)); gap: 10px; }
 .card[data-numpad="true"] .numpad { display: grid; animation: tv-pop 0.18s ease-out; }
 .card[data-numpad="true"] .pad { display: none; }
-/* Sin alto fijo: las 4 filas se reparten el cuadro (en una tarjeta angosta las
-   teclas se achican en lugar de hacer crecer la tarjeta). */
 .num { height: auto; min-height: 0; font-size: 22px; font-weight: 500; font-variant-numeric: tabular-nums; color: var(--tv-ink); }
 
 .toast {
@@ -1775,14 +1622,12 @@ ha-card.card {
 }
 .toast.show { opacity: 1; transform: none; }
 
-/* Celular angosto: modos solo con ícono. */
 @container (max-width: 340px) {
   .body { padding: 16px; gap: 14px; }
   .mode span { display: none; }
   .round { width: 38px; height: 38px; }
   .picker { top: 60px; left: 10px; width: calc(100% - 20px); }
 }
-/* Tablet / columna ancha: dos columnas, el touchpad a la derecha. */
 @container (min-width: 600px) {
   .body {
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); column-gap: 36px; align-items: center; padding: 26px;
@@ -1794,9 +1639,6 @@ ha-card.card {
 }
 @container (min-width: 860px) { .pad, .numpad { width: min(100%, 360px); } }
 
-/* ===================== 2 y 3. ESTILOS ===================== */
-
-/* ---------- A · RELIEVE (predeterminado): losetas con elevación suave y bisel ---------- */
 .card[data-style="relieve"] {
   --tv-surface: #eef1f5; --tv-surface-top: #f5f7fa; --tv-raised: #ffffff; --tv-raised-2: #f6f8fa; --tv-thumb: #ffffff;
   --tv-ink: #1b1f25; --tv-ink-2: #565e69; --tv-line: #d9dee5; --tv-track: #e1e5eb; --tv-hi: #ffffff;
@@ -1825,7 +1667,6 @@ ha-card.card {
   background: radial-gradient(circle at 50% 30%, var(--tv-raised), var(--tv-raised-2) 75%);
   box-shadow: inset 0 0 0 1px var(--tv-line), inset 0 -10px 24px -14px var(--tv-shadow), 0 16px 32px -18px var(--tv-shadow), inset 0 1px 0 var(--tv-hi);
 }
-/* Las 4 marcas del bisel. */
 .card[data-style="relieve"] .pad::before {
   content: ""; position: absolute; inset: 0; border-radius: 50%; pointer-events: none;
   --tick: color-mix(in srgb, var(--tv-ink-2) 45%, transparent);
@@ -1847,8 +1688,6 @@ ha-card.card {
 .card[data-style="relieve"] .modes { background: var(--tv-track); border-radius: 16px; padding: 4px; box-shadow: inset 0 1px 2px var(--tv-shadow-2); }
 .card[data-style="relieve"] .mode { border-radius: 12px; height: 40px; }
 .card[data-style="relieve"] .mode[aria-checked="true"] { background: var(--tv-thumb); box-shadow: inset 0 1px 0 var(--tv-hi), 0 2px 8px -3px var(--tv-shadow); }
-/* Selector: una loseta elevada; la TV activa queda "hundida" en el riel y su ícono
-   es la perilla, igual que el modo activo. */
 .card[data-style="relieve"] .picker {
   background: linear-gradient(180deg, var(--tv-raised), var(--tv-raised-2)), var(--tv-surface-top);
   box-shadow: inset 0 1px 0 var(--tv-hi), 0 0 0 1px var(--tv-line), 0 4px 10px -6px var(--tv-shadow-2), 0 22px 44px -18px var(--tv-shadow);
@@ -1857,7 +1696,6 @@ ha-card.card {
 .card[data-style="relieve"] .picker-item.active { background: var(--tv-track); box-shadow: inset 0 1px 2px var(--tv-shadow-2); }
 .card[data-style="relieve"] .picker-item.active .tv-ico { background: var(--tv-thumb); box-shadow: inset 0 1px 0 var(--tv-hi), 0 2px 6px -2px var(--tv-shadow); }
 
-/* ---------- B · HALO: la luz de la app llega al touchpad como un anillo ---------- */
 .card[data-style="halo"] {
   --tv-surface: #f0f2f6; --tv-raised: #ffffff; --tv-ink: #1b1f25; --tv-ink-2: #555d68; --tv-line: #d8dde4;
   --tv-hi: #ffffff; --tv-shadow: rgb(25 35 55 / 0.15); --tv-shadow-2: rgb(25 35 55 / 0.05); --tv-on: #1f9d63; --tv-accent-default: var(--tv-ink);
@@ -1889,14 +1727,12 @@ ha-card.card {
   background: radial-gradient(circle at 50% 40%, var(--tv-raised), transparent 80%), var(--tv-raised);
   box-shadow: inset 0 1px 0 var(--tv-hi), 0 0 0 1px var(--tv-line), 0 18px 40px -22px var(--tv-shadow);
 }
-/* El halo: anillo del color de la app, solo con la TV prendida. */
 .card[data-style="halo"] .pad::before {
   content: ""; position: absolute; inset: 0; z-index: 1; border-radius: 50%; pointer-events: none;
   box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--tv-accent) 55%, transparent), inset 0 0 22px -6px color-mix(in srgb, var(--tv-accent) 60%, transparent);
   opacity: 0; transition: opacity 0.8s ease;
 }
 .card[data-style="halo"][data-status="on"] .pad::before { opacity: 1; }
-/* Truco: un anillo de círculo completo recortado por la cuña deja ver solo el arco de esa dirección. */
 .card[data-style="halo"] .dir { border-radius: 50%; }
 .card[data-style="halo"] .dir:is(.pressed, :active) { box-shadow: inset 0 0 0 4px var(--tv-accent), inset 0 0 30px -4px var(--tv-accent); }
 .card[data-style="halo"] .ok { background: var(--tv-surface); box-shadow: 0 0 0 1px var(--tv-line), inset 0 2px 8px -3px var(--tv-shadow); }
@@ -1905,7 +1741,6 @@ ha-card.card {
 .card[data-style="halo"] .modes { background: var(--tv-raised); border-radius: 999px; padding: 4px; box-shadow: 0 0 0 1px var(--tv-line), inset 0 1px 0 var(--tv-hi); }
 .card[data-style="halo"] .mode { border-radius: 999px; height: 40px; }
 .card[data-style="halo"] .mode[aria-checked="true"] { background: var(--tv-ink); color: var(--tv-surface); }
-/* Selector: cápsula plana con aro fino; la TV activa se invierte como el modo activo. */
 .card[data-style="halo"] .picker {
   border-radius: 26px;
   background: linear-gradient(var(--tv-raised), var(--tv-raised)), var(--tv-surface);
@@ -1917,7 +1752,6 @@ ha-card.card {
 .card[data-style="halo"] .picker-item.active .tv-ico { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--tv-surface) 30%, transparent); }
 .card[data-style="halo"][data-theme="dark"] .picker { -webkit-backdrop-filter: blur(14px) saturate(140%); backdrop-filter: blur(14px) saturate(140%); }
 
-/* ---------- C · CRISTAL: la luz de la app en el fondo y paneles de vidrio ---------- */
 .card[data-style="cristal"] {
   --tv-surface: #e9edf3; --tv-raised: rgb(255 255 255 / 0.62); --tv-raised-2: rgb(255 255 255 / 0.35); --tv-hi: rgb(255 255 255 / 0.95);
   --tv-ink: #1b1f25; --tv-ink-2: #545c67; --tv-line: rgb(30 45 70 / 0.1); --tv-shadow: rgb(30 45 70 / 0.22); --tv-on: #1f9d63;
@@ -1935,8 +1769,6 @@ ha-card.card {
   --tv-accent-default: #dce6f5; --tv-blob: color-mix(in srgb, var(--tv-glow) 45%, #3d5cff);
   --tv-card-shadow: 0 1px 2px rgb(0 0 0 / 0.4), 0 28px 56px -32px var(--tv-shadow);
 }
-/* El vidrio: translúcido, desenfoca lo de atrás, brillo en la arista superior.
-   Se aplica a pocos paneles grandes (no a cada botón) para no cargar tablets viejas. */
 .card[data-style="cristal"] :is(.round, .switch, .apps, .pad, .modes, .keys, .numpad) {
   background: linear-gradient(180deg, var(--tv-raised), var(--tv-raised-2));
   -webkit-backdrop-filter: blur(20px) saturate(160%); backdrop-filter: blur(20px) saturate(160%);
@@ -1963,7 +1795,6 @@ ha-card.card {
 .card[data-style="cristal"] .mode { border-radius: 14px; height: 40px; }
 .card[data-style="cristal"] .mode[aria-checked="true"] { background: var(--tv-raised); box-shadow: inset 0 1px 0 var(--tv-hi), 0 4px 12px -6px var(--tv-shadow); }
 .card[data-style="cristal"][data-theme="dark"] .mode[aria-checked="true"] { background: rgb(255 255 255 / 0.13); }
-/* Selector: un panel de vidrio más denso que el resto (flota encima de la pantalla). */
 .card[data-style="cristal"] .picker {
   border-radius: 22px;
   background: linear-gradient(180deg, var(--tv-raised), var(--tv-raised-2)), color-mix(in srgb, var(--tv-surface) 80%, transparent);
@@ -1973,25 +1804,17 @@ ha-card.card {
 .card[data-style="cristal"] .picker-item .tv-ico { background: var(--tv-raised); box-shadow: inset 0 1px 0 var(--tv-hi), inset 0 0 0 1px var(--tv-line); }
 .card[data-style="cristal"] .picker-item.active { background: var(--tv-raised); box-shadow: inset 0 1px 0 var(--tv-hi), 0 4px 12px -6px var(--tv-shadow); }
 .card[data-style="cristal"][data-theme="dark"] .picker-item.active { background: rgb(255 255 255 / 0.13); }
-/* Sin backdrop-filter (navegadores viejos): paneles opacos, sigue siendo legible. */
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
   .card[data-style="cristal"] :is(.round, .switch, .apps, .pad, .modes, .keys, .picker, .numpad) { background: color-mix(in srgb, var(--tv-surface) 75%, #ffffff); }
   .card[data-style="cristal"][data-theme="dark"] :is(.round, .switch, .apps, .pad, .modes, .keys, .picker, .numpad) { background: #1b1e24; }
 }
 
-/* ===================== ESTADOS (comunes; van al final para ganar a los estilos) ===================== */
-/* Botón principal (el centro como Encender). En oscuro, un círculo claro que brilla
-   sobre el fondo. En claro, un círculo oscuro gritaba demasiado sobre tanto blanco:
-   ahí resalta por ELEVACIÓN (blanco con sombra marcada), no por contraste. */
 .card { --tv-cta-bg: var(--tv-ink); --tv-cta-ink: var(--tv-surface); --tv-cta-shadow: 0 10px 24px -10px var(--tv-shadow); }
 .card[data-theme="light"] {
   --tv-cta-bg: linear-gradient(180deg, #ffffff, #f1f4f8); --tv-cta-ink: var(--tv-ink);
   --tv-cta-shadow: 0 0 0 1px var(--tv-line), 0 14px 26px -12px rgb(25 35 55 / 0.38), 0 2px 5px -2px rgb(25 35 55 / 0.18), inset 0 1px 0 #ffffff;
 }
 .card[data-status="on"] .power { color: var(--tv-on); }
-/* TV apagada o sin conexión: se atenúa todo menos el centro del touchpad, que se
-   vuelve el botón Encender (por eso se atenúan las cuñas y no el .pad entero: la
-   opacidad de un padre se multiplica en sus hijos y no se puede "deshacer"). */
 .card:is([data-status="off"], [data-status="unavailable"]) :is(.apps, .pad .dir, .modes, .keys) { opacity: 0.4; transition: opacity 0.5s; }
 .card:is([data-status="off"], [data-status="unavailable"]) .ok { color: var(--tv-cta-ink); }
 .card:is([data-status="off"], [data-status="unavailable"]) .ok::before { opacity: 1; }
@@ -1999,7 +1822,6 @@ ha-card.card {
 .card:is([data-status="off"], [data-status="unavailable"]) .ok-power { opacity: 1; transform: none; }
 .card:is([data-status="off"], [data-status="unavailable"]) .ok:is(.pressed, :active) { transform: scale(0.96); }
 .card[data-busy="true"] .ok-power ha-icon { animation: tv-spin 0.9s linear infinite; }
-/* El botón que abre el numpad se queda "hundido" mientras está abierto. */
 .card [aria-expanded="true"]:is(.key, .round, .dir) { color: var(--tv-ink); box-shadow: inset 0 1px 3px var(--tv-shadow), 0 0 0 1.5px var(--tv-ink-2); }
 
 @keyframes tv-pulse { 50% { opacity: 0.45; } }
@@ -2188,16 +2010,11 @@ var o = e$2(class extends i$2 {
 });
 // src/card/template.js
 var icon = (name) => name ?? A;
-/** Un botón de la fila de abajo (back, home, exit, menu). */
 function bottomKey(v, id) {
 	const b$2 = v.bottom[id];
 	return b`<button type="button" class="key" data-act="bottom" data-id=${id} aria-label=${KEYS[id].label}
     aria-expanded=${b$2.expanded ?? A} ?disabled=${v.locked}><ha-icon icon=${icon(b$2.icon)}></ha-icon></button>`;
 }
-/**
-* Una dirección del touchpad. classMap debe ser la ÚNICA expresión del atributo
-* class, así que la clase de la dirección (`dir up`) también va dentro.
-*/
 function padButton(v, dir) {
 	const p = v.pad[dir];
 	return b`<button type="button" class=${e$1({
@@ -2339,11 +2156,6 @@ var BUILTIN_PALETTES = {
 		on: "#1d9a5d"
 	}
 };
-/**
-* Color del YAML → '#rrggbb' (minúsculas), o null si no es un color válido.
-* Acepta '#1a2b3c', '1a2b3c', '#abc', '26, 43, 60' y [26, 43, 60] (el selector
-* color_rgb de HA entrega un arreglo).
-*/
 function normalizeHex(value) {
 	if (Array.isArray(value)) value = value.join(",");
 	const str = String(value ?? "").trim().toLowerCase();
@@ -2355,7 +2167,6 @@ function normalizeHex(value) {
 	if (m && m.slice(1).every((n) => Number(n) <= 255)) return `#${m.slice(1).map((n) => Number(n).toString(16).padStart(2, "0")).join("")}`;
 	return null;
 }
-/** Una paleta del YAML → { base, ...colores válidos }. Los colores inválidos se avisan y se omiten. */
 function normalizePalette(name, raw, warnings) {
 	if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
 		warnings.push(`La paleta "${name}" no es un bloque de colores; se ignoró.`);
@@ -2372,10 +2183,6 @@ function normalizePalette(name, raw, warnings) {
 	}
 	return palette;
 }
-/**
-* `palettes:` del YAML + las incluidas. Una paleta propia con el mismo nombre que
-* una incluida la reemplaza (así un instalador puede ajustar "grafito" a su gusto).
-*/
 function normalizePalettes(raw, warnings) {
 	const result = { ...BUILTIN_PALETTES };
 	if (raw === void 0 || raw === null) return result;
@@ -2389,11 +2196,6 @@ function normalizePalettes(raw, warnings) {
 	}
 	return result;
 }
-/**
-* Una asignación (`palette: grafito` o `palette: { light: nube, dark: grafito }`)
-* → { light, dark } con nombres o null. Así el resto del código no distingue entre
-* las dos formas. Devuelve null si no hay asignación.
-*/
 function paletteRef(value) {
 	if (typeof value === "string" && value.trim()) return {
 		light: value.trim(),
@@ -2409,14 +2211,9 @@ function paletteRef(value) {
 	}
 	return null;
 }
-/** Avisa de los nombres asignados que no existen (en vez de ignorarlos en silencio). */
 function checkPaletteRef(ref, palettes, where, warnings) {
 	for (const name of /* @__PURE__ */ new Set([ref?.light, ref?.dark])) if (name && !has(palettes, name)) warnings.push(`${where}: la paleta "${name}" no existe. Incluidas: ${Object.keys(BUILTIN_PALETTES).join(", ")}.`);
 }
-/**
-* Contraste WCAG 2 entre dos colores '#rrggbb': de 1 (iguales) a 21 (negro y
-* blanco). 4.5 es el mínimo recomendado para texto normal.
-*/
 function contrastRatio(a, b) {
 	const luminance = (hex) => {
 		const [r, g, bl] = [
@@ -2430,7 +2227,6 @@ function contrastRatio(a, b) {
 	return (hi + .05) / (lo + .05);
 }
 // src/config/normalize.js
-/** 'LG TV' | 'lg' | 'samsung' | undefined → 'lg' | 'samsung' | 'roku' */
 function normalizePlatform(value, warnings) {
 	const v = String(value || "").toLowerCase();
 	if (v.includes("samsung")) return "samsung";
@@ -2438,14 +2234,12 @@ function normalizePlatform(value, warnings) {
 	if (v && !v.includes("lg") && warnings) warnings.push(`Tipo de TV desconocido "${value}"; se usará LG.`);
 	return "lg";
 }
-/** Convierte acentos de color: '229, 9, 20' → 'rgb(229, 9, 20)'; '#e50914' se queda igual. */
 function normalizeColor(value) {
 	if (!value) return null;
 	const str = String(value).trim();
 	if (/^\d{1,3}\s*,\s*\d{1,3}\s*,\s*\d{1,3}$/.test(str)) return `rgb(${str})`;
 	return str;
 }
-/** Normaliza un companion (dispositivo extra conectado a la TV, hoy solo Roku). */
 function normalizeCompanion(raw) {
 	if (!raw || typeof raw !== "object") return null;
 	const entity = raw.media_entity || raw.entity;
@@ -2458,12 +2252,6 @@ function normalizeCompanion(raw) {
 		palette: paletteRef(raw.palette)
 	};
 }
-/**
-* Lee una acción de un custom mode del formato viejo. Si hay valores distintos por
-* marca (`_value_lg` / `_value_samsung`), arma una acción {type:'platform'}.
-* Como parseAction ya traduce 'VOLUMEUP' y 'KEY_VOLUP' a la misma tecla, en la
-* mayoría de los casos las variantes coinciden y queda una acción simple.
-*/
 function legacyPerBrandAction(generic, lg, samsung) {
 	const a = parseAction(generic);
 	const aLg = parseAction(lg);
@@ -2480,7 +2268,6 @@ function legacyPerBrandAction(generic, lg, samsung) {
 		by
 	};
 }
-/** Lee un pad del formato nuevo: { up: { icon, action }, ... } */
 function readPad(rawPad, fallback) {
 	const result = {};
 	for (const dir of DIRECTIONS) {
@@ -2619,10 +2406,6 @@ function resolveButtons(raw, warnings) {
 	}
 	return result;
 }
-/**
-* Resuelve todo lo que puede variar por TV (modos, pads, streaming, botones).
-* Se llama una vez con la config global y otra por cada TV que tenga overrides.
-*/
 function resolveSettings(raw, warnings) {
 	const modes = resolveModes(raw, warnings);
 	const modeDefs = {};
@@ -2642,10 +2425,6 @@ function resolveSettings(raw, warnings) {
 		palette: paletteRef(raw.palette)
 	};
 }
-/**
-* Estilos visuales. Los tres usan el mismo HTML y los mismos nombres de tokens;
-* solo cambia el CSS (§6). El primero es el predeterminado.
-*/
 var STYLES = [
 	"relieve",
 	"halo",
@@ -2658,7 +2437,6 @@ function resolveStyle(value, warnings) {
 	warnings.push(`Estilo desconocido "${value}"; se usará "${STYLES[0]}". Opciones: ${STYLES.join(", ")}.`);
 	return STYLES[0];
 }
-/** 'light' | 'dark' | 'auto' (auto = sigue el modo oscuro de HA). Por defecto oscuro, como producción. */
 function resolveTheme(value) {
 	const v = String(value ?? "").trim().toLowerCase();
 	return v === "light" || v === "auto" ? v : "dark";
@@ -2672,18 +2450,6 @@ var TV_OWN_KEYS = /* @__PURE__ */ new Set([
 	"companion",
 	"overrides"
 ]);
-/**
-* Punto de entrada. Lanza un Error si la config no se puede usar; HA lo muestra
-* como tarjeta roja con el mensaje.
-*
-* @param {object} raw  config tal como viene de setConfig()
-* @returns {{
-*   format: 'v4'|'legacy', cardId: string, theme: 'light'|'dark'|'auto', style: string,
-*   palettes: { [name]: { base, background?, button?, text?, accent?, on? } },
-*   controlModeEntity: string|null,
-*   tvs: Array<{ name, entity, platform, companion, settings }>, warnings: string[]
-* }}
-*/
 function normalizeConfig(raw) {
 	if (!raw || typeof raw !== "object") throw new Error("Configuración inválida.");
 	const warnings = [];
@@ -2748,7 +2514,6 @@ function normalizeConfig(raw) {
 	});
 }
 // src/platforms.js
-/** Error para "esta plataforma no soporta esa acción". */
 var UnsupportedActionError = class extends Error {
 	constructor(platformId, what) {
 		super(`La plataforma "${platformId}" no soporta: ${what}`);
@@ -2837,12 +2602,6 @@ function getPlatform(id) {
 	return has(PLATFORMS, id) ? PLATFORMS[id] : null;
 }
 // src/execute.js
-/**
-* @param {object} hass    objeto hass de Home Assistant
-* @param {object} action  acción normalizada (salida de parseAction)
-* @param {object} device  { platform, entity, remote? }
-* @returns {Promise<void>}
-*/
 async function executeAction(hass, action, device) {
 	if (!hass || !action || !device) return;
 	const platform = getPlatform(device.platform);
@@ -2983,7 +2742,6 @@ var TvControlCard = class extends i$3 {
 			min_columns: 4
 		};
 	}
-	/** HA pide el editor visual al abrir "Editar tarjeta". */
 	static getConfigElement() {
 		return document.createElement(EDITOR_TAG);
 	}
@@ -3005,7 +2763,6 @@ var TvControlCard = class extends i$3 {
 	get _tv() {
 		return this._model.tvs[this._ui.tvIndex] ?? this._model.tvs[0];
 	}
-	/** Pad del touchpad según el modo activo (o el default si no hay modo). */
 	get _pad() {
 		const settings = this._tv.settings;
 		return this._ui.mode && settings.modeDefs[this._ui.mode]?.pad || settings.defaultPad;
@@ -3020,16 +2777,13 @@ var TvControlCard = class extends i$3 {
 		if (saved >= 0 && saved < this._model.tvs.length) this._ui.tvIndex = saved;
 		this._ui.roku = this._loadRokuMode();
 	}
-	/** Clave de producción: el modo Roku se recuerda por TV y por usuario. */
 	get _rokuKey() {
 		return `tv-card__roku__${this._model.cardId}__${this._hass?.user?.id || "default"}__${this._tv.entity}`;
 	}
-	/** Igual que producción: si nunca se eligió, una TV con Roku arranca en modo Roku. */
 	_loadRokuMode() {
 		if (!this._tv.companion) return false;
 		return storage.get(this._rokuKey) !== "0";
 	}
-	/** Entidades cuyo cambio debe repintar la tarjeta. Cualquier otra se ignora. */
 	_watchedEntities() {
 		const tv = this._tv;
 		return [
@@ -3038,11 +2792,6 @@ var TvControlCard = class extends i$3 {
 			this._model.controlModeEntity
 		].filter(Boolean);
 	}
-	/**
-	* HA nunca modifica un objeto de estado: cuando una entidad cambia, crea un
-	* objeto NUEVO. Entonces basta comparar referencias (===), sin revisar campo
-	* por campo. Es como comparar punteros en C en vez de hacer memcmp.
-	*/
 	_watchedChanged(hass) {
 		const next = this._watchedEntities().map((id) => hass.states[id]);
 		next.push(this._model.theme === "auto" ? !!hass.themes?.darkMode : null);
@@ -3050,7 +2799,6 @@ var TvControlCard = class extends i$3 {
 		this._watched = next;
 		return changed;
 	}
-	/** control_mode_entity (p. ej. un input_select) fija el modo desde HA, igual que en producción. */
 	_syncModeEntity(hass) {
 		const id = this._model.controlModeEntity;
 		const st = id ? hass.states[id] : void 0;
@@ -3059,20 +2807,16 @@ var TvControlCard = class extends i$3 {
 		const value = has(MODE_ALIASES, st.state) ? MODE_ALIASES[st.state] : st.state;
 		this._ui.mode = this._tv.settings.modes.includes(value) ? value : null;
 	}
-	/** Espera a que `entityId` cumpla `predicate`. Resuelve true, o false si pasa `timeoutMs`. */
 	_waitFor(entityId, predicate, timeoutMs) {
 		return this._waiters.wait(this._hass, entityId, predicate, timeoutMs);
 	}
-	/** Pide un render. Lit junta varios pedidos seguidos en uno solo. */
 	_schedule() {
 		this.requestUpdate();
 	}
-	/** 'light' | 'dark'. Con theme: auto se sigue el modo oscuro de HA. */
 	get _theme() {
 		if (this._model.theme !== "auto") return this._model.theme;
 		return this._hass?.themes?.darkMode ? "dark" : "light";
 	}
-	/** Lit lo llama UNA vez, cuando crea el DOM por primera vez. */
 	firstUpdated() {
 		this._stats.builds++;
 	}
@@ -3099,10 +2843,6 @@ var TvControlCard = class extends i$3 {
 		if (!this._model) return A;
 		return cardTemplate(this._view());
 	}
-	/**
-	* Todo lo que muestra la tarjeta, calculado desde el estado actual: qué TV, si
-	* está prendida, qué app, qué modo… La plantilla (template.js) solo lo pinta.
-	*/
 	_view() {
 		const tv = this._tv;
 		const settings = tv.settings;
@@ -3194,7 +2934,6 @@ var TvControlCard = class extends i$3 {
 			toast: this._toastState
 		};
 	}
-	/** La acción "de teclado" de un botón (pad, centro, abajo), o null si no aplica. */
 	_actionFor(el) {
 		const buttons = this._tv.settings.buttons;
 		switch (el.dataset.act) {
@@ -3236,10 +2975,6 @@ var TvControlCard = class extends i$3 {
 			case "tv": return this._selectTv(Number(el.dataset.index));
 		}
 	}
-	/**
-	* Las teclas repetibles (solo las flechas, ver HOLDABLE_KEYS) se manejan en
-	* pointerdown para responder al instante y poder repetir. Todo lo demás sigue en click.
-	*/
 	_onPointerDown(e) {
 		if (e.button !== 0 || !this._model || !this.hasUpdated) return;
 		const el = e.target.closest?.("[data-act]");
@@ -3262,13 +2997,6 @@ var TvControlCard = class extends i$3 {
 	_onVisibility = () => {
 		if (document.hidden) this._stopHold();
 	};
-	/**
-	* Bucle del hold. Diferencia clave con producción/v3: NO hay setInterval.
-	* Es un bucle `async` que hace await de cada envío, así que nunca hay dos
-	* llamadas en vuelo, y que revisa `hold.active` en cada vuelta. Para pararlo
-	* basta con poner active = false (eso hace _stopHold); no hay ningún timer
-	* huérfano que pueda seguir mandando teclas.
-	*/
 	async _startHold(el, action, pointerId) {
 		this._stopHold();
 		const device = this._route(action);
@@ -3310,7 +3038,6 @@ var TvControlCard = class extends i$3 {
 		} catch {}
 		if (this._suppressClick?.el === hold.el) this._suppressClick.until = performance.now() + 600;
 	}
-	/** Un toque, un evento háptico (antes había casos con dos). */
 	_haptic(type = "light") {
 		this.dispatchEvent(new CustomEvent("haptic", {
 			detail: type,
@@ -3325,11 +3052,6 @@ var TvControlCard = class extends i$3 {
 		this._haptic();
 		this._run(action);
 	}
-	/**
-	* Una secuencia (p. ej. un PIN) tarda: N pasos con `delay` entre ellos. Si se
-	* vuelve a tocar el botón mientras corre, el segundo toque se ignora; si no,
-	* las dos secuencias se intercalarían en la TV (1-1-2-2-3-3-4-4).
-	*/
 	async _runSequence(action) {
 		if (this._sequenceRunning) return;
 		this._sequenceRunning = true;
@@ -3340,11 +3062,6 @@ var TvControlCard = class extends i$3 {
 			this._sequenceRunning = false;
 		}
 	}
-	/**
-	* Teclas del numpad: SIEMPRE van a la TV, también en modo Roku. El Roku no tiene
-	* dígitos, así que los números ya irían a la TV; el OK del numpad debe ir al
-	* mismo lugar que los números (si no, un PIN escrito en la TV se confirmaría en el Roku).
-	*/
 	_numpadKey(action) {
 		this._haptic();
 		const tv = this._tv;
@@ -3385,10 +3102,6 @@ var TvControlCard = class extends i$3 {
 		else this._loading.set(entity, index);
 		this._schedule();
 	}
-	/**
-	* Garantiza que la TV esté prendida. Nunca usa toggle. Devuelve true si HA
-	* confirmó 'on' dentro del tiempo límite.
-	*/
 	async _ensureOn(tv) {
 		if (tvStatus(this._hass?.states?.[tv.entity]) === "on") return true;
 		this._setBusy(tv.entity, "Encendiendo…");
@@ -3402,13 +3115,6 @@ var TvControlCard = class extends i$3 {
 			this._setBusy(tv.entity, null);
 		}
 	}
-	/**
-	* Encender/apagar. NUNCA usa media_player.toggle: con un estado viejo o
-	* 'unavailable', un toggle puede apagar una TV que en realidad está prendida.
-	*   on → turn_off      off / unavailable → turn_on
-	* Mientras se espera la confirmación, más toques se ignoran (antes cada toque
-	* extra era otro toggle).
-	*/
 	async _power() {
 		const tv = this._tv;
 		if (this._busy.has(tv.entity)) return;
@@ -3429,11 +3135,6 @@ var TvControlCard = class extends i$3 {
 			this._setBusy(tv.entity, null);
 		}
 	}
-	/**
-	* Solo enciende; NUNCA apaga. Si la TV ya está prendida no hace nada. Lo usan el
-	* power (cuando la TV no está on) y el centro del touchpad en su cara "Encender":
-	* así, aunque HA tenga un estado viejo, tocar el centro no puede apagar la TV.
-	*/
 	async _turnOn() {
 		const tv = this._tv;
 		if (this._busy.has(tv.entity)) return;
@@ -3447,7 +3148,6 @@ var TvControlCard = class extends i$3 {
 			this._showError(err);
 		}
 	}
-	/** Centro del touchpad: OK con la TV prendida, Encender con la TV apagada. */
 	_onCenter() {
 		const press = this._centerPress;
 		this._centerPress = null;
@@ -3455,12 +3155,6 @@ var TvControlCard = class extends i$3 {
 		if (performance.now() < this._centerGuardUntil) return;
 		return this._press(this._tv.settings.buttons.center.action);
 	}
-	/**
-	* select_source + esperar a que HA reporte esa fuente. Arreglo del bug B3:
-	* antes se esperaban 5 s ANTES de mandar y se revisaba el estado una sola vez.
-	* Ahora se manda de inmediato y se espera la confirmación (máx. 6 s), con un
-	* reintento.
-	*/
 	async _selectSourceConfirmed(device, candidates) {
 		const platform = getPlatform(device.platform);
 		const preferAppName = device.platform === "roku";
@@ -3471,15 +3165,6 @@ var TvControlCard = class extends i$3 {
 		}
 		return false;
 	}
-	/**
-	* Botón de streaming:
-	*   1. Si la TV no está prendida, la enciende y espera a que HA lo confirme.
-	*      (Si no se confirma, sigue igual: el estado de HA puede ir atrasado.)
-	*   2. Con acción propia configurada → la ejecuta.
-	*   3. En modo Roku, o si la app solo existe en el Roku (p. ej. Fubo) → abre la
-	*      app en el Roku. En el segundo caso antes pone la TV en la entrada del Roku.
-	*   4. Si no → select_source en la TV, con confirmación.
-	*/
 	async _stream(index) {
 		const tv = this._tv;
 		const slot = tv.settings.streaming[index];
@@ -3519,7 +3204,6 @@ var TvControlCard = class extends i$3 {
 			this._setLoading(tv.entity, null);
 		}
 	}
-	/** Selector TV | Roku del encabezado: a quién se controla. */
 	_setRoku(on) {
 		if (!this._tv.companion || this._ui.roku === on) return;
 		this._haptic();
@@ -3528,7 +3212,6 @@ var TvControlCard = class extends i$3 {
 		storage.set(this._rokuKey, on ? "1" : "0");
 		this._schedule();
 	}
-	/** Igual que producción: tocar el modo activo lo desactiva (vuelve al pad default). */
 	_toggleMode(id) {
 		this._haptic();
 		this._stopHold();
@@ -3642,7 +3325,6 @@ var PLATFORM_NAMES = {
 	samsung: "Samsung",
 	roku: "Roku"
 };
-/** Teclas para el selector: "Subir volumen (vol_up) · LG, Samsung, Roku". */
 var KEY_OPTIONS = Object.entries(KEYS).map(([id, def]) => {
 	const brands = [
 		"lg",
@@ -3654,11 +3336,6 @@ var KEY_OPTIONS = Object.entries(KEYS).map(([id, def]) => {
 		label: `${def.label} (${id}) · ${brands.join(", ") || "ninguna"}`
 	};
 });
-/**
-* Commands de webOS más útiles (webostv.command). Los URIs vienen de aiowebostv y
-* de la documentación de HA; los que se marcan con payload necesitan datos.
-* POR VERIFICAR en una TV real antes de usarlos con clientes.
-*/
 var LG_COMMANDS = [
 	{
 		value: "system.launcher/launch",
@@ -3709,7 +3386,6 @@ var LG_COMMANDS = [
 		label: "Abrir URL en el navegador · payload: { target: \"https://…\" }"
 	}
 ];
-/** Entradas por puerto: LG y Samsung (el Roku no tiene entradas). */
 var INPUT_OPTIONS = Object.entries(INPUTS).map(([id, def]) => ({
 	value: id,
 	label: def.label
@@ -3777,7 +3453,6 @@ var DEFAULT_MODES = [
 var isPlainObject = (v) => v !== null && typeof v === "object" && !Array.isArray(v);
 var clone = (v) => v === void 0 ? void 0 : JSON.parse(JSON.stringify(v));
 var sameJson = (a, b) => JSON.stringify(a) === JSON.stringify(b);
-/** Lee obj[path[0]][path[1]]... ; undefined si algo del camino no existe. */
 function getPath(obj, path) {
 	let cur = obj;
 	for (const k of path) {
@@ -3786,11 +3461,6 @@ function getPath(obj, path) {
 	}
 	return cur;
 }
-/**
-* Devuelve una COPIA de `obj` con `value` en `path`; crea objetos/arrays
-* intermedios. Con value === undefined borra esa clave. Solo copia los niveles
-* que están en el camino; el resto se comparte (igual que hace Lit o Redux).
-*/
 function setPath(obj, path, value) {
 	if (path.length === 0) return value;
 	const [k, ...rest] = path;
@@ -3802,7 +3472,6 @@ function setPath(obj, path, value) {
 	} else base[k] = next;
 	return base;
 }
-/** Borra `path` y, si su padre queda como objeto vacío, también lo quita (hacia arriba). */
 function deletePath(obj, path) {
 	let out = setPath(obj, path, void 0);
 	for (let i = path.length - 1; i > 0; i--) {
@@ -3812,16 +3481,9 @@ function deletePath(obj, path) {
 	}
 	return out;
 }
-/** Nombres de campo de un schema de ha-form (entrando a los grupos 'grid'/'expandable'). */
 function fieldNames(schema) {
 	return schema.flatMap((item) => Array.isArray(item.schema) && !item.name ? fieldNames(item.schema) : [item.name]);
 }
-/**
-* Atajos de YAML → forma objeto, para poder editarlos por partes:
-*   buttons: { power: script.x }   → { power: { action: script.x } }
-*   custom_modes.custom1.up: mute  → up: { action: mute }
-* Así, al cambiar solo el ícono no se pierde la acción.
-*/
 function expandShortcuts(config) {
 	if (!isPlainObject(config)) return {};
 	const toEntry = (v) => v !== null && v !== void 0 && !isPlainObject(v) ? { action: v } : v;
@@ -3841,11 +3503,6 @@ function expandShortcuts(config) {
 	return out;
 }
 // src/editor/action-form.js
-/**
-* Acción tal como está en el YAML → datos del formulario { type, ...campos }.
-* Lee la forma CRUDA (no parseAction) para no perder lo que está a medio
-* escribir: { type: 'key', key: '' } sigue siendo "Tecla" aunque aún no sirva.
-*/
 function actionToForm(raw) {
 	if (raw === void 0) return { type: "default" };
 	if (raw === null) return { type: "none" };
@@ -3900,11 +3557,6 @@ function actionToForm(raw) {
 		default: return { type: "none" };
 	}
 }
-/**
-* Datos del formulario → acción para el YAML (la forma más legible que
-* parseAction entiende). undefined = quitar la clave (usar la predeterminada).
-* Si cambió el tipo, los campos del tipo anterior se descartan.
-*/
 function formToAction(data, prevRaw) {
 	const prev = actionToForm(prevRaw);
 	const changed = data.type !== prev.type;
@@ -3965,7 +3617,6 @@ function formToAction(data, prevRaw) {
 		default: return;
 	}
 }
-/** Schema del formulario de una acción: el tipo y SOLO los campos de ese tipo. */
 function actionSchema(form, { allowDefault = false, allowNone = true, types = ALL_ACTION_TYPES, defaultLabel } = {}) {
 	const options = [];
 	if (allowDefault) options.push({
@@ -4085,7 +3736,6 @@ function fold(head, children, { summary = "", open = false } = {}) {
 	for (const child of children) child.parent ??= head.key;
 	return [head, ...children];
 }
-/** Nodos agrupados por su `parent` ('' = raíz), conservando el orden. Para pintar el árbol. */
 function childrenByParent(nodes) {
 	const map = /* @__PURE__ */ new Map();
 	for (const node of nodes) {
@@ -4096,7 +3746,6 @@ function childrenByParent(nodes) {
 	return map;
 }
 // src/editor/palettes.js
-/** Valor del selector para "sin paleta" (un select de HA no maneja bien el texto vacío). */
 var NONE = "__none__";
 var FIELD_LABELS = {
 	background: "Fondo",
@@ -4109,11 +3758,6 @@ var BASE_LABELS = {
 	dark: "oscura",
 	light: "clara"
 };
-/**
-* Colores de Relieve por base: lo que vale un campo vacío. Sirven de punto de
-* partida del selector de color y para el aviso de contraste (en oscuro, `button`
-* es el blanco translúcido de Relieve ya mezclado con el fondo).
-*/
 var BASE_COLORS = {
 	dark: {
 		background: "#16181c",
@@ -4136,36 +3780,18 @@ var hexToRgb = (hex) => [
 	5
 ].map((i) => parseInt(hex.slice(i, i + 2), 16));
 var baseOf = (palette) => palette?.base === "light" ? "light" : "dark";
-/** Todas las paletas disponibles: las incluidas + las del YAML (una propia reemplaza a la incluida). */
 function allPalettes(config) {
 	return {
 		...BUILTIN_PALETTES,
 		...isPlainObject(config.palettes) ? config.palettes : {}
 	};
 }
-/** Nombre libre para una paleta nueva: "paleta", "paleta-2", "paleta-3"… */
 function uniqueName(config, stem = "paleta") {
 	const taken = allPalettes(config);
 	let name = stem;
 	for (let n = 2; Object.hasOwn(taken, name); n += 1) name = `${stem}-${n}`;
 	return name;
 }
-/**
-* Una asignación de paleta (lo que hay bajo una clave `palette:`) → la misma
-* asignación con el nombre `from` cambiado por `to`.
-*
-*   ref:  'grafito'                          (una sola paleta, claro y oscuro)
-*         { light: 'nube', dark: 'grafito' } (un par; puede traer solo un lado)
-*         undefined                          (sin asignación)
-*   to:   un nombre nuevo, o null = QUITAR el nombre (así se borra una paleta)
-*
-* Devuelve la asignación nueva, o undefined si ya no queda ningún nombre.
-* NO muta `ref` (HA congela la config) y lo que no se llame `from` queda igual.
-* Pruebas: test/palette-refs.test.mjs
-*
-* VERSIÓN PROVISIONAL del asistente, para poder probar el editor en HA. Es el
-* ejercicio "Learn by Doing" de Ian: su versión reemplaza a esta (mismas pruebas).
-*/
 function renameRef(ref, from, to) {
 	const swap = (name) => name === from ? to ?? void 0 : name;
 	if (typeof ref === "string") return swap(ref);
@@ -4178,11 +3804,6 @@ function renameRef(ref, from, to) {
 		...dark !== void 0 && { dark }
 	};
 }
-/**
-* Aplica `fn(ref)` a cada asignación de paleta de la config y devuelve la config
-* nueva (sin mutar). Los 5 lugares: la tarjeta, `tvs[i].overrides` (y su streaming),
-* `tvs[i].companion` y `streaming[j]`. Si fn devuelve undefined, se quita la clave.
-*/
 function mapPaletteRefs(config, fn) {
 	const fix = (obj) => {
 		if (!isPlainObject(obj) || obj.palette === void 0) return obj;
@@ -4226,10 +3847,6 @@ function mapPaletteRefs(config, fn) {
 	};
 	return out;
 }
-/**
-* Renombra una paleta (conservando su lugar en la lista) y actualiza todo lo que la
-* usaba. Sin cambios si el nombre nuevo está vacío, es igual, o ya lo tiene otra paleta propia.
-*/
 function renamePalette(config, from, to) {
 	const name = String(to ?? "").trim();
 	const own = isPlainObject(config.palettes) ? config.palettes : {};
@@ -4240,20 +3857,11 @@ function renamePalette(config, from, to) {
 		palettes
 	}, (ref) => renameRef(ref, from, name));
 }
-/**
-* Borra una paleta. Si la ASIGNACIÓN apuntaba a ella y ya no existe ninguna con ese
-* nombre (ni incluida), se quita de las asignaciones; si era una incluida que se había
-* reemplazado, las asignaciones siguen siendo válidas (vuelve la incluida).
-*/
 function removePalette(config, name) {
 	const next = deletePath(config, ["palettes", name]);
 	if (Object.hasOwn(BUILTIN_PALETTES, name)) return next;
 	return mapPaletteRefs(next, (ref) => renameRef(ref, name, null));
 }
-/**
-* El selector que asigna una paleta en `path` (…`.palette`). Con una sola paleta es un
-* desplegable; con un par claro/oscuro son dos. Los botones pasan de una forma a la otra.
-*/
 function assignmentNodes(config, path, key, depth, label, { init } = {}) {
 	const raw = getPath(config, path);
 	const palettes = allPalettes(config);
@@ -4347,7 +3955,6 @@ function assignmentNodes(config, path, key, depth, label, { init } = {}) {
 	});
 	return nodes;
 }
-/** Un color de la paleta: el suyo si lo tiene, si no el de la base (se marca como `base`). */
 function effectiveColors(raw, base) {
 	return PALETTE_FIELDS.map((field) => {
 		const own = raw[field] !== void 0 ? normalizeHex(raw[field]) : null;
@@ -4359,14 +3966,12 @@ function effectiveColors(raw, base) {
 		};
 	});
 }
-/** "Contraste texto/fondo 12.1:1 · texto/botones 9.3:1" con ⚠ si no llega a 4.5 (mínimo para texto normal). */
 function contrastNote(colors) {
 	const by = Object.fromEntries(colors.map((c) => [c.field, c.color]));
 	const part = (name, ratio) => `${ratio < 4.5 ? "⚠ " : ""}${name} ${ratio.toFixed(1)}:1`;
 	const text = `Contraste ${part("texto/fondo", contrastRatio(by.text, by.background))} · ${part("texto/botones", contrastRatio(by.text, by.button))}`;
 	return contrastRatio(by.text, by.background) < 4.5 || contrastRatio(by.text, by.button) < 4.5 ? `${text}. Menos de 4.5:1 cuesta leer; prueba un texto más claro u oscuro.` : text;
 }
-/** La key usa la POSICIÓN, no el nombre: renombrar (se emite en cada tecla) no debe recrear el campo ni cerrar el panel. */
 function paletteFold(config, name, index) {
 	const raw = isPlainObject(config.palettes[name]) ? config.palettes[name] : {};
 	const base = baseOf(raw);
@@ -4488,7 +4093,6 @@ function paletteFold(config, name, index) {
 		}]
 	}, children, { summary: `${BASE_LABELS[base]} · ${own} de ${PALETTE_FIELDS.length} colores` });
 }
-/** El panel "Paletas" completo (siempre existe: ahí se crea la primera). */
 function paletteSection(config) {
 	const own = isPlainObject(config.palettes) ? config.palettes : {};
 	const names = Object.keys(own);
@@ -4552,7 +4156,6 @@ function paletteSection(config) {
 	const builtin = Object.keys(BUILTIN_PALETTES).length;
 	return fold(head, children, { summary: `${names.length ? `${names.length} propias` : "ninguna propia"} · ${builtin} incluidas` });
 }
-/** Un formulario de paletas cambió. `config` ya viene con los atajos expandidos. */
 function applyPaletteForm(config, node, data) {
 	const set = (path, value) => value === void 0 ? deletePath(config, path) : setPath(config, path, value);
 	switch (node.codec) {
@@ -4596,7 +4199,6 @@ function applyPaletteForm(config, node, data) {
 	}
 }
 // src/editor/serialize.js
-/** Acción normalizada → la forma más corta que parseAction vuelve a entender igual. */
 function serializeAction(a) {
 	if (!a) return null;
 	switch (a.type) {
@@ -4626,7 +4228,6 @@ function serializeAction(a) {
 		default: return clone(a);
 	}
 }
-/** Pad → YAML, escribiendo solo lo que difiere de `fallback` (lo que readPad rellena solo). */
 function serializePad(padObj, fallback) {
 	const out = {};
 	for (const dir of DIRECTIONS) {
@@ -4638,7 +4239,6 @@ function serializePad(padObj, fallback) {
 	}
 	return out;
 }
-/** Settings normalizados → las 5 categorías en YAML v4, completas (sirven para comparar TVs). */
 function serializeSettings(s) {
 	const customModes = {};
 	for (const id of s.modes) {
@@ -4675,11 +4275,6 @@ function serializeSettings(s) {
 		buttons
 	};
 }
-/**
-* Cualquier YAML que la tarjeta entiende (v3 del repo, variante multientidad, v4)
-* → YAML v4 mínimo con EXACTAMENTE el mismo resultado. Lo garantiza un test de
-* ida y vuelta: normalizeConfig(serializeV4(x)) equivale a normalizeConfig(x).
-*/
 function serializeV4(raw) {
 	const model = normalizeConfig(raw);
 	const global = serializeSettings(resolveSettings(raw, []));
@@ -4724,7 +4319,6 @@ var HA_CARD_KEYS = [
 	"card_mod"
 ];
 // src/editor/ops.js
-/** Un formulario cambió: devuelve la config nueva (no toca la original). */
 function applyFormChange(rawConfig, node, data) {
 	let config = expandShortcuts(rawConfig);
 	if (node.init && getPath(config, node.init.path) === void 0) config = setPath(config, node.init.path, clone(node.init.value));
@@ -4754,7 +4348,6 @@ function applyFormChange(rawConfig, node, data) {
 		}
 	}
 }
-/** Un botón del editor (agregar, quitar, mover, convertir…): devuelve la config nueva. */
 function applyOp(rawConfig, op) {
 	const config = expandShortcuts(rawConfig);
 	switch (op.op) {
@@ -4809,12 +4402,10 @@ var EDITOR_CSS = `
 .ed-alert.info { border-color: var(--info-color, #039be5); }
 .ed-alert .ed-btns { margin-top: 8px; }
 
-/* Muestras de color de una paleta; las punteadas vienen de la base (la paleta no las define). */
 .ed-swatches { display: flex; gap: 8px; }
 .ed-sw { width: 30px; height: 30px; border-radius: 50%; border: 2px solid var(--divider-color, rgb(127 127 127 / 0.5)); box-sizing: border-box; }
 .ed-sw.base { border-style: dashed; opacity: 0.6; }
 
-/* Paneles plegables (acordeón): cada sección es un <details> con su resumen. */
 .ed-fold { border: 1px solid var(--divider-color, rgb(127 127 127 / 0.3)); border-radius: 12px; background: var(--card-background-color, transparent); }
 .ed-fold .ed-fold { background: var(--secondary-background-color, rgb(127 127 127 / 0.06)); }
 .ed-fold > summary { display: flex; align-items: center; gap: 8px; padding: 10px 12px; cursor: pointer; list-style: none; border-radius: 12px; }
@@ -4835,7 +4426,6 @@ var EDITOR_CSS = `
 @media (prefers-reduced-motion: reduce) { .ed-fold > summary::before { transition: none; } }
 `;
 // src/editor/view.js
-/** Botones ↑ ↓ ✕ de un elemento de una lista. */
 function listActions(arrayPath, index, length, { canRemove = true } = {}) {
 	return [
 		{
@@ -4872,7 +4462,6 @@ function listActions(arrayPath, index, length, { canRemove = true } = {}) {
 		}
 	];
 }
-/** "Relieve (predeterminado)" → "Relieve": el nombre corto de una opción, para los resúmenes. */
 function shortLabel(options, value) {
 	const found = options.find((o) => o.value === value);
 	return found ? found.label.replace(/ \(.*\)$/, "") : String(value ?? "");
@@ -4888,7 +4477,6 @@ var ACTION_SHORT = {
 	numpad: "teclado numérico",
 	platform: "distinta por marca"
 };
-/** Una acción en pocas palabras, para el resumen de un panel cerrado ("tecla Home"). */
 function describeAction(raw, { allowDefault = false, defaultText = "predeterminada" } = {}) {
 	const form = actionToForm(raw);
 	if (form.type === "default") return allowDefault ? defaultText : "sin acción";
@@ -4896,7 +4484,6 @@ function describeAction(raw, { allowDefault = false, defaultText = "predetermina
 	if (form.type === "key") return form.key ? `tecla ${KEYS[form.key]?.label ?? form.key}` : "tecla sin elegir";
 	return ACTION_SHORT[form.type] ?? ACTION_UI_TYPES[form.type] ?? form.type;
 }
-/** Nombres de las secciones que una TV puede tener propias (para su resumen). */
 var OVERRIDE_NAMES = {
 	modes: "modos",
 	custom_modes: "modos personalizados",
@@ -4906,7 +4493,6 @@ var OVERRIDE_NAMES = {
 	palette: "paleta"
 };
 var plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
-/** Nodos del editor de UNA acción (se llama a sí misma para secuencias y "por marca"). */
 function actionNodes(config, path, key, depth, opts = {}) {
 	const raw = getPath(config, path);
 	const form = actionToForm(raw);
@@ -5007,7 +4593,6 @@ function actionNodes(config, path, key, depth, opts = {}) {
 	}
 	return nodes;
 }
-/** Las 4 direcciones de un pad: ícono + acción de cada una. */
 function padNodes(config, basePath, key, depth, { allowDefault }) {
 	const nodes = [];
 	for (const dir of DIRECTIONS) {
@@ -5047,21 +4632,11 @@ function padNodes(config, basePath, key, depth, { allowDefault }) {
 	}
 	return nodes;
 }
-/** Descripción corta de la acción por defecto de un botón ("tecla Atrás"). */
 function describeDefaultButton(id) {
 	const action = parseAction(DEFAULT_BUTTONS[id].action);
 	if (id === "power") return "encender/apagar la TV";
 	return action?.type === "key" ? `tecla ${KEYS[action.key].label}` : "sin acción";
 }
-/**
-* Secciones que pueden ser globales o propias de una TV (overrides): modos,
-* modos personalizados, touchpad sin modo, streaming y botones.
-*
-* Ojo con los overrides: se aplican con un merge SUPERFICIAL
-* (`{ ...global, ...overrides }`), así que `overrides.buttons` reemplaza TODOS
-* los botones globales, no solo los que cambian. Por eso, al activar una
-* categoría propia se copia la global como punto de partida.
-*/
 function settingsNodes(config, base, kp, depth, ctx, override) {
 	const nodes = [];
 	const here = getPath(config, base) ?? {};
@@ -5524,13 +5099,6 @@ function settingsNodes(config, base, kp, depth, ctx, override) {
 	});
 	return nodes;
 }
-/**
-* QUÉ muestra el editor para esta config. Pura: misma entrada → mismos nodos.
-*
-* @param {object} rawConfig  la config tal como la tiene HA
-* @param {{ model?: object, error?: string, expanded?: Set<string>, mediaPlayers?: string[] }} ctx
-* @returns {Array<object>} nodos: { kind: 'alert'|'heading'|'note'|'buttons'|'form', key, ... }
-*/
 function buildEditorView(rawConfig, ctx = {}) {
 	const config = expandShortcuts(rawConfig);
 	const nodes = [];
@@ -5879,11 +5447,6 @@ function buildEditorView(rawConfig, ctx = {}) {
 	return nodes;
 }
 // src/editor/tv-control-card-editor.js
-/**
-* HA carga <ha-form> bajo demanda. Si nuestro editor se abre antes, se fuerza la
-* carga pidiendo el editor de una tarjeta nativa (truco estándar de las tarjetas
-* custom). Se hace una sola vez para todas las instancias.
-*/
 var haFormReady = null;
 function ensureHaForm() {
 	if (globalThis.customElements?.get("ha-form")) return Promise.resolve();
@@ -5951,11 +5514,6 @@ var TvControlCardEditor = class extends i$3 {
 		});
 		return b`<div class="ed">${this._renderChildren(childrenByParent(nodes), null)}</div>`;
 	}
-	/**
-	* La lista de nodos es plana, pero cada nodo sabe su `parent` (un encabezado con
-	* `fold` = panel). Aquí se pinta el árbol: los hijos de un panel solo se crean
-	* mientras está abierto, así un editor con muchas secciones cerradas es liviano.
-	*/
 	_renderChildren(tree, parent) {
 		const base = parent?.fold.base ?? 0;
 		return c(tree.get(parent?.key ?? "") ?? [], (node) => node.key, (node) => node.fold ? this._renderFold(node, tree, base) : this._renderNode(node, base));
@@ -5977,21 +5535,11 @@ var TvControlCardEditor = class extends i$3 {
       ${open ? b`<div class="ed-fold-body">${this._renderChildren(tree, node)}</div>` : A}
     </details>`;
 	}
-	/**
-	* El editor es el ÚNICO dueño del estado abierto/cerrado. Se cancela el plegado
-	* nativo del <details> y se pinta según `_open`: si el navegador y Lit lo cambiaran
-	* a la vez (el evento `toggle` llega después), un repintado en medio deshacía el clic.
-	*/
 	_toggleFold(e, node) {
 		e.preventDefault();
 		this._open.set(node.key, !this._isOpen(node));
 		this.requestUpdate();
 	}
-	/**
-	* buildEditorView crea un schema NUEVO en cada render. Si se le pasara siempre uno
-	* nuevo, <ha-form> reharía sus campos (y el campo donde escribes perdería el foco).
-	* Por eso se reutiliza el objeto anterior mientras su contenido sea igual.
-	*/
 	_schemaFor(node) {
 		const json = JSON.stringify(node.schema);
 		const cached = this._schemas.get(node.key);
@@ -6053,7 +5601,6 @@ var TvControlCardEditor = class extends i$3 {
 		if (op.collapse) this._expanded.delete(op.collapse);
 		this._commit(applyOp(this._config, op));
 	}
-	/** Guarda la config nueva, avisa a HA (que repinta la vista previa) y repinta el editor. */
 	_commit(next) {
 		if (sameJson(next, this._config)) {
 			this.requestUpdate();
@@ -6068,29 +5615,6 @@ var TvControlCardEditor = class extends i$3 {
 	}
 };
 // src/index.js
-/**
-* Minimalist TV Control Card — v4
-*
-* Punto de entrada. Vite parte de este archivo, sigue sus `import` y junta todo en
-* UN solo archivo: dist/minimalist-tv-control-card.js (el que se instala en HA).
-*
-* Mapa de módulos (las secciones § son las del antiguo archivo único):
-*   §1  actions/keys.js         Tabla de teclas semánticas (KEYS)
-*   §2  actions/parse.js        parseAction(): lo que venga del YAML → un objeto
-*   §3  platforms.js            Drivers: cómo habla cada marca con Home Assistant
-*   §4  execute.js              executeAction(): ejecuta una acción sobre un dispositivo
-*   §5  config/catalogs.js      Catálogos (fuentes, modos, botones)
-*       config/normalize.js     normalizeConfig()
-*   §6  card/logic.js           Lógica pura de la tarjeta (estado, ruteo, pantalla)
-*       card/styles.js          CSS
-*       card/template.js        La plantilla HTML (Lit)
-*       card/tv-control-card.js La tarjeta (LitElement)
-*   §7  editor/*.js             El editor visual (lógica pura + LitElement)
-*       util.js, tag.js, version.js
-*
-* Los `export` del final no los usa HA: sirven para que las pruebas de Node
-* importen las funciones puras sin navegador.
-*/
 setCardTag(tagFromUrl(import.meta.url));
 var inBrowser = typeof window !== "undefined" && !!globalThis.customElements;
 if (inBrowser && !customElements.get(EDITOR_TAG)) customElements.define(EDITOR_TAG, TvControlCardEditor);

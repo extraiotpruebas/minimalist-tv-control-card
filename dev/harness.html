@@ -1,30 +1,9 @@
 <!doctype html>
-<!--
-  Harness de desarrollo: prueba la tarjeta SIN Home Assistant.
-
-  Cómo abrirlo (los ES modules no cargan desde file://, hace falta un servidor):
-    cd ~/HAdesigns/TV-Control-Card
-    npm run dev          → http://localhost:5173/dev/harness.html (recarga al guardar)
-
-  Por defecto carga el código fuente (src/index.js), que importa Lit por nombre de
-  paquete (`from 'lit'`): solo el servidor de Vite sabe resolverlo. Con ?build=dist
-  carga el archivo final que se instala en HA (dist/, `npm run build` antes), que ya
-  trae Lit adentro; ese también funciona con un servidor simple:
-    python3 -m http.server 8000   → http://localhost:8000/dev/harness.html?build=dist
-
-  Simula:
-    - un objeto `hass` inmutable (cada cambio crea objetos nuevos, como HA)
-    - callService con latencia configurable y fallos a propósito
-    - encendido de TV con retraso, select_source, input_select de modo
-    - "ruido": una entidad ajena que cambia cada 100 ms (la tarjeta NO debe repintar)
--->
 <html lang="es">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>TV Card harness</title>
-<!-- Íconos MDI para el ha-icon falso. El @font-face debe declararse en el documento:
-     Chrome ignora @font-face dentro de un shadowRoot. -->
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@mdi/font@7.4.47/css/materialdesignicons.min.css">
 <style>
   :root { color-scheme: dark; }
@@ -56,8 +35,6 @@
 </style>
 
 <script>
-  // ---- Stubs de los componentes de HA que usa la tarjeta ----
-  // Son scripts "clásicos" (no module), así que se definen antes de que cargue la tarjeta.
   const MDI_CSS = 'https://cdn.jsdelivr.net/npm/@mdi/font@7.4.47/css/materialdesignicons.min.css';
 
   customElements.define('ha-icon', class extends HTMLElement {
@@ -78,14 +55,12 @@
       const [set, name = ''] = (this.getAttribute('icon') || '').split(':');
       const i = this.shadowRoot.querySelector('i');
       if (set === 'mdi') { i.className = `mdi mdi-${name}`; i.textContent = ''; }
-      else { i.className = 'txt'; i.textContent = name.slice(0, 5); }   // phu:, etc. no existen aquí
+      else { i.className = 'txt'; i.textContent = name.slice(0, 5); }
     }
   });
 
-  // ha-card vacío: la tarjeta le da todo su estilo (fondo, radio, sombra), igual que en HA.
   customElements.define('ha-card', class extends HTMLElement {});
 </script>
-<!-- ha-form simulado: el editor visual lo usa (en HA es el real). -->
 <script src="ha-form-stub.js"></script>
 </head>
 <body>
@@ -129,17 +104,12 @@
 </aside>
 
 <script type="module">
-  // Import dinámico con ?t=…: así siempre se carga la versión recién guardada (sin caché).
   const ENTRY = new URLSearchParams(location.search).get('build') === 'dist' ? '../dist/minimalist-tv-control-card.js' : '../src/index.js';
   const { CARD_VERSION } = await import(`${ENTRY}?t=${Date.now()}`);
 
   const $ = (id) => document.getElementById(id);
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-  // ------------------------------------------------------------------
-  // Estado falso de HA. Igual que HA: NUNCA se modifica un objeto de estado,
-  // siempre se crea uno nuevo (la tarjeta compara referencias).
-  // ------------------------------------------------------------------
   const SOURCES_LG = ['HDMI 1', 'HDMI 2', 'HDMI 3', 'HDMI 4', 'Netflix', 'Disney+', 'YouTube', 'Prime Video', 'Apple TV', 'Roku OTT'];
   let states = {};
   const makeState = (entity_id, state, attributes = {}) =>
@@ -163,9 +133,6 @@
     put('sensor.ruido', '0', {});
   }
 
-  // ------------------------------------------------------------------
-  // callService falso
-  // ------------------------------------------------------------------
   const counters = { calls: 0, inflight: 0, maxInflight: 0, toggles: 0, errors: 0 };
 
   async function callService(domain, service, data = {}) {
@@ -179,7 +146,7 @@
       if ($('fail').checked) {
         counters.errors++;
         log(`✗ ${domain}.${service}: fallo simulado`, 'err');
-        throw { code: 'simulated_error', message: 'Fallo simulado' };   // HA rechaza con un objeto así
+        throw { code: 'simulated_error', message: 'Fallo simulado' };
       }
       simulate(domain, service, data);
       log(`✓ ${domain}.${service} (${Math.round(performance.now() - t0)} ms)`, 'ok');
@@ -198,14 +165,10 @@
     if (service === 'turn_off') setState(id, { state: 'off' });
     if (service === 'select_source') {
       if ($('ignoreSource').checked) { log(`⚠ ${id} ignoró select_source`, 'err'); return; }
-      // Como en HA: el Roku publica también app_name; las TVs solo source.
       setState(id, { attributes: id.includes('roku') ? { source: data.source, app_name: data.source } : { source: data.source } });
     }
   }
 
-  // ------------------------------------------------------------------
-  // hass + tarjetas
-  // ------------------------------------------------------------------
   let cards = [];
   function pushHass() {
     const hass = { states, user: { id: 'dev', name: 'Dev' }, language: 'es', themes: { darkMode: $('haDark').checked }, callService };
@@ -228,8 +191,6 @@
       stage.append(slot);
       cards.push(card);
     }
-    // El editor visual, como en "Editar tarjeta" de HA: cada cambio llega por
-    // config-changed, se refleja en el JSON y se aplica a las tarjetas.
     const editorSlot = document.createElement('div');
     editorSlot.className = 'editor-slot';
     editorSlot.hidden = !$('showEditor').checked;
@@ -250,7 +211,6 @@
     try {
       const config = JSON.parse($('config').value);
       if (!fromEditor) editor.setConfig(structuredClone(config));
-      // Los selectores de Estilo y Tema pisan lo que diga la config (sin editar el JSON).
       if ($('style').value) config.style = $('style').value;
       if ($('theme').value) config.theme = $('theme').value;
       for (const card of cards) card.setConfig(config);
@@ -260,9 +220,6 @@
     }
   }
 
-  // ------------------------------------------------------------------
-  // Configs de ejemplo
-  // ------------------------------------------------------------------
   const PRESETS = {
     'v4 · una LG con acentos': {
       card_id: 'dev_lg',
@@ -322,9 +279,6 @@
   $('config').value = JSON.stringify(PRESETS[presetSelect.value], null, 2);
   $('apply').addEventListener('click', applyConfig);
 
-  // ------------------------------------------------------------------
-  // Panel de entidades
-  // ------------------------------------------------------------------
   function renderEntities() {
     const box = $('entities');
     const rows = Object.values(states).filter((s) => /^(media_player|input_select)\./.test(s.entity_id)).map((s) => {
@@ -352,9 +306,6 @@
     else setState(s.dataset.id, { attributes: { source: s.value } });
   });
 
-  // ------------------------------------------------------------------
-  // Controles
-  // ------------------------------------------------------------------
   let noiseTimer = 0;
   $('noise').addEventListener('change', (e) => {
     clearInterval(noiseTimer);
@@ -369,7 +320,6 @@
   $('theme').addEventListener('change', applyConfig);
   $('haDark').addEventListener('change', pushHass);
   $('showEditor').addEventListener('change', () => { editor.parentElement.hidden = !$('showEditor').checked; });
-  // Fondo de la página según el tema, para ver la tarjeta como en un dashboard.
   const syncPage = () => { document.body.style.background = ($('theme').value || '') === 'light' ? '#e6e9ee' : '#111'; };
   $('theme').addEventListener('change', syncPage);
   $('clearLog').addEventListener('click', () => { $('log').replaceChildren(); });
@@ -382,7 +332,6 @@
     while ($('log').childElementCount > 300) $('log').lastChild.remove();
   }
 
-  // Contadores: builds debe quedarse fijo; updates solo sube con cambios relevantes.
   function renderStats() {
     const c = cards[0];
     const s = c?._stats ?? {};
@@ -395,7 +344,6 @@
   }
   setInterval(renderStats, 250);
 
-  // Parámetros de URL para abrir un caso directo: ?preset=2&w=300&two=1
   const params = new URLSearchParams(location.search);
   const presetIndex = Number(params.get('preset'));
   if (presetIndex >= 0 && presetIndex < presetSelect.options.length) {

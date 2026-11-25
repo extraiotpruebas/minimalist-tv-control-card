@@ -1,13 +1,9 @@
-/* Módulo §7: utilidades de rutas inmutables para editar la config. */
 import { DIRECTIONS } from '../config/catalogs.js';
-
-/* ---------- utilidades de rutas (inmutables) ---------- */
 
 const isPlainObject = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
 const clone = (v) => (v === undefined ? undefined : JSON.parse(JSON.stringify(v)));
 const sameJson = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 
-/** Lee obj[path[0]][path[1]]... ; undefined si algo del camino no existe. */
 function getPath(obj, path) {
   let cur = obj;
   for (const k of path) {
@@ -17,11 +13,6 @@ function getPath(obj, path) {
   return cur;
 }
 
-/**
- * Devuelve una COPIA de `obj` con `value` en `path`; crea objetos/arrays
- * intermedios. Con value === undefined borra esa clave. Solo copia los niveles
- * que están en el camino; el resto se comparte (igual que hace Lit o Redux).
- */
 function setPath(obj, path, value) {
   if (path.length === 0) return value;
   const [k, ...rest] = path;
@@ -36,7 +27,6 @@ function setPath(obj, path, value) {
   return base;
 }
 
-/** Borra `path` y, si su padre queda como objeto vacío, también lo quita (hacia arriba). */
 function deletePath(obj, path) {
   let out = setPath(obj, path, undefined);
   for (let i = path.length - 1; i > 0; i--) {
@@ -47,17 +37,10 @@ function deletePath(obj, path) {
   return out;
 }
 
-/** Nombres de campo de un schema de ha-form (entrando a los grupos 'grid'/'expandable'). */
 function fieldNames(schema) {
   return schema.flatMap((item) => (Array.isArray(item.schema) && !item.name ? fieldNames(item.schema) : [item.name]));
 }
 
-/**
- * Atajos de YAML → forma objeto, para poder editarlos por partes:
- *   buttons: { power: script.x }   → { power: { action: script.x } }
- *   custom_modes.custom1.up: mute  → up: { action: mute }
- * Así, al cambiar solo el ícono no se pierde la acción.
- */
 function expandShortcuts(config) {
   if (!isPlainObject(config)) return {};
   const toEntry = (v) => (v !== null && v !== undefined && !isPlainObject(v) ? { action: v } : v);

@@ -1,22 +1,3 @@
-/*
- * Módulo §6: la plantilla de la tarjeta (Lit).
- *
- * cardTemplate(v) DESCRIBE la tarjeta completa a partir de `v`, un objeto con todo
- * lo que hay que mostrar (lo arma TvControlCard._view()). Lit compara con lo que ya
- * está en pantalla y solo toca lo que cambió: los botones son siempre los MISMOS
- * nodos, y por eso un hold no pierde su botón aunque lleguen updates de hass.
- *
- * Es el mismo HTML que tenía el antiguo SKELETON (mismas clases, data-act y
- * data-ref), así el CSS no cambió en nada. Los data-ref ya no los usa la tarjeta;
- * se conservan como marcas estables para la autoprueba.
- *
- * Tres detalles de Lit que importan aquí:
- *   - `attr=${x ?? nothing}`: con `nothing` Lit QUITA el atributo (antes: setAttr con null).
- *   - `?hidden=${cond}`: atributo booleano, existe o no existe.
- *   - classMap({...}): solo agrega o quita las clases que nombra y respeta las demás.
- *     Importa en los botones del touchpad: el hold les pone `pressed` por su cuenta,
- *     y un render a mitad del hold no debe borrarla.
- */
 import { html, nothing } from 'lit';
 import { classMap } from 'lit/directives/class-map.js';
 import { repeat } from 'lit/directives/repeat.js';
@@ -26,17 +7,12 @@ import { NUMPAD_DIGITS } from '../config/catalogs.js';
 
 const icon = (name) => name ?? nothing;
 
-/** Un botón de la fila de abajo (back, home, exit, menu). */
 function bottomKey(v, id) {
   const b = v.bottom[id];
   return html`<button type="button" class="key" data-act="bottom" data-id=${id} aria-label=${KEYS[id].label}
     aria-expanded=${b.expanded ?? nothing} ?disabled=${v.locked}><ha-icon icon=${icon(b.icon)}></ha-icon></button>`;
 }
 
-/**
- * Una dirección del touchpad. classMap debe ser la ÚNICA expresión del atributo
- * class, así que la clase de la dirección (`dir up`) también va dentro.
- */
 function padButton(v, dir) {
   const p = v.pad[dir];
   return html`<button type="button" class=${classMap({ dir: true, [dir]: true, empty: p.empty })} data-act="pad" data-dir=${dir}

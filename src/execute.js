@@ -1,35 +1,15 @@
-/* Módulo §4. */
 import { KEYS } from './actions/keys.js';
 import { resolveForPlatform } from './actions/parse.js';
 import { UnsupportedActionError, getPlatform } from './platforms.js';
 import { delay } from './util.js';
 
-/* ============================================================================
- * §4  EJECUTAR ACCIONES
- * ----------------------------------------------------------------------------
- * executeAction(hass, action, device) → Promise
- *
- * La función es `async`: dentro se puede usar `await`. Para quien llama,
- * `executeAction(...)` devuelve inmediatamente una Promise que se "resuelve"
- * cuando HA terminó de procesar la llamada.
- *
- * Diferencia clave con C: aquí NO hay un hilo bloqueado esperando. El event loop
- * del navegador sigue atendiendo clics y redibujando mientras tanto.
- * ========================================================================== */
-
-/**
- * @param {object} hass    objeto hass de Home Assistant
- * @param {object} action  acción normalizada (salida de parseAction)
- * @param {object} device  { platform, entity, remote? }
- * @returns {Promise<void>}
- */
 async function executeAction(hass, action, device) {
   if (!hass || !action || !device) return;
   const platform = getPlatform(device.platform);
   if (!platform) throw new Error(`Plataforma desconocida: ${device.platform}`);
 
   const resolved = resolveForPlatform(action, platform.id);
-  if (!resolved) return; // no hay variante para esta plataforma: no se hace nada
+  if (!resolved) return;
 
   switch (resolved.type) {
     case 'key': {
@@ -50,15 +30,12 @@ async function executeAction(hass, action, device) {
       return hass.callService(domain, service, resolved.data);
     }
     case 'sequence':
-      // Un for...of con await ejecuta los pasos EN ORDEN, uno tras otro.
-      // (Con steps.forEach(async ...) se dispararían todos a la vez.)
       for (let i = 0; i < resolved.steps.length; i++) {
         if (i > 0) await delay(resolved.delay);
         await executeAction(hass, resolved.steps[i], device);
       }
       return;
     case 'numpad':
-      // La tarjeta la intercepta antes (_press); llegar aquí es un error de programación.
       throw new Error('"numpad" es una acción de la tarjeta, no de la TV');
     default:
       throw new Error(`Tipo de acción desconocido: ${resolved.type}`);

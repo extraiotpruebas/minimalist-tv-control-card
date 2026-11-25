@@ -1,16 +1,4 @@
 <!doctype html>
-<!--
-  Galería estática para las capturas del README (docs/img/).
-  Cada tarjeta recibe un hass FIJO (sin simulación): es una foto, no un harness.
-
-    npm run dev → http://localhost:5173/dev/screenshots.html?set=estilos   (3 estilos × claro/oscuro)
-                  http://localhost:5173/dev/screenshots.html?set=estados   (apagada, Roku, numpad, angosta)
-    Con &build=dist usa el archivo final (dist/); así también sirve un servidor simple
-    (python3 -m http.server).
-
-  Los íconos phu: (Custom Brand Icons) no existen fuera de HA, por eso los botones de
-  streaming usan fuentes con ícono mdi: (Netflix, YouTube, Spotify, Twitch).
--->
 <html lang="es">
 <head>
 <meta charset="utf-8">
@@ -113,7 +101,6 @@
     document.getElementById('stage').append(rowEl);
   }
 
-  // Esperar al primer render (rAF) y luego poner modos / numpad tocando los botones reales.
   await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
   for (const { card, spec } of pending) {
     const q = (sel) => card.shadowRoot.querySelector(sel);
@@ -121,7 +108,6 @@
     if (spec.numpad) q('[data-act="bottom"][data-id="menu"]')?.click();
   }
   await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
-  // Las animaciones/transiciones no avanzan solas en headless: se terminan a mano.
   for (const { card } of pending) card.shadowRoot.getAnimations().forEach((a) => a.finish());
   document.body.dataset.ready = '1';
 </script>

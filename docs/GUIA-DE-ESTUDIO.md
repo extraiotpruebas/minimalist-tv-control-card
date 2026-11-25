@@ -1169,16 +1169,19 @@ con `'VOLUMEUP'` o `'KEY_VOLUP'` se entienda como `vol_up`.
 lista, `null`.
 **Salida:** un objeto con forma fija, o `null` si no hay acción válida.
 
-Las formas posibles de salida (el comentario de §2 las lista):
+Las formas posibles de salida (la lista completa de `type` es `ACTION_TYPES`, en
+`src/actions/parse.js`):
 
 ```js
 { type: 'key',      key: 'up' }
 { type: 'button',   button: 'KEY_HDMI' }
 { type: 'command',  command: 'tv/switchInput', payload: { inputId: 'HDMI_1' } }   // solo LG
-{ type: 'source',   source: 'HDMI 1' }
+{ type: 'source',   source: 'HDMI 1' }                                            // por NOMBRE (select_source)
+{ type: 'input',    input: 'hdmi1' }                                              // por PUERTO (src/actions/inputs.js)
 { type: 'service',  service: 'script.turn_on', data: { entity_id: 'script.x' } }
 { type: 'sequence', steps: [acción, ...], delay: 500 }
 { type: 'platform', by: { lg: acción, samsung: acción, default: acción } }
+{ type: 'numpad' }   // abre o cierra el teclado numérico; lo maneja la tarjeta, no se manda a ningún dispositivo
 ```
 
 Todas comparten el campo `type`, que dice "qué clase de acción es" y, por lo tanto,

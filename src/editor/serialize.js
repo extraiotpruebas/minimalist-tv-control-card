@@ -1,12 +1,8 @@
-/* Módulo §7: convertir cualquier YAML que entiende la tarjeta → YAML v4 mínimo. */
 import { parseAction } from '../actions/parse.js';
 import { CUSTOM_MODE_IDS, DEFAULT_BUTTONS, DEFAULT_PAD, DEFAULT_STREAMING, DIRECTIONS, pad } from '../config/catalogs.js';
 import { STYLES, normalizeConfig, resolveSettings } from '../config/normalize.js';
 import { clone, sameJson } from './paths.js';
 
-/* ---------- convertir YAML viejo → v4 ---------- */
-
-/** Acción normalizada → la forma más corta que parseAction vuelve a entender igual. */
 function serializeAction(a) {
   if (!a) return null;
   switch (a.type) {
@@ -23,11 +19,10 @@ function serializeAction(a) {
     }
     case 'sequence': return { type: 'sequence', steps: a.steps.map(serializeAction), delay: a.delay };
     case 'platform': return { type: 'platform', by: Object.fromEntries(Object.entries(a.by).map(([k, v]) => [k, serializeAction(v)])) };
-    default: return clone(a);   // button, command, source
+    default: return clone(a);
   }
 }
 
-/** Pad → YAML, escribiendo solo lo que difiere de `fallback` (lo que readPad rellena solo). */
 function serializePad(padObj, fallback) {
   const out = {};
   for (const dir of DIRECTIONS) {
@@ -40,7 +35,6 @@ function serializePad(padObj, fallback) {
   return out;
 }
 
-/** Settings normalizados → las 5 categorías en YAML v4, completas (sirven para comparar TVs). */
 function serializeSettings(s) {
   const customModes = {};
   for (const id of s.modes) {
@@ -50,8 +44,6 @@ function serializeSettings(s) {
     const entry = {};
     if (def.label !== `Personalizado ${n}`) entry.label = def.label;
     if (def.icon !== `mdi:numeric-${n}-circle-outline`) entry.icon = def.icon;
-    // Siempre se escribe (aunque quede {}): sin la clave, normalizeConfig buscaría
-    // las claves viejas customN_* y pondría 'mdi:help' en cada dirección.
     customModes[id] = { ...entry, ...serializePad(def.pad, pad()) };
   }
   const buttons = {};
@@ -77,20 +69,12 @@ function serializeSettings(s) {
   };
 }
 
-/**
- * Cualquier YAML que la tarjeta entiende (v3 del repo, variante multientidad, v4)
- * → YAML v4 mínimo con EXACTAMENTE el mismo resultado. Lo garantiza un test de
- * ida y vuelta: normalizeConfig(serializeV4(x)) equivale a normalizeConfig(x).
- */
 function serializeV4(raw) {
   const model = normalizeConfig(raw);
   const global = serializeSettings(resolveSettings(raw, []));
   const isDefaultStreaming = global.streaming.every((e, i) => sameJson(e, { source: DEFAULT_STREAMING[i] }));
 
   const out = {};
-  // `type` va primero, como lo escribe HA. Sin él, el YAML queda sin tarjeta
-  // (HA no sabe qué dibujar). Solo si es un custom card: en algún YAML viejo
-  // `type` llegó a traer la marca ('LG TV'), y eso no es el tipo de la tarjeta.
   if (typeof raw.type === 'string' && raw.type.startsWith('custom:')) out.type = raw.type;
   if (!model.cardId.startsWith('auto:')) out.card_id = model.cardId;
   if (model.style !== STYLES[0]) out.style = model.style;
@@ -104,8 +88,6 @@ function serializeV4(raw) {
       if (tv.companion.entity) entry.companion.media_entity = tv.companion.entity;
       if (tv.companion.remote) entry.companion.remote_entity = tv.companion.remote;
     }
-    // Overrides: solo las categorías que difieren de la global, completas (el
-    // merge es superficial: una categoría propia reemplaza a la global entera).
     const own = serializeSettings(tv.settings);
     const overrides = {};
     for (const k of Object.keys(own)) if (!sameJson(own[k], global[k])) overrides[k] = own[k];
@@ -117,9 +99,6 @@ function serializeV4(raw) {
   if (Object.keys(global.default_pad).length) out.default_pad = global.default_pad;
   if (!isDefaultStreaming) out.streaming = global.streaming;
   if (Object.keys(global.buttons).length) out.buttons = global.buttons;
-  // Claves que HA (o card-mod) agrega a CUALQUIER tarjeta: tamaño en el dashboard
-  // de secciones, posición en layouts, visibilidad condicional, estilos. No son de
-  // la tarjeta, pero son del usuario: se conservan tal cual.
   for (const k of HA_CARD_KEYS) if (raw[k] !== undefined) out[k] = clone(raw[k]);
   return out;
 }
