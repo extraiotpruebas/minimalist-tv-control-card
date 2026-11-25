@@ -39,9 +39,10 @@ test('modos reservados o desconocidos se omiten con aviso', () => {
   assert.equal(m.warnings.length, 2);
 });
 
-test('el modo fuentes ahora usa select_source (antes LG mandaba "pendiente")', () => {
+test('el modo fuentes cambia de entrada por puerto (antes LG mandaba "pendiente")', () => {
   const m = normalizeConfig({ entity: 'media_player.tv', mode_slot_1: 'fuentes' });
-  assert.deepEqual(m.tvs[0].settings.modeDefs.fuentes.pad.up.action, { type: 'source', source: 'HDMI 1' });
+  const pad = m.tvs[0].settings.modeDefs.fuentes.pad;
+  assert.deepEqual(['up', 'left', 'right', 'down'].map((d) => pad[d].action), [1, 2, 3, 4].map((n) => ({ type: 'input', input: `hdmi${n}` })));
 });
 
 test('custom mode con valores por marca que coinciden → una sola acción', () => {
@@ -85,7 +86,7 @@ test('formato v4 completo', () => {
   assert.equal(m.format, 'v4');
   assert.equal(m.theme, 'light');
   const tv = m.tvs[0];
-  assert.deepEqual(tv.companion, { platform: 'roku', entity: 'media_player.roku', remote: 'remote.roku' });
+  assert.deepEqual(tv.companion, { platform: 'roku', entity: 'media_player.roku', remote: 'remote.roku', palette: null });
   assert.equal(tv.settings.modeDefs.custom1.label, 'Ampli');
   assert.equal(tv.settings.modeDefs.custom1.pad.up.action.service, 'script.turn_on');
   assert.equal(tv.settings.modeDefs.custom1.pad.down.action, null);

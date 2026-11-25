@@ -48,7 +48,7 @@ function cardTemplate(v) {
 <ha-card class="card ${classMap({ multi: v.multi })}" data-ref="card"
   data-style=${v.style} data-theme=${v.theme} data-status=${v.status} data-mode=${v.mode}
   data-roku=${String(v.roku)} data-busy=${String(v.busy)} data-numpad=${String(v.numpad)}
-  style=${styleMap({ '--tv-accent': v.accent ?? undefined, '--tv-glow': v.accent ?? undefined })}>
+  style=${styleMap({ ...v.paletteStyle, '--tv-accent': v.accent ?? undefined, '--tv-glow': v.accent ?? undefined })}>
   <div class="body">
     <header class="head">
       <button type="button" class="tv-name" data-act="picker" data-ref="status" aria-haspopup="listbox" aria-expanded=${String(v.pickerOpen)}>

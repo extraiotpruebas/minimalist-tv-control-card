@@ -12,6 +12,7 @@ function serializeAction(a) {
   switch (a.type) {
     case 'key': return a.key;
     case 'numpad': return 'numpad';
+    case 'input': return `input:${a.input}`;
     case 'service': {
       const keys = Object.keys(a.data ?? {});
       const domain = a.service.split('.')[0];
@@ -87,6 +88,10 @@ function serializeV4(raw) {
   const isDefaultStreaming = global.streaming.every((e, i) => sameJson(e, { source: DEFAULT_STREAMING[i] }));
 
   const out = {};
+  // `type` va primero, como lo escribe HA. Sin él, el YAML queda sin tarjeta
+  // (HA no sabe qué dibujar). Solo si es un custom card: en algún YAML viejo
+  // `type` llegó a traer la marca ('LG TV'), y eso no es el tipo de la tarjeta.
+  if (typeof raw.type === 'string' && raw.type.startsWith('custom:')) out.type = raw.type;
   if (!model.cardId.startsWith('auto:')) out.card_id = model.cardId;
   if (model.style !== STYLES[0]) out.style = model.style;
   if (model.theme !== 'dark') out.theme = model.theme;
@@ -112,7 +117,13 @@ function serializeV4(raw) {
   if (Object.keys(global.default_pad).length) out.default_pad = global.default_pad;
   if (!isDefaultStreaming) out.streaming = global.streaming;
   if (Object.keys(global.buttons).length) out.buttons = global.buttons;
+  // Claves que HA (o card-mod) agrega a CUALQUIER tarjeta: tamaño en el dashboard
+  // de secciones, posición en layouts, visibilidad condicional, estilos. No son de
+  // la tarjeta, pero son del usuario: se conservan tal cual.
+  for (const k of HA_CARD_KEYS) if (raw[k] !== undefined) out[k] = clone(raw[k]);
   return out;
 }
+
+const HA_CARD_KEYS = ['grid_options', 'layout_options', 'view_layout', 'visibility', 'card_mod'];
 
 export { serializeV4 };

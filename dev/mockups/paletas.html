@@ -1,0 +1,520 @@
+<!doctype html>
+<!--
+  MOCKUP del editor de paletas (Fase 4, #1). No es código de la tarjeta: es una maqueta
+  para decidir el diseño antes de programarlo.
+
+    Con Vite corriendo:  http://localhost:5199/dev/mockups/paletas.html
+    Con el build final:  ...paletas.html?build=dist
+
+  Usa la tarjeta REAL. Las paletas se aplican como lo haría la implementación: escribiendo
+  unos pocos tokens (--tv-surface, --tv-ink...) en el style del ha-card. La lista de
+  paletas, la prioridad y el contraste son prototipos de las funciones puras de la Fase A.
+-->
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Paletas de color</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@mdi/font@7.4.47/css/materialdesignicons.min.css">
+<style>
+  :root {
+    --page: #eceef2; --panel: #ffffff; --ink: #1c2026; --ink-2: #5d6570; --line: #dfe3e8;
+    --primary: #03a9f4; --warn: #b45309; --warn-bg: #fff4e5; --ok: #1b8a55;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--page); color: var(--ink); font: 14px/1.45 Roboto, system-ui, -apple-system, "Segoe UI", sans-serif; }
+  code, pre { font-family: ui-monospace, "Cascadia Code", Consolas, monospace; }
+  .intro { max-width: 1240px; margin: 0 auto; padding: 28px 24px 8px; }
+  .intro h1 { margin: 0 0 6px; font-size: 26px; font-weight: 600; letter-spacing: -0.02em; }
+  .intro p { margin: 0; max-width: 72ch; color: var(--ink-2); }
+
+  .bench { max-width: 1240px; margin: 0 auto; padding: 18px 24px 32px; display: grid; grid-template-columns: 440px minmax(0, 1fr); gap: 28px; align-items: start; }
+  @media (max-width: 960px) { .bench { grid-template-columns: 1fr; } }
+
+  /* ---------- el "diálogo" del editor de HA ---------- */
+  .dialog { background: var(--panel); border-radius: 24px; box-shadow: 0 1px 3px rgb(0 0 0 / 0.08), 0 20px 40px -24px rgb(0 0 0 / 0.25); overflow: hidden; }
+  .dlg-head { padding: 18px 22px; font-size: 18px; font-weight: 500; border-bottom: 1px solid var(--line); }
+  .dlg-head span { display: block; font-size: 12px; font-weight: 400; color: var(--ink-2); }
+  .dlg-body { padding: 8px 14px 18px; }
+  details.sec { border-bottom: 1px solid var(--line); }
+  details.sec:last-child { border-bottom: 0; }
+  details.sec > summary { list-style: none; cursor: pointer; display: flex; align-items: center; gap: 10px; padding: 14px 8px; font-size: 15px; font-weight: 500; }
+  details.sec > summary::-webkit-details-marker { display: none; }
+  details.sec > summary::after { content: "\F0140"; font: normal 22px/1 "Material Design Icons"; margin-left: auto; color: var(--ink-2); transition: transform 0.2s; }
+  details.sec[open] > summary::after { transform: rotate(180deg); }
+  details.sec > summary small { font-size: 12px; font-weight: 400; color: var(--ink-2); }
+  details.sec .muted { padding: 0 8px 14px; color: var(--ink-2); }
+  .sec-body { padding: 0 8px 16px; display: grid; gap: 14px; }
+
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; }
+  .chip { display: inline-flex; align-items: center; gap: 8px; height: 34px; padding: 0 12px 0 6px; border-radius: 999px; border: 1px solid var(--line); background: #fff; color: var(--ink); font: inherit; cursor: pointer; }
+  .chip[aria-pressed="true"] { border-color: var(--primary); background: color-mix(in srgb, var(--primary) 9%, #fff); }
+  .chip .dot { width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; box-shadow: inset 0 0 0 1px rgb(0 0 0 / 0.12); }
+  .chip .dot i { width: 8px; height: 8px; border-radius: 50%; }
+  .chip .mdi { color: var(--ink-2); font-size: 15px; }
+  .chip.add { padding: 0 14px; color: var(--primary); border-style: dashed; }
+
+  .field { display: grid; gap: 4px; }
+  .field > label, .row-label { font-size: 13px; font-weight: 500; }
+  .help { font-size: 12px; color: var(--ink-2); }
+  input[type="text"], select { width: 100%; height: 44px; padding: 0 12px; border: 1px solid #c3c8cf; border-radius: 8px; font: inherit; color: var(--ink); background: #fff; }
+  input[type="text"]:focus, select:focus { outline: 2px solid var(--primary); outline-offset: -1px; border-color: transparent; }
+  .seg { justify-self: start; display: inline-grid; grid-auto-flow: column; border: 1px solid #c3c8cf; border-radius: 8px; overflow: hidden; }
+  .seg button { border: 0; background: #fff; font: inherit; padding: 8px 14px; cursor: pointer; color: var(--ink-2); }
+  .seg button + button { border-left: 1px solid #c3c8cf; }
+  .seg button[aria-pressed="true"] { background: color-mix(in srgb, var(--primary) 14%, #fff); color: var(--ink); font-weight: 500; }
+
+  .colors { display: grid; gap: 2px; border: 1px solid var(--line); border-radius: 12px; padding: 4px 0; }
+  .crow { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 12px; padding: 8px 12px; }
+  .crow .pick { display: flex; align-items: center; gap: 8px; }
+  .swatch { position: relative; width: 36px; height: 36px; border-radius: 10px; box-shadow: inset 0 0 0 1px rgb(0 0 0 / 0.15); overflow: hidden; }
+  .swatch input { position: absolute; inset: -8px; width: 52px; height: 52px; border: 0; padding: 0; cursor: pointer; opacity: 0; }
+  .swatch.inherit { box-shadow: none; outline: 2px dashed #b9c0c9; outline-offset: -2px; }
+  input.hex { width: 92px; height: 36px; padding: 0 8px; border: 1px solid #c3c8cf; border-radius: 8px; font: 13px ui-monospace, Consolas, monospace; }
+  input.hex::placeholder { font-family: Roboto, system-ui, sans-serif; font-size: 12px; color: #8a929c; }
+  .clear { border: 0; background: none; color: var(--ink-2); cursor: pointer; font-size: 18px; width: 28px; height: 28px; border-radius: 50%; }
+  .clear:hover { background: #f0f2f4; }
+  .clear[hidden] { visibility: hidden; display: inline-block; }
+
+  .contrast { display: flex; gap: 10px; align-items: flex-start; padding: 10px 12px; border-radius: 10px; font-size: 13px; }
+  .contrast.good { background: #eaf6ef; color: #14532d; }
+  .contrast.bad { background: var(--warn-bg); color: #7c2d12; }
+  .contrast .mdi { font-size: 18px; line-height: 1.1; }
+  .notice { padding: 10px 12px; border-radius: 10px; background: #eef4fb; color: #1e3a5f; font-size: 13px; display: flex; gap: 10px; align-items: center; justify-content: space-between; }
+  .btn { border: 1px solid #c3c8cf; background: #fff; border-radius: 999px; height: 34px; padding: 0 14px; font: inherit; font-weight: 500; color: var(--primary); cursor: pointer; white-space: nowrap; }
+  .btn.danger { color: #b42318; }
+  .assign { display: grid; grid-template-columns: minmax(0, 1fr) 190px; gap: 8px 12px; align-items: center; }
+  .assign .sub { grid-column: 1 / -1; font-size: 12px; font-weight: 500; color: var(--ink-2); margin-top: 6px; }
+  .check { display: flex; gap: 8px; align-items: center; font-size: 13px; grid-column: 1 / -1; }
+
+  /* ---------- vista previa ---------- */
+  .preview { display: grid; gap: 16px; position: sticky; top: 16px; }
+  .sim { display: flex; flex-wrap: wrap; gap: 10px 18px; align-items: center; }
+  .sim .lbl { font-size: 12px; color: var(--ink-2); display: block; margin-bottom: 4px; }
+  .stage { display: grid; place-items: center; padding: 28px 16px; border-radius: 24px; background: #dfe3e9; transition: background 0.4s; }
+  .stage.dark { background: #111418; }
+  .stage > div { width: min(100%, var(--w, 380px)); transition: width 0.3s; }
+  .why { background: var(--panel); border-radius: 16px; padding: 14px 16px; }
+  .why h3 { margin: 0 0 8px; font-size: 14px; font-weight: 500; }
+  .why ol { margin: 0; padding: 0; list-style: none; display: grid; gap: 4px; counter-reset: p; }
+  .why li { counter-increment: p; display: grid; grid-template-columns: 22px minmax(0, 1fr) auto; gap: 8px; align-items: center; padding: 6px 8px; border-radius: 8px; color: var(--ink-2); }
+  .why li::before { content: counter(p); font-size: 12px; text-align: center; }
+  .why li b { font-weight: 500; color: var(--ink); font-family: ui-monospace, Consolas, monospace; font-size: 13px; }
+  .why li.skip { opacity: 0.55; }
+  .why li.win { background: color-mix(in srgb, var(--primary) 12%, #fff); color: var(--ink); }
+  .why li.win b::after { content: "\F012C"; font: normal 16px/1 "Material Design Icons"; color: var(--primary); margin-left: 6px; vertical-align: -2px; }
+  details.yaml { background: #1d2127; color: #dfe5ec; border-radius: 16px; }
+  details.yaml summary { cursor: pointer; padding: 12px 16px; font-size: 13px; color: #aab3be; }
+  details.yaml pre { margin: 0; padding: 0 16px 16px; font-size: 12.5px; line-height: 1.55; overflow-x: auto; }
+  pre .k { color: #8ab4f8; } pre .c { color: #7c8591; } pre .s { color: #f2c27b; } pre .hl { background: rgb(138 180 248 / 0.16); display: inline-block; width: 100%; }
+
+  /* ---------- galería ---------- */
+  .gallery { padding: 32px 24px 48px; background: #c9ced6; }
+  .gallery > * { max-width: 1240px; margin-inline: auto; }
+  .gallery h2 { margin: 0 auto 4px; font-size: 20px; font-weight: 600; }
+  .gallery > p { margin-top: 0; margin-bottom: 20px; color: #3b424c; }
+  .gal-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 24px; align-items: start; }
+  .gal-item figcaption { display: flex; align-items: center; justify-content: space-between; margin-top: 12px; }
+  .gal-item code { font-size: 13px; background: rgb(255 255 255 / 0.6); padding: 3px 8px; border-radius: 6px; }
+  .strip { display: flex; gap: 4px; }
+  .strip i { width: 18px; height: 18px; border-radius: 5px; box-shadow: inset 0 0 0 1px rgb(0 0 0 / 0.15); }
+</style>
+<script>
+  /* ha-icon y ha-card falsos (igual que dev/screenshots.html): fuera de HA no existen. */
+  const MDI_CSS = 'https://cdn.jsdelivr.net/npm/@mdi/font@7.4.47/css/materialdesignicons.min.css';
+  customElements.define('ha-icon', class extends HTMLElement {
+    static observedAttributes = ['icon'];
+    constructor() {
+      super();
+      this.attachShadow({ mode: 'open' }).innerHTML = `
+        <link rel="stylesheet" href="${MDI_CSS}">
+        <style>
+          :host { display: inline-flex; align-items: center; justify-content: center;
+                  width: var(--mdc-icon-size, 24px); height: var(--mdc-icon-size, 24px); }
+          i { font-size: var(--mdc-icon-size, 24px); line-height: 1; font-style: normal; }
+        </style><i></i>`;
+    }
+    attributeChangedCallback() {
+      const [set, name = ''] = (this.getAttribute('icon') || '').split(':');
+      this.shadowRoot.querySelector('i').className = set === 'mdi' ? `mdi mdi-${name}` : '';
+    }
+  });
+  customElements.define('ha-card', class extends HTMLElement {});
+</script>
+</head>
+<body>
+<header class="intro">
+  <h1>Editor de paletas</h1>
+  <p>Maqueta con la tarjeta real. Cambia un color, a qué se asigna cada paleta o lo que está viendo la TV, y la vista previa se actualiza. No se guarda nada: es para decidir el diseño.</p>
+</header>
+
+<main class="bench">
+  <section class="dialog" aria-label="Editor de la tarjeta">
+    <div class="dlg-head">Editor de tarjeta<span>custom:tv-control-card</span></div>
+    <div class="dlg-body">
+      <details class="sec"><summary>TVs <small>1</small></summary><p class="muted">Sala (LG) con Roku. Sin cambios en esta propuesta.</p></details>
+      <details class="sec"><summary>Modos <small>3</small></summary><p class="muted">Sin cambios.</p></details>
+      <details class="sec"><summary>Streaming <small>4</small></summary><p class="muted">Cada botón gana un selector de paleta: está abajo, en "Usar paletas", para verlos juntos.</p></details>
+      <details class="sec" open><summary>Paletas <small id="pal-count"></small></summary><div class="sec-body" id="pal-body"></div></details>
+      <details class="sec" open><summary>Usar paletas</summary><div class="sec-body" id="assign-body"></div></details>
+    </div>
+  </section>
+
+  <section class="preview" aria-label="Vista previa">
+    <div class="sim" id="sim"></div>
+    <div class="stage" id="stage"><div id="slot"></div></div>
+    <div class="why" id="why"></div>
+    <details class="yaml" open><summary>YAML que guardaría el editor</summary><pre id="yaml"></pre></details>
+  </section>
+</main>
+
+<section class="gallery">
+  <h2>Paletas incluidas</h2>
+  <p>Listas para usar sin definir nada: <code>palette: grafito</code>. Se ven con el estilo que elijas arriba.</p>
+  <div class="gal-row" id="gallery"></div>
+</section>
+
+<script type="module">
+  const ENTRY = new URLSearchParams(location.search).get('build') === 'dist' ? '../../dist/minimalist-tv-control-card.js' : '../../src/index.js';
+  // Las paletas incluidas salen de la tarjeta real (config/palettes.js), no de una copia.
+  const { BUILTIN_PALETTES } = await import(ENTRY);
+
+  /* ======================= datos de la maqueta ======================= */
+  const BUILTIN = BUILTIN_PALETTES;
+
+  // Valores de `base` que se usan cuando un campo está vacío (los de Relieve).
+  const BASE_DEFAULTS = {
+    light: { background: '#eef1f5', button: '#ffffff', text: '#1b1f25', accent: '#1b1f25', on: '#1f9d63' },
+    dark:  { background: '#16181c', button: '#2a2d32', text: '#eef0f3', accent: '#dce6f5', on: '#64e3a6' },
+  };
+  const FIELDS = [
+    ['background', 'Fondo', 'El fondo de la tarjeta.'],
+    ['button', 'Botones', 'Apps, teclas y touchpad.'],
+    ['text', 'Texto', 'Texto e íconos. El texto secundario se calcula solo.'],
+    ['accent', 'Acento', 'Color de la interfaz cuando la app no trae el suyo.'],
+    ['on', 'Encendida', 'El indicador de estado.'],
+  ];
+  const STREAMING = [['netflix', 'Netflix'], ['YouTube', 'YouTube'], ['spotify', 'Spotify'], ['twitch', 'Twitch']];
+
+  const S = {
+    palettes: {
+      cine: { base: 'dark', background: '#170d0e', button: '#2b1b1d', text: '#f6eded', on: '#6be0a8' },
+      extraiot: { base: 'light', accent: '#0a8fb8' },
+    },
+    selected: 'cine',
+    assign: { card: 'nube', cardLight: 'nube', cardDark: 'grafito', pair: false, tv: '', roku: 'medianoche', sources: { netflix: 'cine' } },
+    sim: 'hdmi', style: 'relieve', width: 380, haDark: false,
+  };
+  // Para capturas: ?sim=netflix&style=cristal&width=720&sel=nube
+  const QS = new URLSearchParams(location.search);
+  if (QS.get('sim')) S.sim = QS.get('sim');
+  if (QS.get('style')) S.style = QS.get('style');
+  if (QS.get('width')) S.width = Number(QS.get('width'));
+  if (QS.get('sel')) S.selected = QS.get('sel');
+  const all = () => ({ ...BUILTIN, ...S.palettes });
+  const isBuiltin = (n) => n in BUILTIN && !(n in S.palettes);
+
+  /* ============ prototipos de las funciones puras de la Fase A ============ */
+
+  /** Paleta → tokens CSS. Solo 5 colores de entrada; lo demás se DERIVA con color-mix. */
+  function paletteTokens(p) {
+    if (!p) return {};
+    const t = {}, dark = p.base === 'dark', bg = p.background ?? 'var(--tv-surface)';
+    if (p.background) {
+      t['--tv-surface'] = p.background;
+      t['--tv-surface-top'] = `color-mix(in srgb, ${p.background} ${dark ? 95 : 55}%, #fff)`;
+    }
+    if (p.button) {
+      // En oscuro el botón queda translúcido: así el vidrio (backdrop-filter) sigue viéndose.
+      t['--tv-raised'] = dark ? `color-mix(in srgb, ${p.button} 75%, transparent)` : p.button;
+      t['--tv-raised-2'] = dark ? `color-mix(in srgb, ${p.button} 40%, transparent)` : `color-mix(in srgb, ${p.button} 80%, ${bg})`;
+      t['--tv-thumb'] = p.button;
+    }
+    if (p.text) {
+      t['--tv-ink'] = p.text;
+      t['--tv-ink-2'] = `color-mix(in srgb, ${p.text} 64%, var(--tv-surface))`;
+      t['--tv-line'] = `color-mix(in srgb, ${p.text} ${dark ? 10 : 13}%, transparent)`;
+    }
+    if (p.accent) {
+      t['--tv-accent-default'] = p.accent;
+      t['--tv-blob'] = `color-mix(in srgb, ${p.accent} 60%, ${dark ? '#000' : '#fff'})`;
+    }
+    if (p.on) t['--tv-on'] = p.on;
+    return t;
+  }
+  const TOKEN_NAMES = Object.keys(paletteTokens({ base: 'dark', background: '#000', button: '#000', text: '#000', accent: '#000', on: '#000' }));
+
+  /** ¿Qué paleta aplica ahora? Gana la más específica. Devuelve cada nivel para explicarlo. */
+  function resolvePalette({ assign, app, roku, haDark }) {
+    const cardName = assign.pair ? (haDark ? assign.cardDark : assign.cardLight) : assign.card;
+    const levels = [
+      { label: app ? `Botón ${app.label} (la app activa)` : 'Botón de la app activa', name: app ? assign.sources[app.id] : '', applies: !!app },
+      { label: 'Modo Roku', name: assign.roku, applies: roku },
+      { label: 'TV Sala', name: assign.tv, applies: true },
+      { label: assign.pair ? `Tarjeta (${haDark ? 'oscuro' : 'claro'})` : 'Tarjeta', name: cardName, applies: true },
+    ];
+    const win = levels.findIndex((l) => l.applies && l.name);
+    return { levels, win, name: win >= 0 ? levels[win].name : null };
+  }
+
+  /** Contraste WCAG 2 entre dos colores #rrggbb (1 a 21). */
+  function contrast(a, b) {
+    const lum = (hex) => {
+      const [r, g, bl] = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255)
+        .map((c) => (c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4));
+      return 0.2126 * r + 0.7152 * g + 0.0722 * bl;
+    };
+    const [hi, lo] = [lum(a), lum(b)].sort((x, y) => y - x);
+    return (hi + 0.05) / (lo + 0.05);
+  }
+  const effective = (p, k) => p[k] ?? BASE_DEFAULTS[p.base][k];
+
+  /* ======================= la tarjeta en vivo ======================= */
+  const SOURCES = ['HDMI 1', 'HDMI 2', 'Netflix', 'YouTube', 'Spotify', 'Twitch', 'Roku OTT'];
+  const st = (entity_id, state, attributes = {}) => ({ entity_id, state, attributes });
+  const SIMS = {
+    hdmi:    { label: 'HDMI 1', tv: 'HDMI 1', roku: false },
+    netflix: { label: 'Netflix', tv: 'Netflix', roku: false, app: { id: 'netflix', label: 'Netflix' } },
+    roku_yt: { label: 'Roku con YouTube', tv: 'Roku OTT', roku: true, rokuApp: 'YouTube', app: { id: 'YouTube', label: 'YouTube' } },
+    roku_nf: { label: 'Roku con Netflix', tv: 'Roku OTT', roku: true, rokuApp: 'Netflix', app: { id: 'netflix', label: 'Netflix' } },
+  };
+  const hassFor = (sim, dark) => ({
+    states: {
+      'media_player.sala': st('media_player.sala', 'on', { source: sim.tv, source_list: SOURCES }),
+      'media_player.roku': st('media_player.roku', 'on', { source: sim.rokuApp ?? 'Home', app_name: sim.rokuApp ?? 'Home' }),
+      'remote.roku': st('remote.roku', 'on'),
+    },
+    user: { id: 'demo' }, themes: { darkMode: dark }, callService: async () => {},
+  });
+  const BASE_CFG = {
+    modes: ['menu', 'busqueda', 'audio'],
+    streaming: STREAMING.map(([source]) => ({ source })),
+    buttons: { menu: { icon: 'mdi:dialpad', action: 'numpad' } },
+  };
+  const frame = () => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+
+  /** Pinta una tarjeta: config (estilo + tema de la paleta), hass, Roku sí/no y los tokens. */
+  async function paint(card, { cfg, sim, palette }) {
+    const key = JSON.stringify(cfg);
+    if (card._mockKey !== key) { card.setConfig(cfg); card._mockKey = key; }
+    card.hass = hassFor(sim, S.haDark);
+    await card.updateComplete; await frame();
+    const want = sim.roku ? 'roku' : 'tv';
+    const target = card.shadowRoot.querySelector(`[data-act="target"][data-id="${want}"]`);
+    if (target && target.getAttribute('aria-pressed') !== 'true') { target.click(); await card.updateComplete; await frame(); }
+    const el = card.shadowRoot.querySelector('ha-card.card');
+    for (const k of TOKEN_NAMES) el.style.removeProperty(k);
+    for (const [k, v] of Object.entries(paletteTokens(palette))) el.style.setProperty(k, v);
+  }
+
+  const live = document.createElement('tv-control-card');
+  document.getElementById('slot').append(live);
+
+  async function paintLive() {
+    const sim = SIMS[S.sim];
+    const r = resolvePalette({ assign: S.assign, app: sim.app, roku: sim.roku, haDark: S.haDark });
+    const palette = r.name ? all()[r.name] : null;
+    const theme = palette?.base ?? (S.haDark ? 'dark' : 'light');
+    document.getElementById('stage').classList.toggle('dark', theme === 'dark');
+    document.getElementById('slot').style.setProperty('--w', `${S.width}px`);
+    await paint(live, {
+      cfg: { ...BASE_CFG, card_id: 'paletas-live', style: S.style, theme,
+        tvs: [{ name: 'Sala', entity: 'media_player.sala', platform: 'lg', companion: { media_entity: 'media_player.roku', remote_entity: 'remote.roku' } }] },
+      sim, palette,
+    });
+    renderWhy(r);
+  }
+
+  /* ======================= piezas de la página ======================= */
+  const $ = (id) => document.getElementById(id);
+  const opt = (v, label, sel) => `<option value="${v}"${v === sel ? ' selected' : ''}>${label}</option>`;
+  const paletteOptions = (sel) => opt('', 'Ninguna', sel) + Object.keys(all()).map((n) => opt(n, n, sel)).join('');
+  const seg = (name, items, cur) => `<div class="seg" data-seg="${name}">${items.map(([v, l]) => `<button type="button" data-v="${v}" aria-pressed="${String(v) === String(cur)}">${l}</button>`).join('')}</div>`;
+
+  function renderSim() {
+    $('sim').innerHTML = `
+      <div><span class="lbl">La TV está en</span>${seg('sim', Object.entries(SIMS).map(([k, s]) => [k, s.label]), S.sim)}</div>
+      <div><span class="lbl">Estilo</span>${seg('style', [['relieve', 'Relieve'], ['halo', 'Halo'], ['cristal', 'Cristal']], S.style)}</div>
+      <div><span class="lbl">Ancho</span>${seg('width', [[380, 'Celular'], [720, 'Tablet']], S.width)}</div>
+      ${S.assign.pair ? `<div><span class="lbl">Home Assistant en</span>${seg('haDark', [['false', 'Claro'], ['true', 'Oscuro']], S.haDark)}</div>` : ''}`;
+  }
+
+  function renderPalettes() {
+    const names = Object.keys(all());
+    $('pal-count').textContent = names.length;
+    const chips = names.map((n) => {
+      const p = all()[n];
+      return `<button type="button" class="chip" data-pal="${n}" aria-pressed="${n === S.selected}">
+        <span class="dot" style="background:${effective(p, 'background')}"><i style="background:${effective(p, 'accent')}"></i></span>${n}
+        ${isBuiltin(n) ? '<span class="mdi mdi-lock-outline" title="Incluida"></span>' : ''}</button>`;
+    }).join('') + '<button type="button" class="chip add" data-op="add">+ Agregar paleta</button>';
+
+    const n = S.selected, p = all()[n], locked = isBuiltin(n);
+    const rows = FIELDS.map(([k, label, help]) => {
+      const set = p[k] != null, val = effective(p, k);
+      return `<div class="crow">
+        <div><div class="row-label">${label}</div><div class="help">${help}</div></div>
+        <div class="pick">
+          <span class="swatch${set ? '' : ' inherit'}" style="background:${val}"><input type="color" data-color="${k}" value="${val}" ${locked ? 'disabled' : ''} aria-label="${label}"></span>
+          <input class="hex" type="text" data-hex="${k}" value="${set ? p[k] : ''}" placeholder="como ${p.base === 'dark' ? 'oscuro' : 'claro'}" ${locked ? 'disabled' : ''} aria-label="${label} en hexadecimal">
+          <button type="button" class="clear" data-clear="${k}" title="Quitar: usar el de la base" ${set && !locked ? '' : 'hidden'}>×</button>
+        </div></div>`;
+    }).join('');
+
+    const text = effective(p, 'text');
+    const ratio = Math.min(contrast(text, effective(p, 'background')), contrast(text, effective(p, 'button')));
+    const ok = ratio >= 4.5;
+    const contrastBox = `<div class="contrast ${ok ? 'good' : 'bad'}"><span class="mdi ${ok ? 'mdi-check-circle-outline' : 'mdi-alert-outline'}"></span>
+      <div>${ok ? `Buen contraste (${ratio.toFixed(1)}:1). El texto se lee bien.` : `El texto puede ser difícil de leer (${ratio.toFixed(1)}:1, se recomienda 4.5:1 o más). Aclara el texto o cambia el fondo y los botones.`}</div></div>`;
+
+    $('pal-body').innerHTML = `<div class="chips">${chips}</div>
+      ${locked ? `<div class="notice"><span>Paleta incluida en la tarjeta. Para cambiarla, haz una copia.</span><button type="button" class="btn" data-op="dup">Duplicar</button></div>` : ''}
+      <div class="field"><label for="pal-name">Nombre</label><input id="pal-name" type="text" value="${n}" ${locked ? 'disabled' : ''}>
+        <span class="help">Con este nombre se asigna: <code>palette: ${n}</code></span></div>
+      <div class="field"><span class="row-label">Parte del tema</span>${locked ? `<span class="help">${p.base === 'dark' ? 'Oscuro' : 'Claro'}</span>` : seg('base', [['light', 'Claro'], ['dark', 'Oscuro']], p.base)}
+        <span class="help">Lo que dejes vacío (y las sombras) sale de este tema.</span></div>
+      <div class="colors">${rows}</div>
+      ${contrastBox}
+      ${locked ? '' : `<div><button type="button" class="btn danger" data-op="del">Eliminar paleta</button></div>`}`;
+  }
+
+  function renderAssign() {
+    const a = S.assign;
+    const cardRow = a.pair
+      ? `<label for="as-cl">Tarjeta con HA en claro</label><select id="as-cl" data-assign="cardLight">${paletteOptions(a.cardLight)}</select>
+         <label for="as-cd">Tarjeta con HA en oscuro</label><select id="as-cd" data-assign="cardDark">${paletteOptions(a.cardDark)}</select>`
+      : `<label for="as-card">Toda la tarjeta</label><select id="as-card" data-assign="card">${paletteOptions(a.card)}</select>`;
+    $('assign-body').innerHTML = `<div class="assign">
+      ${cardRow}
+      <label class="check"><input type="checkbox" data-op="pair" ${a.pair ? 'checked' : ''}> Una paleta para claro y otra para oscuro (sigue el tema de Home Assistant)</label>
+      <span class="sub">Por TV</span>
+      <label for="as-tv">Sala</label><select id="as-tv" data-assign="tv">${paletteOptions(a.tv)}</select>
+      <label for="as-roku">Sala en modo Roku</label><select id="as-roku" data-assign="roku">${paletteOptions(a.roku)}</select>
+      <span class="sub">Mientras está en la app (toda la tarjeta cambia)</span>
+      ${STREAMING.map(([id, label]) => `<label for="as-${id}">Botón ${label}</label><select id="as-${id}" data-source="${id}">${paletteOptions(a.sources[id] ?? '')}</select>`).join('')}
+    </div>`;
+  }
+
+  function renderWhy(r) {
+    $('why').innerHTML = `<h3>Por qué se ve así${r.name ? `: paleta <code>${r.name}</code>` : ''}</h3>
+      <ol>${r.levels.map((l, i) => `<li class="${i === r.win ? 'win' : !l.applies ? 'skip' : ''}">
+        <span>${l.label}${l.applies ? '' : ' (no aplica ahora)'}</span><b>${l.name || '—'}</b></li>`).join('')}</ol>
+      ${r.win < 0 ? '<p class="help" style="margin:8px 0 0">Ninguna paleta asignada: se usa el estilo y tema de siempre.</p>' : ''}`;
+  }
+
+  /* YAML con resaltado mínimo; solo las partes que tocan las paletas. */
+  function renderYaml() {
+    const a = S.assign, q = (v) => `<span class="s">'${v}'</span>`, k = (s) => `<span class="k">${s}</span>`, c = (s) => `<span class="c">${s}</span>`;
+    const L = [];
+    L.push(a.pair ? `${k('palette')}: { ${k('light')}: ${a.cardLight || 'null'}, ${k('dark')}: ${a.cardDark || 'null'} }` : a.card ? `${k('palette')}: ${a.card}` : c('# palette: (ninguna)'));
+    if (Object.keys(S.palettes).length) {
+      L.push(`${k('palettes')}:`);
+      for (const [n, p] of Object.entries(S.palettes)) {
+        L.push(`  ${k(n)}:`, `    ${k('base')}: ${p.base}`);
+        for (const [f] of FIELDS) if (p[f]) L.push(`    ${k(f)}: ${q(p[f])}`);
+      }
+    }
+    L.push(`${k('tvs')}:`, `  - ${k('name')}: Sala`, `    ${k('entity')}: media_player.sala`);
+    if (a.tv) L.push(`    ${k('overrides')}: { ${k('palette')}: ${a.tv} }`);
+    L.push(`    ${k('companion')}: { ${k('media_entity')}: media_player.roku, ${k('remote_entity')}: remote.roku${a.roku ? `, ${k('palette')}: ${a.roku}` : ''} }`);
+    L.push(`${k('streaming')}:`);
+    for (const [id] of STREAMING) L.push(`  - ${k('source')}: ${id}${a.sources[id] ? `\n    ${k('palette')}: ${a.sources[id]}` : ''}`);
+    L.push(c('# ...modos, botones, etc. sin cambios'));
+    $('yaml').innerHTML = L.join('\n');
+  }
+
+  /* ======================= galería ======================= */
+  const galleryCards = Object.keys(BUILTIN).map((n) => {
+    const fig = document.createElement('figure');
+    fig.className = 'gal-item'; fig.style.margin = '0';
+    const card = document.createElement('tv-control-card');
+    const p = BUILTIN[n];
+    fig.append(card);
+    fig.insertAdjacentHTML('beforeend', `<figcaption><code>palette: ${n}</code><span class="strip">${FIELDS.map(([f]) => `<i style="background:${p[f]}" title="${f}"></i>`).join('')}</span></figcaption>`);
+    $('gallery').append(fig);
+    return { n, card };
+  });
+  async function paintGallery() {
+    await Promise.all(galleryCards.map(({ n, card }) => paint(card, {
+      cfg: { ...BASE_CFG, card_id: `paletas-${n}`, style: S.style, theme: BUILTIN[n].base, tvs: [{ name: 'Sala', entity: 'media_player.sala', platform: 'lg' }] },
+      sim: SIMS.hdmi, palette: BUILTIN[n],
+    })));
+  }
+
+  /* ======================= eventos ======================= */
+  function refresh({ gallery = false } = {}) {
+    renderSim(); renderPalettes(); renderAssign(); renderYaml(); paintLive();
+    if (gallery) paintGallery();
+  }
+  const slug = (s) => String(s).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9_]+/g, '_').replace(/^_+|_+$/g, '');
+  const uniqueName = (base) => { let n = base, i = 2; while (n in all()) n = `${base}_${i++}`; return n; };
+  const editable = () => (isBuiltin(S.selected) ? null : S.palettes[S.selected]);
+
+  document.addEventListener('click', (e) => {
+    const t = e.target.closest('button, input[type="checkbox"]');
+    if (!t) return;
+    const segEl = t.closest('[data-seg]');
+    if (segEl) {
+      const name = segEl.dataset.seg, v = t.dataset.v;
+      if (name === 'base') { editable().base = v; }
+      else if (name === 'width') S.width = Number(v);
+      else if (name === 'haDark') S.haDark = v === 'true';
+      else S[name] = v;
+      return refresh({ gallery: name === 'style' });
+    }
+    if (t.dataset.pal) { S.selected = t.dataset.pal; return refresh(); }
+    if (t.dataset.clear) { delete editable()[t.dataset.clear]; return refresh(); }
+    const op = t.dataset.op;
+    if (op === 'add') { const n = uniqueName('paleta'); S.palettes[n] = { base: 'dark' }; S.selected = n; return refresh(); }
+    if (op === 'dup') { const n = uniqueName(`${S.selected}_mia`); S.palettes[n] = structuredClone(BUILTIN[S.selected]); S.selected = n; return refresh(); }
+    if (op === 'del') {
+      const n = S.selected; delete S.palettes[n];
+      const a = S.assign;
+      for (const key of ['card', 'cardLight', 'cardDark', 'tv', 'roku']) if (a[key] === n) a[key] = '';
+      for (const id in a.sources) if (a.sources[id] === n) delete a.sources[id];
+      S.selected = Object.keys(all())[0]; return refresh();
+    }
+    if (op === 'pair') { S.assign.pair = t.checked; return refresh(); }
+  });
+
+  document.addEventListener('input', (e) => {
+    const t = e.target;
+    if (t.dataset.color) {   // arrastrando en el selector: solo color + tarjeta, sin re-pintar el formulario
+      editable()[t.dataset.color] = t.value;
+      t.parentElement.style.background = t.value; t.parentElement.classList.remove('inherit');
+      const hex = document.querySelector(`[data-hex="${t.dataset.color}"]`); if (hex) hex.value = t.value;
+      renderYaml(); paintLive();
+    }
+  });
+
+  document.addEventListener('change', (e) => {
+    const t = e.target;
+    if (t.dataset.color) return refresh();
+    if (t.dataset.hex) {
+      const v = t.value.trim().toLowerCase();
+      if (v === '') delete editable()[t.dataset.hex];
+      else if (/^#?[0-9a-f]{6}$/.test(v)) editable()[t.dataset.hex] = v.startsWith('#') ? v : `#${v}`;
+      return refresh();
+    }
+    if (t.id === 'pal-name') {
+      const old = S.selected, n = slug(t.value);
+      if (!n || (n !== old && n in all())) return refresh();
+      S.palettes = Object.fromEntries(Object.entries(S.palettes).map(([k, v]) => [k === old ? n : k, v]));
+      const a = S.assign;
+      for (const key of ['card', 'cardLight', 'cardDark', 'tv', 'roku']) if (a[key] === old) a[key] = n;
+      for (const id in a.sources) if (a.sources[id] === old) a.sources[id] = n;
+      S.selected = n; return refresh();
+    }
+    if (t.dataset.assign) { S.assign[t.dataset.assign] = t.value; return refresh(); }
+    if (t.dataset.source) {
+      if (t.value) S.assign.sources[t.dataset.source] = t.value; else delete S.assign.sources[t.dataset.source];
+      return refresh();
+    }
+  });
+
+  refresh({ gallery: true });
+  await frame(); await frame();
+  document.body.dataset.ready = '1';
+</script>
+</body>
+</html>

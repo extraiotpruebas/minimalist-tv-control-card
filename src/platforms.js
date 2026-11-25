@@ -1,4 +1,5 @@
 /* Módulo §3. */
+import { INPUTS } from './actions/inputs.js';
 import { has } from './util.js';
 
 /* ============================================================================
@@ -44,6 +45,15 @@ const PLATFORMS = {
       if (payload && Object.keys(payload).length) data.payload = payload;
       return hass.callService('webostv', 'command', data);
     },
+    // Entrada por puerto: tv/switchInput no depende del nombre que el usuario le
+    // puso a la entrada. La TV en vivo es una app (ver inputs.js).
+    selectInput(hass, device, input) {
+      const target = INPUTS[input]?.lg;
+      if (!target) return Promise.reject(new UnsupportedActionError(this.id, `entrada "${input}"`));
+      return target.app
+        ? this.sendCommand(hass, device, 'system.launcher/launch', { id: target.app })
+        : this.sendCommand(hass, device, 'tv/switchInput', { inputId: target.inputId });
+    },
   },
 
   samsung: {
@@ -57,6 +67,12 @@ const PLATFORMS = {
         media_content_type: 'send_key',
         media_content_id: code,
       });
+    },
+    // ST_HDMIn por send_key (ver inputs.js): la integración elige el mejor canal.
+    selectInput(hass, device, input) {
+      const code = INPUTS[input]?.samsung;
+      if (!code) return Promise.reject(new UnsupportedActionError(this.id, `entrada "${input}"`));
+      return this.sendCode(hass, device, code);
     },
   },
 
@@ -86,6 +102,9 @@ const PLATFORM_DEFAULTS = {
   },
   sendCommand() {
     return Promise.reject(new UnsupportedActionError(this.id, 'commands'));
+  },
+  selectInput(hass, device, input) {
+    return Promise.reject(new UnsupportedActionError(this.id, `entrada "${input}"`));
   },
 };
 for (const platform of Object.values(PLATFORMS)) {

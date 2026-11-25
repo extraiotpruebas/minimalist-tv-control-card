@@ -1,6 +1,6 @@
 /* Módulo §7: una acción del YAML ↔ los datos de su formulario. */
 import { parseAction } from '../actions/parse.js';
-import { ACTION_UI_TYPES, ALL_ACTION_TYPES, KEY_OPTIONS, LG_COMMANDS } from './catalogs.js';
+import { ACTION_UI_TYPES, ALL_ACTION_TYPES, INPUT_OPTIONS, KEY_OPTIONS, LG_COMMANDS } from './catalogs.js';
 import { isPlainObject } from './paths.js';
 
 /* ---------- acciones: config ↔ formulario ---------- */
@@ -19,6 +19,7 @@ function actionToForm(raw) {
   switch (a.type) {
     case 'key': return { type: 'key', key: a.key ?? '' };
     case 'source': return { type: 'source', source: a.source ?? '' };
+    case 'input': return { type: 'input', input: a.input ?? '' };
     case 'service': {
       const data = isPlainObject(a.data) ? a.data : {};
       const entity = data.entity_id;
@@ -49,6 +50,7 @@ function formToAction(data, prevRaw) {
     case 'none': return null;
     case 'key': return v.key ? v.key : { type: 'key', key: '' };
     case 'source': return { type: 'source', source: v.source ?? '' };
+    case 'input': return v.input ? `input:${v.input}` : { type: 'input', input: '' };
     case 'script': return v.entity ? v.entity : { type: 'service', service: 'script.turn_on', data: {} };
     case 'service': return { type: 'service', service: v.service ?? '', data: isPlainObject(v.data) ? v.data : {} };
     case 'command': {
@@ -82,7 +84,10 @@ function actionSchema(form, { allowDefault = false, allowNone = true, types = AL
       schema.push({ name: 'key', label: 'Tecla', selector: { select: { mode: 'dropdown', options: KEY_OPTIONS } } });
       break;
     case 'source':
-      schema.push({ name: 'source', label: 'Fuente', helper: 'Como aparece en la lista de fuentes de la TV, p. ej. "HDMI 1".', selector: { text: {} } });
+      schema.push({ name: 'source', label: 'Fuente', helper: 'El nombre exacto de la lista de fuentes de la TV. Para un HDMI conviene "Entrada": no depende del nombre.', selector: { text: {} } });
+      break;
+    case 'input':
+      schema.push({ name: 'input', label: 'Entrada', helper: 'Por puerto: funciona aunque la entrada tenga otro nombre en la TV. LG y Samsung.', selector: { select: { mode: 'dropdown', options: INPUT_OPTIONS } } });
       break;
     case 'script':
       schema.push({ name: 'entity', label: 'Script o escena', selector: { entity: { filter: { domain: ['script', 'scene'] } } } });

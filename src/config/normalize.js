@@ -4,6 +4,7 @@
  */
 import { parseAction } from '../actions/parse.js';
 import { CUSTOM_MODE_IDS, DEFAULT_BUTTONS, DEFAULT_PAD, DEFAULT_STREAMING, DIRECTIONS, FIXED_MODES, MODE_ALIASES, RESERVED_MODES, SOURCES_BY_ID, pad } from './catalogs.js';
+import { checkPaletteRef, normalizePalettes, paletteRef } from './palettes.js';
 import { deepFreeze, firstDefined, has } from '../util.js';
 
 /** 'LG TV' | 'lg' | 'samsung' | undefined → 'lg' | 'samsung' | 'roku' */
@@ -29,7 +30,12 @@ function normalizeCompanion(raw) {
   const entity = raw.media_entity || raw.entity;
   const remote = raw.remote_entity || raw.remote;
   if (!entity && !remote) return null;
-  return { platform: normalizePlatform(raw.platform || 'roku'), entity: entity || null, remote: remote || null };
+  return {
+    platform: normalizePlatform(raw.platform || 'roku'),
+    entity: entity || null,
+    remote: remote || null,
+    palette: paletteRef(raw.palette),   // paleta mientras está en modo Roku
+  };
 }
 
 /**
@@ -124,7 +130,7 @@ function resolveDefaultPad(raw) {
   return result;
 }
 
-function makeStreamingSlot(index, sourceId, icon, action, accent, warnings) {
+function makeStreamingSlot(index, sourceId, icon, action, accent, palette, warnings) {
   let source = SOURCES_BY_ID.get(sourceId);
   if (!source) {
     if (sourceId) warnings.push(`Fuente desconocida "${sourceId}" en el botón de streaming ${index + 1}; se usó la predeterminada.`);
@@ -136,6 +142,7 @@ function makeStreamingSlot(index, sourceId, icon, action, accent, warnings) {
     icon: firstDefined(icon, source.icon),
     action: parseAction(action),   // null = comportamiento normal: seleccionar la fuente
     accent: normalizeColor(accent),
+    palette: paletteRef(palette),   // paleta de toda la tarjeta mientras esta app está activa
   };
 }
 
@@ -143,7 +150,7 @@ function resolveStreaming(raw, warnings) {
   if (Array.isArray(raw.streaming)) {
     return DEFAULT_STREAMING.map((defaultId, i) => {
       const entry = raw.streaming[i] || {};
-      return makeStreamingSlot(i, firstDefined(entry.source, defaultId), entry.icon, entry.action, entry.accent, warnings);
+      return makeStreamingSlot(i, firstDefined(entry.source, defaultId), entry.icon, entry.action, entry.accent, entry.palette, warnings);
     });
   }
 
@@ -168,6 +175,7 @@ function resolveStreaming(raw, warnings) {
       raw[`${prefix}_icon`],
       raw[`${prefix}_value`],
       firstDefined(raw[`${prefix}_accent_color`], raw[`${prefix}_accent_hex`]),
+      null,   // el formato viejo no tenía paletas
       warnings,
     );
   });
@@ -222,6 +230,9 @@ function resolveSettings(raw, warnings) {
     defaultPad: resolveDefaultPad(raw),
     streaming: resolveStreaming(raw, warnings),
     buttons: resolveButtons(raw, warnings),
+    // Paleta de la tarjeta. Con overrides por TV (`overrides: { palette }`) cada TV
+    // puede tener la suya: es la misma cascada que los modos y botones.
+    palette: paletteRef(raw.palette),
   };
 }
 
@@ -255,6 +266,7 @@ const TV_OWN_KEYS = new Set(['name', 'entity', 'type', 'platform', 'roku', 'comp
  * @param {object} raw  config tal como viene de setConfig()
  * @returns {{
  *   format: 'v4'|'legacy', cardId: string, theme: 'light'|'dark'|'auto', style: string,
+ *   palettes: { [name]: { base, background?, button?, text?, accent?, on? } },
  *   controlModeEntity: string|null,
  *   tvs: Array<{ name, entity, platform, companion, settings }>, warnings: string[]
  * }}
@@ -264,7 +276,7 @@ function normalizeConfig(raw) {
   const warnings = [];
 
   // ¿Formato nuevo? Lo detectamos por claves que solo existen en v4.
-  const isV4 = ['modes', 'buttons', 'streaming', 'custom_modes', 'default_pad', 'theme'].some((k) => k in raw)
+  const isV4 = ['modes', 'buttons', 'streaming', 'custom_modes', 'default_pad', 'theme', 'palette', 'palettes'].some((k) => k in raw)
     || (Array.isArray(raw.tvs) && raw.tvs.some((tv) => tv && ('platform' in tv || 'companion' in tv)));
 
   // 1. Lista de TVs: `tvs` (multi) o `entity` (formato viejo de una sola TV).
@@ -311,7 +323,19 @@ function normalizeConfig(raw) {
     };
   });
 
-  // 4. card_id: identifica la tarjeta para recordar la TV elegida por usuario.
+  // 4. Paletas: las incluidas + las del YAML. Se avisa de cada nombre asignado que
+  //    no existe (la tarjeta lo salta y usa el siguiente nivel).
+  const palettes = normalizePalettes(raw.palettes, warnings);
+  for (const tv of tvs) {
+    const { settings, companion } = tv;
+    checkPaletteRef(settings.palette, palettes, `"${tv.name}"`, warnings);
+    checkPaletteRef(companion?.palette, palettes, `"${tv.name}" (modo Roku)`, warnings);
+    for (const slot of settings.streaming) {
+      checkPaletteRef(slot.palette, palettes, `Botón de streaming ${slot.index + 1}`, warnings);
+    }
+  }
+
+  // 5. card_id: identifica la tarjeta para recordar la TV elegida por usuario.
   //    Antes era obligatorio con `tvs`; ahora, si falta, se deriva de las entidades.
   const cardId = firstDefined(raw.card_id, `auto:${tvs.map((t) => t.entity).join(',')}`);
 
@@ -320,6 +344,7 @@ function normalizeConfig(raw) {
     cardId: String(cardId),
     theme: resolveTheme(firstDefined(raw.theme, raw.colorMode)),
     style: resolveStyle(raw.style, warnings),
+    palettes,
     controlModeEntity: firstDefined(raw.control_mode_entity) ?? null,
     tvs,
     // Set elimina avisos repetidos (p. ej. el mismo aviso por cada TV con overrides).

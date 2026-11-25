@@ -43,6 +43,8 @@ async function executeAction(hass, action, device) {
       return platform.sendCommand(hass, device, resolved.command, resolved.payload);
     case 'source':
       return platform.selectSource(hass, device, resolved.source);
+    case 'input':
+      return platform.selectInput(hass, device, resolved.input);
     case 'service': {
       const [domain, service] = resolved.service.split('.');
       return hass.callService(domain, service, resolved.data);

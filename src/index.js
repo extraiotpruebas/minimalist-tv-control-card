@@ -59,13 +59,15 @@ if (inBrowser && !customElements.get(CARD_TAG)) {
 export { CARD_VERSION, TvControlCard };
 export { KEYS, HOLDABLE_KEYS, TV_ONLY_KEYS, CODE_TO_KEY } from './actions/keys.js';
 export { parseAction, resolveForPlatform, isHoldable, stripSsap } from './actions/parse.js';
-export { tvStatus, StateWaiters, describeNow, routeAction, sourceMatches, resolveSourceName } from './card/logic.js';
+export { tvStatus, StateWaiters, describeNow, paletteTokens, resolvePalette, routeAction, sourceMatches, resolveSourceName } from './card/logic.js';
+export { BUILTIN_PALETTES, PALETTE_FIELDS, contrastRatio, normalizeHex, paletteRef } from './config/palettes.js';
 export { SOURCES, FIXED_MODES, DEFAULT_BUTTONS } from './config/catalogs.js';
 export { normalizeConfig, STYLES } from './config/normalize.js';
 export { actionToForm, formToAction } from './editor/action-form.js';
 export { applyFormChange, applyOp } from './editor/ops.js';
 export { setPath, deletePath, getPath } from './editor/paths.js';
 export { serializeV4 } from './editor/serialize.js';
-export { buildEditorView } from './editor/view.js';
+export { buildEditorView, childrenByParent } from './editor/view.js';
+export { mapPaletteRefs, removePalette, renamePalette, renameRef } from './editor/palettes.js';
 export { executeAction } from './execute.js';
 export { PLATFORMS, UnsupportedActionError, getPlatform } from './platforms.js';

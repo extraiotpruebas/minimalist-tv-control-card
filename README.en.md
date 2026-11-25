@@ -165,6 +165,8 @@ buttons:
 | `default_pad` | arrows | The touchpad when no mode is active. |
 | `streaming` | Netflix, Disney+, YouTube, Apple TV | The 4 streaming buttons. |
 | `buttons` | — | Changes the icon or action of the fixed buttons. |
+| `palette` | — | Color palette for the card. See [Palettes](#palettes). |
+| `palettes` | — | Your own palettes. |
 
 ### `tvs`
 
@@ -187,12 +189,17 @@ Tapping a mode activates it; tapping it again returns to the touchpad with no mo
 | `menu` | Menú | Home | Menu | Exit | Back |
 | `busqueda` | Canales | Channel + | Input menu | Guide | Channel − |
 | `audio` | Audio | Volume + | Mute | — | Volume − |
-| `fuentes` *(experimental)* | Fuentes (Inputs) | HDMI 1 | HDMI 2 | HDMI 3 | HDMI 4 |
+| `fuentes` | Fuentes (Inputs) | HDMI 1 | HDMI 2 | HDMI 3 | HDMI 4 |
 | `info` *(experimental)* | Información (Info) | Guide | Info | My apps | Tools |
 | `custom1`…`custom3` | Custom | defined in `custom_modes` |
 
 `navegacion` (from earlier versions) is converted to `menu`. In the `audio` and
 `fuentes` modes everything goes to the TV even when Roku mode is active.
+
+The `fuentes` mode switches inputs **by port** (`input` action, see
+[Actions](#actions)), so it works even if the input has another name on the TV. For
+other inputs or icons (e.g. "PlayStation" on HDMI 2), use a custom mode with `input:`
+actions.
 
 ### `custom_modes` and `default_pad`
 
@@ -246,10 +253,11 @@ the Roku (e.g. Fubo), it opens it on the Roku.
 | `twitch` | Twitch | `mdi:twitch` | `Twitch` | `Twitch` |
 | `fubo` | Fubo | `mdi:alpha-f-circle` | Roku only | `Fubo: Watch Live TV & Sports` |
 | `roku` | Roku | `phu:roku-ultra` | `Roku OTT` or `Roku` | — |
-| `hdmi1` … `hdmi4` | HDMI 1 … 4 | `mdi:hdmi-port` | `HDMI 1` … `HDMI 4` | — |
+| `hdmi1` … `hdmi4` | HDMI 1 … 4 | `mdi:hdmi-port` | by port (`input` action) | — |
 
 The name is matched case-insensitively against the list of sources the TV reports
-(`source_list`).
+(`source_list`). HDMI buttons don't use the name: they switch by port, without waiting
+for confirmation (HA reports the input's name, which doesn't say which port it is).
 
 </details>
 
@@ -271,6 +279,55 @@ Each button accepts `icon` and `action`. Shorthand: `power: script.x` is equival
 **With the TV off** the touchpad, the modes and the bottom row are locked.
 The center (Encender), power, the streaming buttons and `top_left` remain active.
 
+### Palettes
+
+A palette recolors the whole card: it is **5 colors and a base** (light or dark); every
+other shade (surfaces, borders, secondary text…) is derived from them, so it is hard to
+end up with an unreadable combination. Every color is optional: anything you leave out
+comes from the style (`relieve`, `halo`, `cristal`) in the chosen base.
+
+| Color | What it paints |
+|---|---|
+| `background` | The card background. |
+| `button` | Apps, keys, touchpad and modes. |
+| `text` | Text and icons. |
+| `accent` | The interface color when no app is active. |
+| `on` | The "powered on" indicator. |
+
+**8 palettes are built in** (no need to define them): `grafito`, `medianoche`, `ciruela`,
+`bosque`, `oled` (dark) and `nube`, `arena`, `menta` (light). All of them meet 4.5:1
+contrast for text over the background and over the buttons.
+
+```yaml
+palette: medianoche                 # one for the whole card
+# or a different one per theme:
+palette: { light: nube, dark: grafito }
+
+palettes:                           # your own (one with the same name replaces the built-in)
+  sala:
+    base: dark                      # dark | light
+    background: '#1b1d21'           # also: 'rrggbb', '#abc' or '26, 29, 33'
+    button: '#2c2f35'
+    text: '#eceef1'
+    accent: '#f0b44c'
+    on: '#62d6a0'
+```
+
+They can be assigned in four places; **the most specific wins**:
+
+1. `streaming[i].palette`: while that button (the app) is active.
+2. `companion.palette`: in Roku mode (set inside the TV's `companion`).
+3. `overrides.palette` of a TV.
+4. The card's `palette`.
+
+A name that does not exist is skipped (the next level is used) and the card warns in the
+console with the list of built-in palettes. The palette's base decides whether the card
+looks light or dark, overriding `theme`. An app's accent (Netflix red) is applied on top of
+the palette.
+
+The visual editor has a **Palettes** panel to create, copy, rename and pick the colors of
+palettes, with swatches and contrast shown.
+
 ### Actions
 
 Any `action` can be written like this:
@@ -283,7 +340,8 @@ action: [digit_1, digit_2, enter]   # sequence (400 ms pause)
 
 action: { type: key, key: input_menu }
 action: { type: button, button: KEY_HDMI }            # brand's raw code
-action: { type: source, source: HDMI 2 }              # select_source
+action: input:hdmi2                                   # input by port (see below)
+action: { type: source, source: PlayStation }         # select_source by exact name
 action: { type: service, service: light.toggle, data: { entity_id: light.sala } }
 action:                                               # LG command (webostv.command)
   type: command
@@ -296,10 +354,21 @@ action:                                               # sequence with its own pa
 action:                                               # one action per brand
   type: platform
   by:
-    lg: { type: command, command: tv/switchInput, payload: { inputId: HDMI_1 } }
-    samsung: { type: button, button: KEY_HDMI1 }
+    lg: input:hdmi1
+    samsung: input:hdmi3
     default: input_menu
 ```
+
+**Inputs by port (`input`)**: `hdmi1` … `hdmi4` and `tv` (antenna / cable). They don't
+depend on the input's name on the TV:
+
+| `input` | LG (`webostv.command`) | Samsung (`play_media` `send_key`) |
+|---|---|---|
+| `hdmi1` … `hdmi4` | `tv/switchInput` `{ inputId: HDMI_1 }` | `ST_HDMI1` |
+| `tv` | `system.launcher/launch` `{ id: com.webos.app.livetv }` | `ST_TV` |
+
+With a connected Roku, inputs always go to the TV. The Roku has no inputs.
+
 
 - **Holding down** repeats only the arrows (every 250 ms, for up to 10 s). Everything
   else is sent once per tap.

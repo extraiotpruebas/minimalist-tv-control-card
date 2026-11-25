@@ -203,3 +203,52 @@ test('executeAction nunca manda "numpad" a un dispositivo', async () => {
   await assert.rejects(executeAction(hass, { type: 'numpad' }, LG_TV), /acción de la tarjeta/);
   assert.equal(hass.calls.length, 0);
 });
+
+// ---------------------------------------------------------------------------
+// Entradas por puerto (acción input)
+// ---------------------------------------------------------------------------
+test('input: forma corta, objeto, inválidos y dentro de secuencias', () => {
+  assert.deepEqual(parseAction('input:hdmi2'), { type: 'input', input: 'hdmi2' });
+  assert.deepEqual(parseAction({ type: 'input', input: 'tv' }), { type: 'input', input: 'tv' });
+  assert.equal(parseAction('input:hdmi9'), null);
+  assert.equal(parseAction({ type: 'input' }), null);
+  assert.equal(parseAction('input:'), null);
+  assert.deepEqual(parseAction(['input:hdmi1', 'enter']).steps[0], { type: 'input', input: 'hdmi1' });
+});
+
+test('input en LG: tv/switchInput por puerto; la TV en vivo abre la app livetv', async () => {
+  const hass = createFakeHass();
+  await executeAction(hass, parseAction('input:hdmi2'), LG_TV);
+  await executeAction(hass, parseAction('input:tv'), LG_TV);
+  assert.deepEqual(hass.calls, [
+    { domain: 'webostv', service: 'command', data: { entity_id: 'media_player.lg', command: 'tv/switchInput', payload: { inputId: 'HDMI_2' } } },
+    { domain: 'webostv', service: 'command', data: { entity_id: 'media_player.lg', command: 'system.launcher/launch', payload: { id: 'com.webos.app.livetv' } } },
+  ]);
+});
+
+test('input en Samsung: clave ST_ por send_key', async () => {
+  const hass = createFakeHass();
+  await executeAction(hass, parseAction('input:hdmi3'), SAMSUNG_TV);
+  await executeAction(hass, parseAction('input:tv'), SAMSUNG_TV);
+  assert.deepEqual(hass.calls.map((c) => [c.service, c.data.media_content_type, c.data.media_content_id]), [
+    ['play_media', 'send_key', 'ST_HDMI3'],
+    ['play_media', 'send_key', 'ST_TV'],
+  ]);
+});
+
+test('input en Roku es rechazado sin llamar a HA', async () => {
+  const hass = createFakeHass();
+  await assert.rejects(executeAction(hass, parseAction('input:hdmi1'), ROKU), UnsupportedActionError);
+  assert.equal(hass.calls.length, 0);
+});
+
+test('input por marca: cada TV recibe su variante', async () => {
+  const action = parseAction({ type: 'platform', by: { lg: 'input:hdmi1', samsung: 'input:hdmi2' } });
+  assert.deepEqual(resolveForPlatform(action, 'samsung'), { type: 'input', input: 'hdmi2' });
+});
+
+test('input: variantes escritas a mano se normalizan; lo que no está en el catálogo da null', () => {
+  for (const v of ['HDMI 2', 'HDMI_2', 'hdmi-2', ' Hdmi2 ']) assert.deepEqual(parseAction(`input:${v}`), { type: 'input', input: 'hdmi2' }, v);
+  assert.deepEqual(parseAction({ type: 'input', input: 'TV' }), { type: 'input', input: 'tv' });
+  for (const v of ['hdmi5', 'HDMI 9', 'antena']) assert.equal(parseAction(`input:${v}`), null, v);
+});

@@ -23,6 +23,31 @@ const EDITOR_CSS = `
 .ed-alert.warning { border-color: var(--warning-color, #ffa600); }
 .ed-alert.info { border-color: var(--info-color, #039be5); }
 .ed-alert .ed-btns { margin-top: 8px; }
+
+/* Muestras de color de una paleta; las punteadas vienen de la base (la paleta no las define). */
+.ed-swatches { display: flex; gap: 8px; }
+.ed-sw { width: 30px; height: 30px; border-radius: 50%; border: 2px solid var(--divider-color, rgb(127 127 127 / 0.5)); box-sizing: border-box; }
+.ed-sw.base { border-style: dashed; opacity: 0.6; }
+
+/* Paneles plegables (acordeón): cada sección es un <details> con su resumen. */
+.ed-fold { border: 1px solid var(--divider-color, rgb(127 127 127 / 0.3)); border-radius: 12px; background: var(--card-background-color, transparent); }
+.ed-fold .ed-fold { background: var(--secondary-background-color, rgb(127 127 127 / 0.06)); }
+.ed-fold > summary { display: flex; align-items: center; gap: 8px; padding: 10px 12px; cursor: pointer; list-style: none; border-radius: 12px; }
+.ed-fold > summary::-webkit-details-marker { display: none; }
+.ed-fold > summary::before {
+  content: ''; flex: none; width: 7px; height: 7px; opacity: 0.6;
+  border-right: 2px solid currentColor; border-bottom: 2px solid currentColor;
+  transform: rotate(-45deg); transition: transform 0.15s;
+}
+.ed-fold[open] > summary::before { transform: rotate(45deg); }
+.ed-fold > summary:focus-visible { outline: 2px solid var(--primary-color, #03a9f4); outline-offset: -2px; }
+.ed-fold-main { flex: 1; min-width: 0; display: grid; }
+.ed-fold-title { font-weight: 600; font-size: 0.95rem; }
+.ed-fold.l1 > summary .ed-fold-title { font-size: 1.02rem; }
+.ed-fold.l3 > summary .ed-fold-title { font-weight: 500; font-size: 0.88rem; }
+.ed-fold-sum { font-size: 0.78rem; opacity: 0.65; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ed-fold-body { display: grid; gap: 8px; padding: 2px 12px 12px; }
+@media (prefers-reduced-motion: reduce) { .ed-fold > summary::before { transition: none; } }
 `;
 
 export { EDITOR_CSS };

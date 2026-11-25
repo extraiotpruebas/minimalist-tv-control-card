@@ -1,5 +1,6 @@
 /* Módulo §2. */
 import { CODE_TO_KEY, HOLDABLE_KEYS, KEYS } from './keys.js';
+import { normalizeInputId } from './inputs.js';
 import { has } from '../util.js';
 
 /* ============================================================================
@@ -12,7 +13,8 @@ import { has } from '../util.js';
  *   { type: 'key',      key: 'up' }                    tecla semántica (§1)
  *   { type: 'button',   button: 'KEY_HDMI' }           código crudo de la plataforma
  *   { type: 'command',  command: 'tv/switchInput', payload: { inputId: 'HDMI_1' } }  (solo LG)
- *   { type: 'source',   source: 'HDMI 1' }             media_player.select_source
+ *   { type: 'source',   source: 'HDMI 1' }             media_player.select_source (por NOMBRE)
+ *   { type: 'input',    input: 'hdmi1' }               entrada por PUERTO (inputs.js)
  *   { type: 'service',  service: 'script.turn_on', data: { entity_id: 'script.x' } }
  *   { type: 'sequence', steps: [acción, ...], delay: 500 }
  *   { type: 'platform', by: { lg: acción, samsung: acción, roku: acción } }
@@ -23,7 +25,7 @@ import { has } from '../util.js';
  * con los datos de cada variante. JS no tiene unions, pero el patrón es el mismo.
  * ========================================================================== */
 
-const ACTION_TYPES = ['key', 'button', 'command', 'source', 'service', 'sequence', 'platform', 'numpad'];
+const ACTION_TYPES = ['key', 'button', 'command', 'source', 'input', 'service', 'sequence', 'platform', 'numpad'];
 
 /** Quita un `ssap://` que alguien haya escrito de más: aiowebostv ya lo agrega. */
 function stripSsap(uri) {
@@ -60,6 +62,10 @@ function parseAction(raw) {
       }
       case 'source':
         return raw.source ? { type: 'source', source: String(raw.source) } : null;
+      case 'input': {
+        const input = normalizeInputId(raw.input);
+        return input ? { type: 'input', input } : null;
+      }
       case 'service': {
         if (!raw.service || !String(raw.service).includes('.')) return null;
         return { type: 'service', service: String(raw.service), data: { ...(raw.data || {}) } };
@@ -105,6 +111,7 @@ function parseAction(raw) {
     const source = str.slice('source:'.length).trim();
     return source ? { type: 'source', source } : null;
   }
+  if (str.startsWith('input:')) return parseAction({ type: 'input', input: str.slice('input:'.length) });
   if (str.startsWith('command:')) {
     const command = stripSsap(str.slice('command:'.length));
     return command ? { type: 'command', command } : null;

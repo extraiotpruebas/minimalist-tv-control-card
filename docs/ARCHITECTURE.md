@@ -146,7 +146,8 @@ Toda acción normalizada es un objeto con `type` (una "unión discriminada"):
 | `key` | `key` | Tecla semántica de `KEYS` | según la marca (§3) |
 | `button` | `button` | Código crudo, se manda tal cual | `webostv.button` / `play_media send_key` / `remote.send_command` |
 | `command` | `command`, `payload?` | API SSAP de webOS (solo LG) | `webostv.command` |
-| `source` | `source` | Cambiar de entrada/app | `media_player.select_source` |
+| `source` | `source` | Cambiar de entrada/app por **nombre** | `media_player.select_source` |
+| `input` | `input` (`hdmi1`…`hdmi4`, `tv`) | Cambiar de entrada por **puerto** (`actions/inputs.js`) | LG `webostv.command tv/switchInput`; Samsung `play_media send_key ST_HDMIn`; Roku: no soportado |
 | `service` | `service`, `data` | Cualquier servicio | el indicado |
 | `sequence` | `steps[]`, `delay` | Pasos en orden con pausa (ms, def. 400) | los de cada paso |
 | `platform` | `by: { lg, samsung, roku, default }` | Una variante por marca | la de la variante |
@@ -160,6 +161,7 @@ Toda acción normalizada es un objeto con `type` (una "unión discriminada"):
 | `'numpad'` | `{ type: 'numpad' }` |
 | `'script.x'` / `'scene.x'` | `service` `script.turn_on` / `scene.turn_on` |
 | `'source:HDMI 1'` | `source` |
+| `'input:hdmi2'` | `input` (id del catálogo; inválido → `null`) |
 | `'command:ssap://tv/switchInput'` | `command` (se quita el `ssap://`) |
 | `'key:vol_up'` o `'vol_up'` | `key` |
 | `'VOLUMEUP'`, `'KEY_VOLUP'`, `'volume_up'` | `key: 'vol_up'` (vía `CODE_TO_KEY`, sirve en cualquier marca) |
@@ -275,6 +277,8 @@ lo demás en `click`. El `click` que sigue a un hold se suprime (`_suppressClick
   el Roku (cambiando antes la TV a la entrada del Roku si hace falta), o
   `select_source` en la TV con confirmación (`_selectSourceConfirmed`: 6 s, 2 intentos).
   El nombre exacto se busca en el `source_list` de la entidad (`resolveSourceName`).
+  Las fuentes con `input` (HDMI) cambian por puerto y **sin confirmación**: HA reporta
+  el nombre de la entrada ("PlayStation"), que no dice qué puerto es.
 - **Secuencias** (`_runSequence`): una a la vez (`_sequenceRunning`).
 - **Numpad**: se cierra al cambiar de modo o TV, al apagarse la TV, con Escape o con
   Cerrar.
@@ -326,7 +330,9 @@ Reglas útiles:
 ```text
  config ──► buildEditorView(config, { model, error, expanded, mediaPlayers })
               │  lista plana de nodos: alert | heading | note | buttons | form
+              │  (un `heading` con `fold` es un panel; sus hijos llevan `parent`)
               ▼
+ childrenByParent(nodes)        arma el árbol de paneles a partir de los `parent`
  TvControlCardEditor.render()   repeat(nodes, key): reutiliza cada elemento por su
               │                 `key` (un <ha-form> existente solo recibe datos
               │                 nuevos → no pierde el foco; _schemaFor mantiene el
@@ -338,6 +344,26 @@ Reglas útiles:
  evento config-changed { config }  ──► HA guarda y vuelve a llamar setConfig
 ```
 
+- **Acordeón.** Cada sección grande es un `<details>`. En la lista de nodos sigue siendo
+  un `heading` normal (mismas `key`, mismas pruebas) más `fold: { summary, open, base }`:
+  `summary` es la línea que se ve con el panel cerrado, `open` si arranca abierto
+  (General, Televisores y la primera TV) y `base` la profundidad de sus hijos, para
+  medir la sangría desde el panel. El helper `fold(head, children, opts)` de `view.js`
+  etiqueta a los hijos con `parent`. El estado abierto/cerrado vive en el editor
+  (`_open`, nunca en el YAML) y es su único dueño: el clic en el `<summary>` se cancela
+  y se repinta según ese estado. Los hijos de un panel cerrado no se crean. Un botón
+  "+ Agregar…" lleva `op.open` con la `key` del panel que debe quedar abierto.
+- **Paletas** (`editor/palettes.js`). `paletteSection` arma el panel *Paletas* y
+  `assignmentNodes` el selector que asigna una paleta (tarjeta, TV, Roku, botón de
+  streaming; un nombre o un par claro/oscuro). Sus formularios usan códecs propios
+  (`palette-ref`, `palette-meta`, `palette-color`, `palette-copy`) que resuelve
+  `applyPaletteForm`, y el botón de borrar la op `palette-delete`. Las `key` de cada
+  paleta usan su POSICIÓN (`pal.0`), no su nombre: el nombre se emite en cada tecla y,
+  si fuera la key, cada tecla recrearía el campo y se perdería el foco.
+  `mapPaletteRefs` recorre los 6 lugares donde puede haber `palette:` (tarjeta,
+  `streaming[j]`, `tvs[i].companion`, `tvs[i].overrides` y su `streaming[j]`); con
+  `renameRef` (una asignación: nombre o par) sirve para renombrar y para borrar sin dejar
+  referencias rotas.
 - **Nodos `form`** llevan `path` (dónde vive su objeto en la config), `schema` (para
   `ha-form`), `data` y opcionalmente un `codec` (`action`, `modes`) que traduce entre
   el formulario y la forma del YAML, o `defaults` (valores que al elegirse se borran).
@@ -444,9 +470,11 @@ archivos sin nombrarlos; en un clon sin la carpeta simplemente no corren.
   desde la tarjeta. Los endpoints "Luna" (`showInputPicker`, `setSystemSettings`) no
   funcionan por ese servicio.
 - `turn_on` en LG requiere el Wake on LAN configurado en la integración.
-- Los modos `fuentes` e `info` son experimentales: `fuentes` usa los nombres
-  `HDMI 1…4`, que cambian según la TV y su idioma (en LG, `tv/switchInput` con
-  `inputId` sería más robusto).
+- El modo `info` es experimental: sus teclas (`GUIDE`, `INFO`, `MYAPPS`, `ASTERISK` y
+  sus equivalentes Samsung) no se han probado en TVs reales.
+- Las entradas por puerto no se confirman (ver `_stream`). En Samsung, `ST_HDMIn`
+  depende de ha-samsungtv-smart (el fork de TheFab21 lo resuelve en local, por
+  SmartThings o con `KEY_HDMIn`).
 - Las fuentes "solo por Roku" (`service: null`) necesitan un companion Roku.
 
 ---

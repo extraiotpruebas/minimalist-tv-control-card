@@ -1,4 +1,5 @@
 /* Módulo §7: catálogos de los selectores del editor. */
+import { INPUTS } from '../actions/inputs.js';
 import { KEYS } from '../actions/keys.js';
 import { SOURCES } from '../config/catalogs.js';
 
@@ -8,7 +9,8 @@ const ACTION_UI_TYPES = {
   default: 'Predeterminada',
   none: 'Ninguna',
   key: 'Tecla',
-  source: 'Fuente (select_source)',
+  input: 'Entrada (HDMI / antena)',
+  source: 'Fuente por nombre (select_source)',
   script: 'Script o escena',
   service: 'Servicio de HA',
   command: 'Command LG (webOS)',
@@ -17,9 +19,9 @@ const ACTION_UI_TYPES = {
   numpad: 'Abrir teclado numérico',
   platform: 'Distinta por marca',
 };
-const ALL_ACTION_TYPES = ['key', 'source', 'script', 'service', 'command', 'button', 'sequence', 'numpad', 'platform'];
-const STEP_ACTION_TYPES = ['key', 'button', 'command', 'source', 'script', 'service'];
-const BRAND_ACTION_TYPES = ['key', 'source', 'script', 'service', 'command', 'button', 'sequence'];
+const ALL_ACTION_TYPES = ['key', 'input', 'source', 'script', 'service', 'command', 'button', 'sequence', 'numpad', 'platform'];
+const STEP_ACTION_TYPES = ['key', 'button', 'command', 'input', 'source', 'script', 'service'];
+const BRAND_ACTION_TYPES = ['key', 'input', 'source', 'script', 'service', 'command', 'button', 'sequence'];
 const BRANDS = [['lg', 'LG'], ['samsung', 'Samsung'], ['roku', 'Roku'], ['default', 'Otras marcas']];
 
 const PLATFORM_NAMES = { lg: 'LG', samsung: 'Samsung', roku: 'Roku' };
@@ -49,6 +51,8 @@ const LG_COMMANDS = [
   { value: 'system.launcher/open', label: 'Abrir URL en el navegador · payload: { target: "https://…" }' },
 ];
 
+/** Entradas por puerto: LG y Samsung (el Roku no tiene entradas). */
+const INPUT_OPTIONS = Object.entries(INPUTS).map(([id, def]) => ({ value: id, label: def.label }));
 const SOURCE_OPTIONS = SOURCES.map((s) => ({ value: s.id, label: s.service ? s.name : `${s.name} (solo por Roku)` }));
 const STYLE_OPTIONS = [
   { value: 'relieve', label: 'Relieve (predeterminado)' },
@@ -73,4 +77,4 @@ const BUTTON_LABELS = {
 };
 const DEFAULT_MODES = ['menu', 'busqueda', 'audio'];
 
-export { ACTION_UI_TYPES, ALL_ACTION_TYPES, BRANDS, BRAND_ACTION_TYPES, BUTTON_LABELS, DEFAULT_MODES, DIRECTION_LABELS, KEY_OPTIONS, LG_COMMANDS, SOURCE_OPTIONS, STEP_ACTION_TYPES, STYLE_OPTIONS, THEME_OPTIONS, TV_PLATFORM_OPTIONS };
+export { ACTION_UI_TYPES, ALL_ACTION_TYPES, BRANDS, BRAND_ACTION_TYPES, BUTTON_LABELS, DEFAULT_MODES, DIRECTION_LABELS, INPUT_OPTIONS, KEY_OPTIONS, LG_COMMANDS, SOURCE_OPTIONS, STEP_ACTION_TYPES, STYLE_OPTIONS, THEME_OPTIONS, TV_PLATFORM_OPTIONS };

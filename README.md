@@ -166,6 +166,8 @@ buttons:
 | `default_pad` | flechas | El touchpad cuando no hay modo activo. |
 | `streaming` | Netflix, Disney+, YouTube, Apple TV | Los 4 botones de streaming. |
 | `buttons` | — | Cambia ícono o acción de los botones fijos. |
+| `palette` | — | Paleta de colores de la tarjeta. Ver [Paletas](#paletas). |
+| `palettes` | — | Tus propias paletas. |
 
 ### `tvs`
 
@@ -188,12 +190,17 @@ Tocar un modo lo activa; tocarlo otra vez vuelve al touchpad sin modo (`default_
 | `menu` | Menú | Inicio | Menú | Salir | Atrás |
 | `busqueda` | Canales | Canal + | Menú de fuentes | Guía | Canal − |
 | `audio` | Audio | Volumen + | Silenciar | — | Volumen − |
-| `fuentes` *(experimental)* | Fuentes | HDMI 1 | HDMI 2 | HDMI 3 | HDMI 4 |
+| `fuentes` | Fuentes | HDMI 1 | HDMI 2 | HDMI 3 | HDMI 4 |
 | `info` *(experimental)* | Información | Guía | Info | Mis apps | Herramientas |
 | `custom1`…`custom3` | Personalizado | definidos en `custom_modes` |
 
 `navegacion` (de versiones anteriores) se convierte en `menu`. En los modos `audio` y
 `fuentes` todo va a la TV aunque el modo Roku esté activo.
+
+El modo `fuentes` cambia de entrada **por puerto** (acción `input`, ver
+[Acciones](#acciones)), así que funciona aunque la entrada tenga otro nombre en la TV.
+Para otras entradas o íconos (p. ej. "PlayStation" en HDMI 2), usa un modo
+personalizado con acciones `input:`.
 
 ### `custom_modes` y `default_pad`
 
@@ -247,10 +254,11 @@ Roku (p. ej. Fubo), la abre en el Roku.
 | `twitch` | Twitch | `mdi:twitch` | `Twitch` | `Twitch` |
 | `fubo` | Fubo | `mdi:alpha-f-circle` | solo por Roku | `Fubo: Watch Live TV & Sports` |
 | `roku` | Roku | `phu:roku-ultra` | `Roku OTT` o `Roku` | — |
-| `hdmi1` … `hdmi4` | HDMI 1 … 4 | `mdi:hdmi-port` | `HDMI 1` … `HDMI 4` | — |
+| `hdmi1` … `hdmi4` | HDMI 1 … 4 | `mdi:hdmi-port` | por puerto (acción `input`) | — |
 
 El nombre se busca sin distinguir mayúsculas en la lista de fuentes que reporta la TV
-(`source_list`).
+(`source_list`). Los HDMI no usan el nombre: cambian por puerto, sin esperar
+confirmación (HA reporta el nombre de la entrada, que no dice qué puerto es).
 
 </details>
 
@@ -272,6 +280,56 @@ Cada botón acepta `icon` y `action`. Atajo: `power: script.x` equivale a
 **Con la TV apagada** el touchpad, los modos y la fila de abajo quedan bloqueados.
 Siguen activos el centro (Encender), el power, los botones de streaming y `top_left`.
 
+### Paletas
+
+Una paleta cambia los colores de toda la tarjeta: son **5 colores y una base** (clara u
+oscura); el resto de los tonos (superficies, bordes, texto secundario…) se calcula a
+partir de ellos, así es difícil armar una combinación ilegible. Todos los colores son
+opcionales: lo que no definas sale del estilo (`relieve`, `halo`, `cristal`) en la base
+elegida.
+
+| Color | Qué pinta |
+|---|---|
+| `background` | El fondo de la tarjeta. |
+| `button` | Apps, teclas, touchpad y modos. |
+| `text` | Texto e íconos. |
+| `accent` | El color de la interfaz cuando no hay una app activa. |
+| `on` | El indicador de "encendida". |
+
+Vienen incluidas **8 paletas** (no hace falta definirlas): `grafito`, `medianoche`,
+`ciruela`, `bosque`, `oled` (oscuras) y `nube`, `arena`, `menta` (claras). Todas cumplen
+contraste 4.5:1 del texto sobre el fondo y sobre los botones.
+
+```yaml
+palette: medianoche                 # una para toda la tarjeta
+# o una distinta según el tema:
+palette: { light: nube, dark: grafito }
+
+palettes:                           # las tuyas (una con el mismo nombre reemplaza a la incluida)
+  sala:
+    base: dark                      # dark | light
+    background: '#1b1d21'           # también: 'rrggbb', '#abc' o '26, 29, 33'
+    button: '#2c2f35'
+    text: '#eceef1'
+    accent: '#f0b44c'
+    on: '#62d6a0'
+```
+
+Se pueden asignar en cuatro lugares; **gana el más específico**:
+
+1. `streaming[i].palette`: mientras ese botón (la app) está activo.
+2. `companion.palette`: en modo Roku (se pone dentro de `companion` de la TV).
+3. `overrides.palette` de una TV.
+4. `palette` de la tarjeta.
+
+Un nombre que no existe se salta (se usa el siguiente nivel) y la tarjeta avisa en la
+consola con la lista de paletas incluidas. La base de la paleta decide si la tarjeta se ve
+clara u oscura, por encima de `theme`. El acento de una app (el rojo de Netflix) se
+aplica encima de la paleta.
+
+El editor visual tiene un panel **Paletas** para crearlas, copiarlas, renombrarlas y elegir
+sus colores, con las muestras y el contraste a la vista.
+
 ### Acciones
 
 Cualquier `action` puede escribirse así:
@@ -284,7 +342,8 @@ action: [digit_1, digit_2, enter]   # secuencia (pausa de 400 ms)
 
 action: { type: key, key: input_menu }
 action: { type: button, button: KEY_HDMI }            # código crudo de la marca
-action: { type: source, source: HDMI 2 }              # select_source
+action: input:hdmi2                                   # entrada por puerto (ver abajo)
+action: { type: source, source: PlayStation }         # select_source por nombre exacto
 action: { type: service, service: light.toggle, data: { entity_id: light.sala } }
 action:                                               # command de LG (webostv.command)
   type: command
@@ -297,10 +356,21 @@ action:                                               # secuencia con pausa prop
 action:                                               # una acción por marca
   type: platform
   by:
-    lg: { type: command, command: tv/switchInput, payload: { inputId: HDMI_1 } }
-    samsung: { type: button, button: KEY_HDMI1 }
+    lg: input:hdmi1
+    samsung: input:hdmi3
     default: input_menu
 ```
+
+**Entradas por puerto (`input`)**: `hdmi1` … `hdmi4` y `tv` (antena / cable). No
+dependen del nombre que la entrada tenga en la TV:
+
+| `input` | LG (`webostv.command`) | Samsung (`play_media` `send_key`) |
+|---|---|---|
+| `hdmi1` … `hdmi4` | `tv/switchInput` `{ inputId: HDMI_1 }` | `ST_HDMI1` |
+| `tv` | `system.launcher/launch` `{ id: com.webos.app.livetv }` | `ST_TV` |
+
+Con un Roku conectado, las entradas siempre van a la TV. El Roku no tiene entradas.
+
 
 - **Mantener presionado** repite solo las flechas (cada 250 ms, hasta 10 s). Todo lo
   demás se manda una vez por toque.

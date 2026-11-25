@@ -7,13 +7,16 @@
  *   1. Estructura común: layout, pantalla de vidrio, touchpad, responsivo. Igual
  *      para los tres estilos.
  *   2. Tokens: colores y sombras con nombres COMPARTIDOS (--tv-surface, --tv-ink,
- *      --tv-accent...). Cada estilo y tema les da valores propios. El editor de
- *      paletas de la Fase 4 solo tendrá que cambiar estos tokens.
+ *      --tv-accent...). Cada estilo y tema les da valores propios. Las paletas
+ *      (config/palettes.js) solo cambian estos tokens.
  *   3. Forma de cada estilo (relieve / halo / cristal): losetas o círculos, bisel o
  *      halo, paneles de vidrio. Es lo único que difiere entre estilos.
  *
- * JS solo pone atributos (data-style, data-theme, data-status...) y dos variables
- * (--tv-accent, --tv-glow). Nunca escribe colores ni sombras.
+ * JS solo pone atributos (data-style, data-theme, data-status...), dos variables
+ * (--tv-accent, --tv-glow) y, si hay una paleta, los tokens de la capa 2 que esa
+ * paleta define (paletteTokens en logic.js), en el style del ha-card. Un style
+ * inline le gana a cualquier selector, así que la paleta pisa al estilo sin CSS
+ * nuevo. Nunca escribe sombras.
  *
  * `container-type` está en ha-card: un contenedor no puede consultarse a sí mismo,
  * así que el layout que cambia con @container vive en .body (su hijo).

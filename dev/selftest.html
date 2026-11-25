@@ -252,7 +252,7 @@
   document.getElementById('cards').append(card3);
   card3.setConfig({
     card_id: 'selftest4',
-    modes: ['menu', 'audio'],
+    modes: ['menu', 'audio', 'fuentes'],
     tvs: [{ name: 'Sala', entity: 'media_player.sala', platform: 'lg',
             companion: { platform: 'roku', media_entity: 'media_player.roku', remote_entity: 'remote.roku' } }],
     streaming: [{ source: 'netflix' }, { source: 'fubo' }, { source: 'roku' }, { source: 'hdmi2' }],
@@ -451,28 +451,45 @@
   await frame();
   await sleep(900);
 
-  // --- Fuentes: spinner, confirmación y reintento ---
+  // --- Fuentes: spinner, confirmación y reintento (fuente por NOMBRE: Netflix) ---
   card3._timing = { ...card3._timing, sourceConfirm: 60000 };
   ignoreSource = true;
-  q3('[data-act="stream"][data-index="3"]').click();   // HDMI 2, la TV "no contesta"
+  q3('[data-act="stream"][data-index="0"]').click();   // Netflix, la TV "no contesta"
   await frame();
-  check(q3('[data-act="stream"][data-index="3"]').classList.contains('loading') &&
-        q3('[data-act="stream"][data-index="3"] ha-icon').getAttribute('icon') === 'mdi:loading', 'spinner mientras cambia de fuente');
-  set('media_player.sala', undefined, { source: 'HDMI 2' });   // la TV por fin reporta HDMI 2
+  check(q3('[data-act="stream"][data-index="0"]').classList.contains('loading') &&
+        q3('[data-act="stream"][data-index="0"] ha-icon').getAttribute('icon') === 'mdi:loading', 'spinner mientras cambia de fuente');
+  set('media_player.sala', undefined, { source: 'Netflix' });   // la TV por fin reporta Netflix
   await sleep(30);
   await frame();
-  check(!card3._loading.size && q3('[data-act="stream"][data-index="3"]').classList.contains('active'), 'al confirmarse: sin spinner y botón activo');
+  check(!card3._loading.size && q3('[data-act="stream"][data-index="0"]').classList.contains('active'), 'al confirmarse: sin spinner y botón activo');
 
   card3._timing = { ...card3._timing, sourceConfirm: 150 };
   set('media_player.sala', undefined, { source: 'HDMI 1' });
   n = calls.length;
-  q3('[data-act="stream"][data-index="3"]').click();
-  q3('[data-act="stream"][data-index="0"]').click();   // otro toque durante el cambio
+  q3('[data-act="stream"][data-index="0"]').click();
+  q3('[data-act="stream"][data-index="3"]').click();   // otro toque durante el cambio
   await sleep(450);
   const sel = callsSince(n).filter((c) => c.includes('select_source'));
-  check(sel.length === 2 && sel.every((c) => c.includes('"source":"HDMI 2"')), `sin confirmación: 1 intento + 1 reintento, y el otro toque se ignoró (${sel.length})`);
+  check(sel.length === 2 && sel.every((c) => c.includes('"source":"Netflix"')) && !callsSince(n).some((c) => c.includes('switchInput')),
+    `sin confirmación: 1 intento + 1 reintento, y el otro toque se ignoró (${sel.length})`);
   check(q3('.toast').textContent.includes('No se pudo confirmar') && !card3._loading.size, 'aviso y fin del spinner');
   ignoreSource = false;
+
+  // --- Entrada por PUERTO (HDMI 2): una llamada, sin esperar confirmación ---
+  n = calls.length;
+  q3('[data-act="stream"][data-index="3"]').click();
+  await sleep(30);
+  check(callsSince(n).length === 1 && callsSince(n)[0] === 'webostv.command {"entity_id":"media_player.sala","command":"tv/switchInput","payload":{"inputId":"HDMI_2"}}'
+        && !card3._loading.size, `HDMI 2 por puerto: tv/switchInput una vez y sin spinner pegado (${callsSince(n)})`);
+  q3('[data-act="mode"][data-id="fuentes"]').click();
+  await card3.updateComplete;
+  n = calls.length;
+  q3('[data-dir="right"]').click();                    // derecha = HDMI 3
+  await sleep(30);
+  check(callsSince(n).length === 1 && callsSince(n)[0].includes('"command":"tv/switchInput","payload":{"inputId":"HDMI_3"}'),
+    `modo Fuentes: derecha → HDMI 3 por puerto (${callsSince(n)})`);
+  q3('[data-act="mode"][data-id="fuentes"]').click();
+  await card3.updateComplete;
 
   n = calls.length;
   q3('[data-act="stream"][data-index="2"]').click();   // Roku como entrada de la TV
@@ -583,6 +600,46 @@
   check(callsSince(n).length === 5 && callsSince(n).every((c) => c.includes('"entity_id":"media_player.sala"')),
     `secuencia: 5 pasos una sola vez (el doble toque se ignora) y todos a la TV en modo Roku (${callsSince(n).length})`);
 
+  // --- Fase 4: paletas (tarjeta → modo Roku → app activa) ---
+  out.push('', '— paletas —');
+  set('media_player.pal', 'on', { source: 'HDMI 1' });
+  const card4 = document.createElement('tv-control-card');
+  document.getElementById('cards').append(card4);
+  card4.setConfig({
+    card_id: 'selftest-pal', theme: 'dark', palette: 'solo_acento',
+    palettes: { solo_acento: { base: 'light', accent: '#0a8fb8' } },
+    tvs: [{ name: 'Pal', entity: 'media_player.pal', platform: 'lg',
+      companion: { media_entity: 'media_player.roku', remote_entity: 'remote.roku', palette: 'medianoche' } }],
+    streaming: [{ source: 'netflix', palette: 'grafito' }],
+  });
+  cards.push(card4);
+  push();
+  await card4.updateComplete;
+  const r4 = card4.shadowRoot;
+  const hc4 = () => r4.querySelector('ha-card.card');
+  const tok4 = (name) => hc4().style.getPropertyValue(name).trim();
+  r4.querySelector('[data-act="target"][data-id="tv"]').click();   // modo TV (con companion arranca en Roku)
+  await card4.updateComplete;
+  check(hc4().dataset.theme === 'light' && tok4('--tv-accent-default') === '#0a8fb8' && tok4('--tv-surface') === '',
+    'paleta de la tarjeta: su base (claro) manda sobre theme: dark y solo escribe los tokens que define');
+  set('media_player.pal', undefined, { source: 'Netflix' });
+  await card4.updateComplete;
+  check(hc4().dataset.theme === 'dark' && tok4('--tv-surface') === '#1b1d21' && tok4('--tv-accent') !== '',
+    'en Netflix: toda la tarjeta con la paleta del botón (grafito) y el acento de la app encima');
+  set('media_player.pal', undefined, { source: 'HDMI 1' });
+  await card4.updateComplete;
+  check(hc4().dataset.theme === 'light' && tok4('--tv-surface') === '' && tok4('--tv-ink') === '',
+    'de vuelta en HDMI 1: los tokens de grafito se borran (sin "tema pegado")');
+  set('media_player.roku', 'on', { source: 'Home', app_name: 'Home' });
+  r4.querySelector('[data-act="target"][data-id="roku"]').click();
+  await card4.updateComplete;
+  check(hc4().dataset.theme === 'dark' && tok4('--tv-surface') === '#0c1424', 'modo Roku: la paleta del companion (medianoche)');
+  set('media_player.roku', undefined, { source: 'Netflix', app_name: 'Netflix' });
+  await card4.updateComplete;
+  check(tok4('--tv-surface') === '#1b1d21', 'Netflix en el Roku: gana la paleta de la app (grafito)');
+  card4.remove();
+  cards.splice(cards.indexOf(card4), 1);
+
   // --- Paso 9: editor visual (con el ha-form simulado) ---
   out.push('', '— editor visual —');
   const ed = document.createElement('tv-control-card-editor');
@@ -593,6 +650,9 @@
   const eq = (sel) => ed.shadowRoot.querySelector(sel);
   const edButton = (text) => [...ed.shadowRoot.querySelectorAll('button')].find((b) => b.textContent === text);
   const typeInto = (input, value, evt = 'input') => { input.value = value; input.dispatchEvent(new Event(evt, { bubbles: true })); };
+  // Los paneles cerrados no crean sus campos: se abren con un clic en su título, como haría una persona.
+  const fold = (key) => eq(`details[data-key="${key}"]`) ?? (() => { throw new Error(`no hay panel "${key}" (hay: ${[...ed.shadowRoot.querySelectorAll('details')].map((d) => d.dataset.key)})`); })();
+  const openFold = async (key) => { if (!fold(key).open) { fold(key).querySelector('summary').click(); await frame(); await frame(); } };
 
   ed.setConfig(Object.freeze({ entity: 'media_player.sala', type: 'LG TV', exit_value: 'EXIT' }));
   await frame();
@@ -604,7 +664,23 @@
 
   emitted = [];
   ed.setConfig(Object.freeze({ card_id: 'ed', tvs: [{ name: 'Sala', entity: 'media_player.sala', platform: 'lg' }], modes: ['menu', 'busqueda', 'audio'] }));
+  await ed.updateComplete;
   await frame();
+  check(fold('general').open && fold('tvs').open && fold('tv0.h').open, 'acordeón: General, Televisores y la primera TV arrancan abiertos');
+  check(!fold('modes').open && !fold('st').open && !fold('bt').open && !eq('[data-key="modes.f"]'), 'acordeón: el resto arranca cerrado y no crea sus campos');
+  check(/Menú, Canales, Audio/.test(fold('modes').querySelector('.ed-fold-sum').textContent), 'el panel cerrado muestra su resumen (los 3 modos)');
+  await openFold('modes');
+  check(fold('modes').open && !!eq('[data-key="modes.f"]'), 'clic en el título abre el panel y aparecen sus campos');
+  fold('modes').querySelector('summary').click();
+  await frame(); await frame();
+  check(!fold('modes').open && !eq('[data-key="modes.f"]'), 'otro clic lo cierra');
+  const rapid = ['dp', 'st', 'bt'];
+  rapid.forEach((k) => fold(k).querySelector('summary').click());   // sin esperar entre clics
+  await frame(); await frame();
+  check(rapid.every((k) => fold(k).open), 'varios clics seguidos abren todos sus paneles (el estado no se pierde)');
+  rapid.forEach((k) => fold(k).querySelector('summary').click());
+  await frame(); await frame();
+  check(rapid.every((k) => !fold(k).open), 'y varios clics seguidos los cierran');
   check(!eq('[data-key="tv0.rk.f"]') && !!edButton('+ Roku conectado'), 'sin Roku: no hay campos de Roku, solo el botón para agregarlo');
   edButton('+ Roku conectado').click();
   await frame();
@@ -619,25 +695,67 @@
   check(eq('[data-key="tv0.f"]') === nameForm && nameForm.querySelector('[data-name="name"]') === nameInput && ed.shadowRoot.activeElement === nameInput,
     'el formulario no se reconstruye al escribir: el campo conserva el foco');
 
+  await openFold('modes');
   typeInto(eq('[data-key="modes.f"] [data-name="m2"]'), 'custom1', 'change');
   await frame();
-  check(JSON.stringify(emitted.at(-1).modes) === '["menu","custom1","audio"]' && eq('[data-key="cm.custom1.f"]'),
-    'asignar custom1 a un modo muestra su editor');
+  check(JSON.stringify(emitted.at(-1).modes) === '["menu","custom1","audio"]' && !!fold('cm.custom1'),
+    'asignar custom1 a un modo agrega su panel');
+  check(fold('modes').open, 'cambiar un campo no cierra el panel donde se está trabajando');
+  await openFold('cm.custom1');
+  check(!!eq('[data-key="cm.custom1.f"]') && !fold('cm.custom1.pad.up').open, 'el panel del modo muestra su formulario y sus direcciones vienen cerradas');
 
+  await openFold('st');
   const before = emitted.length;
   edButton('Personalizar ícono, color o acción').click();
   await frame();
   check(emitted.length === before && eq('[data-key="st.0.a"]'), 'personalizar streaming abre los campos sin escribir nada al YAML');
 
+  await openFold('bt');
   const backRow = eq('[data-key="bt.back"]');
   [...backRow.querySelectorAll('button')].find((b) => b.textContent === 'Personalizar').click();
   await frame();
   typeInto(eq('[data-key="bt.back.a"] [data-name="type"]'), 'numpad', 'change');
   await frame();
   check(emitted.at(-1).buttons.back.action === 'numpad', 'Atrás → "Abrir teclado numérico" queda como action: numpad');
+  check(fold('bt.back').open && /teclado numérico/.test(fold('bt.back').querySelector('.ed-fold-sum').textContent), 'lo recién personalizado se muestra abierto y su resumen dice qué hace');
+  const nBefore = emitted.length;
+  fold('bt.back').querySelector('summary').click();
+  await frame(); await frame();
+  check(!fold('bt.back').open && emitted.length === nBefore, 'cerrar un panel no escribe nada al YAML');
+  fold('bt.back').querySelector('summary').click();
+  await frame(); await frame();
   [...eq('[data-key="bt.back"]').querySelectorAll('button')].find((b) => b.textContent === 'Restablecer').click();
   await frame();
   check(!('buttons' in emitted.at(-1)), 'Restablecer borra el botón (y "buttons" si quedó vacío): YAML mínimo');
+
+  // --- paletas en el editor ---
+  emitted = [];
+  await openFold('pal');
+  edButton('+ Nueva paleta').click();
+  await frame(); await frame();
+  check(emitted.at(-1).palettes?.paleta?.base === 'dark' && fold('pal.0').open, '"+ Nueva paleta" la agrega y abre su panel');
+  check(eq('[data-key="pal.0.s"]').querySelectorAll('.ed-sw').length === 5 && !!eq('[data-key="pal.0.c.background.f"] input[type="color"]'), 'muestra 5 muestras de color y un selector por color');
+  const colorInput = eq('[data-key="pal.0.c.background.f"] input[type="color"]');
+  const colorForm = eq('[data-key="pal.0.c.background.f"]');
+  colorInput.value = '#102030';
+  colorInput.dispatchEvent(new Event('input', { bubbles: true }));
+  await frame(); await frame();
+  check(emitted.at(-1).palettes.paleta.background === '#102030', 'elegir un color guarda #rrggbb en el YAML');
+  check(getComputedStyle(eq('[data-key="pal.0.s"] .ed-sw')).backgroundColor === 'rgb(16, 32, 48)', 'las muestras se actualizan con el color nuevo');
+  check(eq('[data-key="pal.0.c.background.f"]') === colorForm, 'el selector de color no se reconstruye al elegir');
+  const nameInput2 = eq('[data-key="pal.0.f"] [data-name="name"]');
+  nameInput2.focus();
+  typeInto(nameInput2, 'noche');
+  await frame(); await frame();
+  check(!!emitted.at(-1).palettes.noche && !emitted.at(-1).palettes.paleta && fold('pal.0').open && ed.shadowRoot.activeElement === nameInput2,
+    'renombrar la paleta conserva el panel abierto y el foco');
+  typeInto(eq('[data-key="general.pal"] [data-name="value"]'), 'noche', 'change');
+  await frame(); await frame();
+  check(emitted.at(-1).palette === 'noche' && /noche/.test(fold('general').querySelector('.ed-fold-sum').textContent), 'asignar la paleta en General (y el resumen lo dice)');
+  edButton('Distinta en claro y oscuro').click();
+  await frame(); await frame();
+  check(JSON.stringify(emitted.at(-1).palette) === '{"light":"noche","dark":"noche"}' && !!eq('[data-key="general.pal"] [data-name="light"]') && !!eq('[data-key="general.pal"] [data-name="dark"]'),
+    '"Distinta en claro y oscuro" muestra un selector para cada tema');
 
   out.push('', failures ? `✗ ${failures} fallaron` : '✓ todo bien');
   const pre = document.getElementById('out');

@@ -5,7 +5,7 @@ import { normalizeConfig } from '../config/normalize.js';
 import { applyFormChange, applyOp } from './ops.js';
 import { sameJson } from './paths.js';
 import { EDITOR_CSS } from './styles.js';
-import { buildEditorView } from './view.js';
+import { buildEditorView, childrenByParent } from './view.js';
 
 /**
  * HA carga <ha-form> bajo demanda. Si nuestro editor se abre antes, se fuerza la
@@ -51,6 +51,7 @@ class TvControlCardEditor extends LitElement {
     this._formReady = false;
     this._hass = null;
     this._expanded = new Set();     // "Personalizar" abierto pero aún sin datos (no va al YAML)
+    this._open = new Map();         // key de un panel → abierto/cerrado, SOLO si el usuario lo cambió (no va al YAML)
     this._schemas = new Map();      // key → { json, schema }: el MISMO objeto mientras no cambie
   }
 
@@ -91,7 +92,48 @@ class TvControlCardEditor extends LitElement {
     }
     const mediaPlayers = Object.keys(this._hass?.states ?? {}).filter((id) => id.startsWith('media_player.'));
     const nodes = buildEditorView(this._config, { model, error, expanded: this._expanded, mediaPlayers });
-    return html`<div class="ed">${repeat(nodes, (node) => node.key, (node) => this._renderNode(node))}</div>`;
+    return html`<div class="ed">${this._renderChildren(childrenByParent(nodes), null)}</div>`;
+  }
+
+  /**
+   * La lista de nodos es plana, pero cada nodo sabe su `parent` (un encabezado con
+   * `fold` = panel). Aquí se pinta el árbol: los hijos de un panel solo se crean
+   * mientras está abierto, así un editor con muchas secciones cerradas es liviano.
+   */
+  _renderChildren(tree, parent) {
+    const base = parent?.fold.base ?? 0;
+    return repeat(tree.get(parent?.key ?? '') ?? [], (node) => node.key,
+      (node) => (node.fold ? this._renderFold(node, tree, base) : this._renderNode(node, base)));
+  }
+
+  _isOpen(node) {
+    return this._open.has(node.key) ? this._open.get(node.key) : node.fold.open;
+  }
+
+  _renderFold(node, tree, base) {
+    const open = this._isOpen(node);
+    const indent = `margin-inline-start: ${Math.max(0, (node.depth ?? 0) - base) * 16}px`;
+    return html`<details class="ed-fold l${node.level}" data-key=${node.key} style=${indent} ?open=${open}>
+      <summary @click=${(e) => this._toggleFold(e, node)}>
+        <span class="ed-fold-main">
+          <span class="ed-fold-title">${node.text}</span>
+          ${node.fold.summary ? html`<span class="ed-fold-sum">${node.fold.summary}</span>` : nothing}
+        </span>
+        ${(node.actions ?? []).map((item) => this._renderButton(item))}
+      </summary>
+      ${open ? html`<div class="ed-fold-body">${this._renderChildren(tree, node)}</div>` : nothing}
+    </details>`;
+  }
+
+  /**
+   * El editor es el ÚNICO dueño del estado abierto/cerrado. Se cancela el plegado
+   * nativo del <details> y se pinta según `_open`: si el navegador y Lit lo cambiaran
+   * a la vez (el evento `toggle` llega después), un repintado en medio deshacía el clic.
+   */
+  _toggleFold(e, node) {
+    e.preventDefault();
+    this._open.set(node.key, !this._isOpen(node));
+    this.requestUpdate();
   }
 
   /**
@@ -107,8 +149,8 @@ class TvControlCardEditor extends LitElement {
     return node.schema;
   }
 
-  _renderNode(node) {
-    const indent = `margin-inline-start: ${(node.depth ?? 0) * 16}px`;
+  _renderNode(node, base = 0) {
+    const indent = `margin-inline-start: ${Math.max(0, (node.depth ?? 0) - base) * 16}px`;
     switch (node.kind) {
       case 'form':
         return html`<ha-form
@@ -121,6 +163,10 @@ class TvControlCardEditor extends LitElement {
           .computeHelper=${computeHelper}
           @value-changed=${(e) => this._onFormChange(e, node)}
         ></ha-form>`;
+      case 'swatches':
+        return html`<div class="ed-swatches" data-key=${node.key} style=${indent}>${node.colors.map((c) => html`<span
+          class="ed-sw ${c.base ? 'base' : ''}" style="background:${c.color}"
+          title="${c.label}: ${c.color}${c.base ? ' (de la base)' : ''}"></span>`)}</div>`;
       case 'heading':
         return html`<div class="ed-h l${node.level}" data-key=${node.key} style=${indent}>
           <span>${node.text}</span>${(node.actions ?? []).map((item) => this._renderButton(item))}
@@ -139,15 +185,23 @@ class TvControlCardEditor extends LitElement {
 
   _renderButton(item) {
     return html`<button type="button" title=${item.title ?? nothing} ?disabled=${!!item.disabled}
-      @click=${() => this._onOp(item.op)}>${item.label}</button>`;
+      @click=${(e) => {
+        // Los botones de un panel viven dentro de su <summary>: sin esto, pulsarlos también lo plegaría.
+        e.preventDefault();
+        e.stopPropagation();
+        this._onOp(item.op);
+      }}>${item.label}</button>`;
   }
 
   _onFormChange(e, node) {
     e.stopPropagation();   // el editor solo avisa a HA con config-changed
-    this._commit(applyFormChange(this._config, node, e.detail.value));
+    const next = applyFormChange(this._config, node, e.detail.value);
+    if (node.open && !sameJson(next, this._config)) this._open.set(node.open, true);   // p. ej. la paleta recién copiada
+    this._commit(next);
   }
 
   _onOp(op) {
+    if (op.open) this._open.set(op.open, true);   // lo recién agregado se muestra abierto
     if (op.op === 'expand') {
       this._expanded.add(op.key);
       this.requestUpdate();   // un Set modificado por dentro no avisa solo: se pide el render

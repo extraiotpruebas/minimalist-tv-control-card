@@ -1,6 +1,7 @@
 /* Módulo §7: aplicar un cambio del editor (formulario o botón) a la config. */
 import { formToAction } from './action-form.js';
 import { clone, deletePath, expandShortcuts, fieldNames, getPath, sameJson, setPath } from './paths.js';
+import { applyPaletteForm, removePalette } from './palettes.js';
 import { serializeV4 } from './serialize.js';
 
 /* ---------- cambios: nodo + datos → config nueva ---------- */
@@ -19,6 +20,11 @@ function applyFormChange(rawConfig, node, data) {
       const modes = ['m1', 'm2', 'm3'].map((k) => data[k] ?? node.data[k]).filter(Boolean);
       return setPath(config, [...node.path, 'modes'], modes);
     }
+    case 'palette-ref':
+    case 'palette-meta':
+    case 'palette-color':
+    case 'palette-copy':
+      return applyPaletteForm(config, node, data);
     default: {
       let out = config;
       for (const name of fieldNames(node.schema)) {
@@ -57,6 +63,7 @@ function applyOp(rawConfig, op) {
       [arr[op.index], arr[j]] = [arr[j], arr[op.index]];
       return setPath(config, op.path, arr);
     }
+    case 'palette-delete': return removePalette(config, op.name);
     case 'convert': return serializeV4(rawConfig);
     default: return config;
   }

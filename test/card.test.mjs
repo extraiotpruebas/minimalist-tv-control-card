@@ -82,6 +82,11 @@ test('routeAction: una secuencia va al Roku solo si TODOS sus pasos irían al Ro
   assert.equal(toRoku(['down', 'down'], { mode: 'audio' }), false, 'en modos de la TV todo va a la TV');
 });
 
+test('routeAction: una entrada (input) siempre va a la TV, también en modo Roku', () => {
+  assert.equal(toRoku('input:hdmi1'), false);
+  assert.equal(toRoku(['input:hdmi1', 'down']), false, 'una secuencia con una entrada va completa a la TV');
+});
+
 test('routeAction: sin modo Roku todo va a la TV', () => {
   assert.equal(routeAction(parseAction('up'), { tv: TV_WITH_ROKU, rokuMode: false, mode: null }).entity, 'media_player.lg');
 });

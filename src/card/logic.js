@@ -219,4 +219,61 @@ function describeNow({ status, busy, roku, hasCompanion, tvState, rokuState, str
   };
 }
 
-export { CENTER_GUARD_MS, SOURCE_ATTEMPTS, StateWaiters, TIMING, describeNow, resolveSourceName, routeAction, sourceMatches, storage, tvStatus };
+/**
+ * ¿Qué paleta se usa ahora? Gana la asignación MÁS ESPECÍFICA:
+ *   1. appRef:  la del botón de streaming de la app activa (Netflix → "cine");
+ *   2. rokuRef: la del companion, solo si el modo Roku está activo;
+ *   3. cardRef: la de la tarjeta (o la de la TV, si tiene overrides).
+ * Cada ref es { light, dark } (o null): se toma el nombre del tema actual.
+ * Si un nivel nombra una paleta que no existe, se salta al siguiente (normalizeConfig
+ * ya avisó). Función pura: la cascada se prueba en Node sin navegador.
+ *
+ * @returns {object|null} la paleta ({ base, background?, ... }) o null = estilo de siempre
+ */
+function resolvePalette({ palettes, theme, roku, appRef, rokuRef, cardRef }) {
+  // VERSIÓN PROVISIONAL del asistente, para poder sacar capturas en HA mientras Ian
+  // termina la suya (el ejercicio Learn by Doing). Cuando la tenga, reemplaza el cuerpo.
+  const levels = [appRef, roku ? rokuRef : null, cardRef];
+  for (const ref of levels) {
+    const name = ref?.[theme];
+    if (name && Object.hasOwn(palettes, name)) return palettes[name];
+  }
+  return null;
+}
+
+/**
+ * Paleta → tokens CSS para el style del ha-card. Solo entran 5 colores; el resto
+ * se DERIVA con color-mix(), así el texto secundario siempre queda entre el texto
+ * y el fondo, y las líneas son el texto muy transparente, con cualquier paleta.
+ * Un campo vacío no escribe nada: queda el valor del estilo y la base.
+ * El style inline le gana a `.card[data-style=...]`, por eso no hace falta CSS nuevo.
+ */
+function paletteTokens(palette) {
+  const t = {};
+  if (!palette) return t;
+  const { base, background, button, text, accent, on } = palette;
+  const dark = base === 'dark';
+  if (background) {
+    t['--tv-surface'] = background;
+    t['--tv-surface-top'] = `color-mix(in srgb, ${background} ${dark ? 95 : 55}%, #fff)`;
+  }
+  if (button) {
+    // En oscuro el botón queda translúcido para que el vidrio (backdrop-filter) se siga viendo.
+    t['--tv-raised'] = dark ? `color-mix(in srgb, ${button} 75%, transparent)` : button;
+    t['--tv-raised-2'] = dark ? `color-mix(in srgb, ${button} 40%, transparent)` : `color-mix(in srgb, ${button} 80%, var(--tv-surface))`;
+    t['--tv-thumb'] = button;
+  }
+  if (text) {
+    t['--tv-ink'] = text;
+    t['--tv-ink-2'] = `color-mix(in srgb, ${text} 64%, var(--tv-surface))`;
+    t['--tv-line'] = `color-mix(in srgb, ${text} ${dark ? 10 : 13}%, transparent)`;
+  }
+  if (accent) {
+    t['--tv-accent-default'] = accent;
+    t['--tv-blob'] = `color-mix(in srgb, ${accent} 60%, ${dark ? '#000' : '#fff'})`;
+  }
+  if (on) t['--tv-on'] = on;
+  return t;
+}
+
+export { CENTER_GUARD_MS, SOURCE_ATTEMPTS, StateWaiters, TIMING, describeNow, paletteTokens, resolvePalette, resolveSourceName, routeAction, sourceMatches, storage, tvStatus };

@@ -41,6 +41,18 @@ visual guarda el formato nuevo v4. Ver [docs/ARCHITECTURE.md](docs/ARCHITECTURE.
   Samsung, valor `'pendiente'` mandado a la TV y `console.log` de depuración.
 
 ### Agregado
+- **Paletas de color.** `palette` y `palettes`: una paleta son 5 colores (`background`,
+  `button`, `text`, `accent`, `on`) y una base clara u oscura; el resto de los tonos se
+  deriva con `color-mix()`. Incluye 8 paletas (`grafito`, `medianoche`, `ciruela`,
+  `bosque`, `oled`, `nube`, `arena`, `menta`) con contraste 4.5:1. Se asignan a la
+  tarjeta, a una TV (`overrides.palette`), al modo Roku (`companion.palette`) o a un botón
+  de streaming (`streaming[i].palette`); gana el más específico. Cada asignación puede
+  ser un nombre o `{ light, dark }`. Un nombre inexistente se salta y se avisa.
+- **Editor de paletas** en el editor visual: panel *Paletas* (crear, copiar una incluida,
+  renombrar, cambiar la base, agregar o quitar colores con el selector de color de HA,
+  muestras y aviso de contraste) y un selector de paleta en General, en cada TV, en el
+  Roku y en cada botón de streaming personalizado. Renombrar o borrar una paleta
+  actualiza todo lo que la usaba.
 - **Rediseño "Ambiente"** con pantalla de estado arriba y tres estilos:
   `style: relieve` (predeterminado), `halo` y `cristal`.
 - **Tema** `theme: dark` (predeterminado), `light` o `auto` (sigue el modo oscuro de HA).
@@ -49,8 +61,10 @@ visual guarda el formato nuevo v4. Ver [docs/ARCHITECTURE.md](docs/ARCHITECTURE.
 - **TV apagada:** el centro del touchpad se vuelve el botón Encender (nunca apaga) y
   el touchpad, los modos y las teclas de abajo quedan bloqueados. Los botones de
   streaming siguen activos: encienden la TV y abren la app.
-- **Acciones estructuradas** con tipos `key`, `button`, `command`, `source`,
+- **Acciones estructuradas** con tipos `key`, `button`, `command`, `source`, `input`,
   `service`, `sequence`, `platform` (una variante por marca) y `numpad`.
+- **Entradas por puerto** (`action: input:hdmi2`, también `tv`): no dependen del nombre
+  que la entrada tenga en la TV. LG usa `tv/switchInput` y Samsung `ST_HDMIn`.
 - **Teclado numérico** como acción asignable a cualquier botón (`action: numpad`).
 - **Secuencias** de pasos con pausa configurable (p. ej. un PIN), que reemplazan al
   PIN fijo de `sendPass`. Un doble toque no mezcla dos secuencias.
@@ -70,6 +84,13 @@ visual guarda el formato nuevo v4. Ver [docs/ARCHITECTURE.md](docs/ARCHITECTURE.
   navegador (`dev/`).
 
 ### Cambiado
+- **Editor visual en paneles plegables.** Con muchos parámetros personalizados el editor
+  era una columna larguísima. Ahora cada sección (General, Televisores, cada TV, Modos,
+  Touchpad sin modo, Streaming, Botones, cada botón personalizado, cada modo
+  personalizado y cada dirección) es un panel con un resumen visible aun cerrado
+  ("Menú, Luces, Audio", "2 personalizados: Atrás, Menú"). Arrancan abiertos General,
+  Televisores y la primera TV; lo recién agregado se abre solo. El estado de los
+  paneles no se guarda en el YAML.
 - El modo `navegacion` se migra al modo `menu` (Inicio, Menú, Salir, Atrás) con los
   íconos de cada acción.
 - El botón del encabezado se llama `top_left` en v4 (antes `exit_*`). Con Roku es el
@@ -78,7 +99,10 @@ visual guarda el formato nuevo v4. Ver [docs/ARCHITECTURE.md](docs/ARCHITECTURE.
   nombres viejos se siguen leyendo.
 - Solo las flechas se repiten al mantener presionado; volumen, canal, scripts,
   commands y fuentes se mandan una vez por toque.
-- Los modos `fuentes` e `info` siguen disponibles pero son experimentales.
+- El modo `fuentes` cambia de entrada por puerto (acción `input`) y deja de ser
+  experimental. El modo `info` sigue siendo experimental (falta probarlo en TVs reales).
+- Los botones de streaming `hdmi1`…`hdmi4` cambian por puerto, sin esperar
+  confirmación.
 - Render: el DOM se construye una vez y después solo se actualiza lo que cambió; los
   cambios de entidades ajenas a la tarjeta ya no la repintan.
 

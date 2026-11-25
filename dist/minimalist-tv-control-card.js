@@ -860,6 +860,51 @@ var CODE_TO_KEY = (() => {
 	}
 	return map;
 })();
+// src/actions/inputs.js
+var INPUTS = {
+	hdmi1: {
+		label: "HDMI 1",
+		icon: "mdi:numeric-1-box-multiple-outline",
+		lg: { inputId: "HDMI_1" },
+		samsung: "ST_HDMI1"
+	},
+	hdmi2: {
+		label: "HDMI 2",
+		icon: "mdi:numeric-2-box-multiple-outline",
+		lg: { inputId: "HDMI_2" },
+		samsung: "ST_HDMI2"
+	},
+	hdmi3: {
+		label: "HDMI 3",
+		icon: "mdi:numeric-3-box-multiple-outline",
+		lg: { inputId: "HDMI_3" },
+		samsung: "ST_HDMI3"
+	},
+	hdmi4: {
+		label: "HDMI 4",
+		icon: "mdi:numeric-4-box-multiple-outline",
+		lg: { inputId: "HDMI_4" },
+		samsung: "ST_HDMI4"
+	},
+	tv: {
+		label: "TV (antena / cable)",
+		icon: "mdi:television-classic",
+		lg: { app: "com.webos.app.livetv" },
+		samsung: "ST_TV"
+	}
+};
+var INPUT_IDS = Object.keys(INPUTS);
+/**
+* Lo que escribió el usuario → id del catálogo ('hdmi2'), o null si no es una
+* entrada conocida. La forma exacta ('hdmi2') siempre funciona.
+*/
+function normalizeInputId(value) {
+	const str = String(value ?? "").trim();
+	if (INPUT_IDS.includes(str)) return str;
+	const clean = str.toLowerCase().replace(/[\s_-]/g, "");
+	if (INPUT_IDS.includes(clean)) return clean;
+	return null;
+}
 // src/util.js
 /**
 * ¿`obj` tiene la propiedad `key` PROPIA? Un objeto normal hereda propiedades
@@ -891,6 +936,7 @@ var ACTION_TYPES = [
 	"button",
 	"command",
 	"source",
+	"input",
 	"service",
 	"sequence",
 	"platform",
@@ -937,6 +983,13 @@ function parseAction(raw) {
 				type: "source",
 				source: String(raw.source)
 			} : null;
+			case "input": {
+				const input = normalizeInputId(raw.input);
+				return input ? {
+					type: "input",
+					input
+				} : null;
+			}
 			case "service":
 				if (!raw.service || !String(raw.service).includes(".")) return null;
 				return {
@@ -990,6 +1043,10 @@ function parseAction(raw) {
 			source
 		} : null;
 	}
+	if (str.startsWith("input:")) return parseAction({
+		type: "input",
+		input: str.slice(6)
+	});
 	if (str.startsWith("command:")) {
 		const command = stripSsap(str.slice(8));
 		return command ? {
@@ -1150,6 +1207,7 @@ var SOURCES = [
 		name: "HDMI 1",
 		icon: "mdi:hdmi-port",
 		service: "HDMI 1",
+		input: "hdmi1",
 		rokuSource: null,
 		accent: null
 	},
@@ -1158,6 +1216,7 @@ var SOURCES = [
 		name: "HDMI 2",
 		icon: "mdi:hdmi-port",
 		service: "HDMI 2",
+		input: "hdmi2",
 		rokuSource: null,
 		accent: null
 	},
@@ -1166,6 +1225,7 @@ var SOURCES = [
 		name: "HDMI 3",
 		icon: "mdi:hdmi-port",
 		service: "HDMI 3",
+		input: "hdmi3",
 		rokuSource: null,
 		accent: null
 	},
@@ -1174,6 +1234,7 @@ var SOURCES = [
 		name: "HDMI 4",
 		icon: "mdi:hdmi-port",
 		service: "HDMI 4",
+		input: "hdmi4",
 		rokuSource: null,
 		accent: null
 	}
@@ -1244,7 +1305,7 @@ var FIXED_MODES = {
 	fuentes: {
 		label: "Fuentes",
 		icon: "mdi:television-shimmer",
-		pad: pad(["mdi:numeric-1-box-multiple-outline", "source:HDMI 1"], ["mdi:numeric-2-box-multiple-outline", "source:HDMI 2"], ["mdi:numeric-3-box-multiple-outline", "source:HDMI 3"], ["mdi:numeric-4-box-multiple-outline", "source:HDMI 4"])
+		pad: pad([INPUTS.hdmi1.icon, "input:hdmi1"], [INPUTS.hdmi2.icon, "input:hdmi2"], [INPUTS.hdmi3.icon, "input:hdmi3"], [INPUTS.hdmi4.icon, "input:hdmi4"])
 	},
 	info: {
 		label: "Información",
@@ -1305,6 +1366,7 @@ var BOTTOM_BUTTONS = [
 ];
 [
 	KEYS,
+	INPUTS,
 	SOURCES,
 	FIXED_MODES,
 	DEFAULT_PAD,
@@ -1508,6 +1570,62 @@ function describeNow({ status, busy, roku, hasCompanion, tvState, rokuState, str
 		accent: roku ? ROKU_ACCENT : null,
 		sourceId: null
 	};
+}
+/**
+* ¿Qué paleta se usa ahora? Gana la asignación MÁS ESPECÍFICA:
+*   1. appRef:  la del botón de streaming de la app activa (Netflix → "cine");
+*   2. rokuRef: la del companion, solo si el modo Roku está activo;
+*   3. cardRef: la de la tarjeta (o la de la TV, si tiene overrides).
+* Cada ref es { light, dark } (o null): se toma el nombre del tema actual.
+* Si un nivel nombra una paleta que no existe, se salta al siguiente (normalizeConfig
+* ya avisó). Función pura: la cascada se prueba en Node sin navegador.
+*
+* @returns {object|null} la paleta ({ base, background?, ... }) o null = estilo de siempre
+*/
+function resolvePalette({ palettes, theme, roku, appRef, rokuRef, cardRef }) {
+	const levels = [
+		appRef,
+		roku ? rokuRef : null,
+		cardRef
+	];
+	for (const ref of levels) {
+		const name = ref?.[theme];
+		if (name && Object.hasOwn(palettes, name)) return palettes[name];
+	}
+	return null;
+}
+/**
+* Paleta → tokens CSS para el style del ha-card. Solo entran 5 colores; el resto
+* se DERIVA con color-mix(), así el texto secundario siempre queda entre el texto
+* y el fondo, y las líneas son el texto muy transparente, con cualquier paleta.
+* Un campo vacío no escribe nada: queda el valor del estilo y la base.
+* El style inline le gana a `.card[data-style=...]`, por eso no hace falta CSS nuevo.
+*/
+function paletteTokens(palette) {
+	const t = {};
+	if (!palette) return t;
+	const { base, background, button, text, accent, on } = palette;
+	const dark = base === "dark";
+	if (background) {
+		t["--tv-surface"] = background;
+		t["--tv-surface-top"] = `color-mix(in srgb, ${background} ${dark ? 95 : 55}%, #fff)`;
+	}
+	if (button) {
+		t["--tv-raised"] = dark ? `color-mix(in srgb, ${button} 75%, transparent)` : button;
+		t["--tv-raised-2"] = dark ? `color-mix(in srgb, ${button} 40%, transparent)` : `color-mix(in srgb, ${button} 80%, var(--tv-surface))`;
+		t["--tv-thumb"] = button;
+	}
+	if (text) {
+		t["--tv-ink"] = text;
+		t["--tv-ink-2"] = `color-mix(in srgb, ${text} 64%, var(--tv-surface))`;
+		t["--tv-line"] = `color-mix(in srgb, ${text} ${dark ? 10 : 13}%, transparent)`;
+	}
+	if (accent) {
+		t["--tv-accent-default"] = accent;
+		t["--tv-blob"] = `color-mix(in srgb, ${accent} 60%, ${dark ? "#000" : "#fff"})`;
+	}
+	if (on) t["--tv-on"] = on;
+	return t;
 }
 // src/card/styles.js
 var CARD_CSS = `
@@ -2095,6 +2213,7 @@ function cardTemplate(v) {
   data-style=${v.style} data-theme=${v.theme} data-status=${v.status} data-mode=${v.mode}
   data-roku=${String(v.roku)} data-busy=${String(v.busy)} data-numpad=${String(v.numpad)}
   style=${o({
+		...v.paletteStyle,
 		"--tv-accent": v.accent ?? void 0,
 		"--tv-glow": v.accent ?? void 0
 	})}>
@@ -2146,6 +2265,170 @@ function cardTemplate(v) {
   </div>
 </ha-card>`;
 }
+// src/config/palettes.js
+var PALETTE_FIELDS = [
+	"background",
+	"button",
+	"text",
+	"accent",
+	"on"
+];
+var BUILTIN_PALETTES = {
+	grafito: {
+		base: "dark",
+		background: "#1b1d21",
+		button: "#2c2f35",
+		text: "#eceef1",
+		accent: "#f0b44c",
+		on: "#62d6a0"
+	},
+	medianoche: {
+		base: "dark",
+		background: "#0c1424",
+		button: "#1b2a45",
+		text: "#e8eef8",
+		accent: "#5cc8ff",
+		on: "#43dba0"
+	},
+	ciruela: {
+		base: "dark",
+		background: "#1a1220",
+		button: "#2e2138",
+		text: "#f1eaf5",
+		accent: "#c79bff",
+		on: "#6fe0a9"
+	},
+	bosque: {
+		base: "dark",
+		background: "#101a16",
+		button: "#1f2e28",
+		text: "#e7f0eb",
+		accent: "#d9b77e",
+		on: "#62dca0"
+	},
+	oled: {
+		base: "dark",
+		background: "#050506",
+		button: "#18181b",
+		text: "#f4f4f5",
+		accent: "#ffffff",
+		on: "#5ee39b"
+	},
+	nube: {
+		base: "light",
+		background: "#e6ecf4",
+		button: "#ffffff",
+		text: "#18202c",
+		accent: "#2f62d9",
+		on: "#1b9a5f"
+	},
+	arena: {
+		base: "light",
+		background: "#ece7df",
+		button: "#fbf8f3",
+		text: "#2a251f",
+		accent: "#9a6b3f",
+		on: "#3f9a62"
+	},
+	menta: {
+		base: "light",
+		background: "#e3eeea",
+		button: "#fbfefc",
+		text: "#16241e",
+		accent: "#0f7c8c",
+		on: "#1d9a5d"
+	}
+};
+/**
+* Color del YAML → '#rrggbb' (minúsculas), o null si no es un color válido.
+* Acepta '#1a2b3c', '1a2b3c', '#abc', '26, 43, 60' y [26, 43, 60] (el selector
+* color_rgb de HA entrega un arreglo).
+*/
+function normalizeHex(value) {
+	if (Array.isArray(value)) value = value.join(",");
+	const str = String(value ?? "").trim().toLowerCase();
+	let m = /^#?([0-9a-f]{6})$/.exec(str);
+	if (m) return `#${m[1]}`;
+	m = /^#?([0-9a-f])([0-9a-f])([0-9a-f])$/.exec(str);
+	if (m) return `#${m[1]}${m[1]}${m[2]}${m[2]}${m[3]}${m[3]}`;
+	m = /^(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})$/.exec(str);
+	if (m && m.slice(1).every((n) => Number(n) <= 255)) return `#${m.slice(1).map((n) => Number(n).toString(16).padStart(2, "0")).join("")}`;
+	return null;
+}
+/** Una paleta del YAML → { base, ...colores válidos }. Los colores inválidos se avisan y se omiten. */
+function normalizePalette(name, raw, warnings) {
+	if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
+		warnings.push(`La paleta "${name}" no es un bloque de colores; se ignoró.`);
+		return null;
+	}
+	const base = String(raw.base ?? "").trim().toLowerCase();
+	if (base && base !== "light" && base !== "dark") warnings.push(`Paleta "${name}": base "${raw.base}" desconocida; se usará "dark".`);
+	const palette = { base: base === "light" ? "light" : "dark" };
+	for (const field of PALETTE_FIELDS) {
+		if (raw[field] === void 0 || raw[field] === null || raw[field] === "") continue;
+		const hex = normalizeHex(raw[field]);
+		if (hex) palette[field] = hex;
+		else warnings.push(`Paleta "${name}": el color ${field} "${raw[field]}" no es válido (usa #rrggbb); se usará el de la base.`);
+	}
+	return palette;
+}
+/**
+* `palettes:` del YAML + las incluidas. Una paleta propia con el mismo nombre que
+* una incluida la reemplaza (así un instalador puede ajustar "grafito" a su gusto).
+*/
+function normalizePalettes(raw, warnings) {
+	const result = { ...BUILTIN_PALETTES };
+	if (raw === void 0 || raw === null) return result;
+	if (typeof raw !== "object" || Array.isArray(raw)) {
+		warnings.push("\"palettes\" debe ser un bloque de nombre: { colores }; se ignoró.");
+		return result;
+	}
+	for (const [name, def] of Object.entries(raw)) {
+		const palette = normalizePalette(name, def, warnings);
+		if (palette) result[name] = palette;
+	}
+	return result;
+}
+/**
+* Una asignación (`palette: grafito` o `palette: { light: nube, dark: grafito }`)
+* → { light, dark } con nombres o null. Así el resto del código no distingue entre
+* las dos formas. Devuelve null si no hay asignación.
+*/
+function paletteRef(value) {
+	if (typeof value === "string" && value.trim()) return {
+		light: value.trim(),
+		dark: value.trim()
+	};
+	if (value && typeof value === "object" && !Array.isArray(value)) {
+		const pick = (v) => typeof v === "string" && v.trim() ? v.trim() : null;
+		const ref = {
+			light: pick(value.light),
+			dark: pick(value.dark)
+		};
+		return ref.light || ref.dark ? ref : null;
+	}
+	return null;
+}
+/** Avisa de los nombres asignados que no existen (en vez de ignorarlos en silencio). */
+function checkPaletteRef(ref, palettes, where, warnings) {
+	for (const name of /* @__PURE__ */ new Set([ref?.light, ref?.dark])) if (name && !has(palettes, name)) warnings.push(`${where}: la paleta "${name}" no existe. Incluidas: ${Object.keys(BUILTIN_PALETTES).join(", ")}.`);
+}
+/**
+* Contraste WCAG 2 entre dos colores '#rrggbb': de 1 (iguales) a 21 (negro y
+* blanco). 4.5 es el mínimo recomendado para texto normal.
+*/
+function contrastRatio(a, b) {
+	const luminance = (hex) => {
+		const [r, g, bl] = [
+			1,
+			3,
+			5
+		].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255).map((c) => c <= .03928 ? c / 12.92 : ((c + .055) / 1.055) ** 2.4);
+		return .2126 * r + .7152 * g + .0722 * bl;
+	};
+	const [hi, lo] = [luminance(a), luminance(b)].sort((x, y) => y - x);
+	return (hi + .05) / (lo + .05);
+}
 // src/config/normalize.js
 /** 'LG TV' | 'lg' | 'samsung' | undefined → 'lg' | 'samsung' | 'roku' */
 function normalizePlatform(value, warnings) {
@@ -2171,7 +2454,8 @@ function normalizeCompanion(raw) {
 	return {
 		platform: normalizePlatform(raw.platform || "roku"),
 		entity: entity || null,
-		remote: remote || null
+		remote: remote || null,
+		palette: paletteRef(raw.palette)
 	};
 }
 /**
@@ -2256,7 +2540,7 @@ function resolveDefaultPad(raw) {
 	}
 	return result;
 }
-function makeStreamingSlot(index, sourceId, icon, action, accent, warnings) {
+function makeStreamingSlot(index, sourceId, icon, action, accent, palette, warnings) {
 	let source = SOURCES_BY_ID.get(sourceId);
 	if (!source) {
 		if (sourceId) warnings.push(`Fuente desconocida "${sourceId}" en el botón de streaming ${index + 1}; se usó la predeterminada.`);
@@ -2267,13 +2551,14 @@ function makeStreamingSlot(index, sourceId, icon, action, accent, warnings) {
 		source,
 		icon: firstDefined(icon, source.icon),
 		action: parseAction(action),
-		accent: normalizeColor(accent)
+		accent: normalizeColor(accent),
+		palette: paletteRef(palette)
 	};
 }
 function resolveStreaming(raw, warnings) {
 	if (Array.isArray(raw.streaming)) return DEFAULT_STREAMING.map((defaultId, i) => {
 		const entry = raw.streaming[i] || {};
-		return makeStreamingSlot(i, firstDefined(entry.source, defaultId), entry.icon, entry.action, entry.accent, warnings);
+		return makeStreamingSlot(i, firstDefined(entry.source, defaultId), entry.icon, entry.action, entry.accent, entry.palette, warnings);
 	});
 	const keys = Object.keys(raw);
 	const repoFlavor = keys.some((k) => k.startsWith("appletv_") || /^(netflix|disney|YouTube|appletv)_source$/.test(k));
@@ -2288,7 +2573,7 @@ function resolveStreaming(raw, warnings) {
 		lastPrefix
 	].map((prefix, i) => {
 		const defaultId = prefix === "prime" ? "prime" : DEFAULT_STREAMING[i];
-		return makeStreamingSlot(i, firstDefined(raw[`${prefix}_source`], defaultId), raw[`${prefix}_icon`], raw[`${prefix}_value`], firstDefined(raw[`${prefix}_accent_color`], raw[`${prefix}_accent_hex`]), warnings);
+		return makeStreamingSlot(i, firstDefined(raw[`${prefix}_source`], defaultId), raw[`${prefix}_icon`], raw[`${prefix}_value`], firstDefined(raw[`${prefix}_accent_color`], raw[`${prefix}_accent_hex`]), null, warnings);
 	});
 }
 function resolveButtons(raw, warnings) {
@@ -2353,7 +2638,8 @@ function resolveSettings(raw, warnings) {
 		modeDefs,
 		defaultPad: resolveDefaultPad(raw),
 		streaming: resolveStreaming(raw, warnings),
-		buttons: resolveButtons(raw, warnings)
+		buttons: resolveButtons(raw, warnings),
+		palette: paletteRef(raw.palette)
 	};
 }
 /**
@@ -2393,6 +2679,7 @@ var TV_OWN_KEYS = /* @__PURE__ */ new Set([
 * @param {object} raw  config tal como viene de setConfig()
 * @returns {{
 *   format: 'v4'|'legacy', cardId: string, theme: 'light'|'dark'|'auto', style: string,
+*   palettes: { [name]: { base, background?, button?, text?, accent?, on? } },
 *   controlModeEntity: string|null,
 *   tvs: Array<{ name, entity, platform, companion, settings }>, warnings: string[]
 * }}
@@ -2406,7 +2693,9 @@ function normalizeConfig(raw) {
 		"streaming",
 		"custom_modes",
 		"default_pad",
-		"theme"
+		"theme",
+		"palette",
+		"palettes"
 	].some((k) => k in raw) || Array.isArray(raw.tvs) && raw.tvs.some((tv) => tv && ("platform" in tv || "companion" in tv));
 	let rawTvs;
 	if (Array.isArray(raw.tvs) && raw.tvs.length > 0) rawTvs = raw.tvs;
@@ -2439,12 +2728,20 @@ function normalizeConfig(raw) {
 			settings
 		};
 	});
+	const palettes = normalizePalettes(raw.palettes, warnings);
+	for (const tv of tvs) {
+		const { settings, companion } = tv;
+		checkPaletteRef(settings.palette, palettes, `"${tv.name}"`, warnings);
+		checkPaletteRef(companion?.palette, palettes, `"${tv.name}" (modo Roku)`, warnings);
+		for (const slot of settings.streaming) checkPaletteRef(slot.palette, palettes, `Botón de streaming ${slot.index + 1}`, warnings);
+	}
 	const cardId = firstDefined(raw.card_id, `auto:${tvs.map((t) => t.entity).join(",")}`);
 	return deepFreeze({
 		format: isV4 ? "v4" : "legacy",
 		cardId: String(cardId),
 		theme: resolveTheme(firstDefined(raw.theme, raw.colorMode)),
 		style: resolveStyle(raw.style, warnings),
+		palettes,
 		controlModeEntity: firstDefined(raw.control_mode_entity) ?? null,
 		tvs,
 		warnings: [...new Set(warnings)]
@@ -2477,6 +2774,11 @@ var PLATFORMS = {
 			};
 			if (payload && Object.keys(payload).length) data.payload = payload;
 			return hass.callService("webostv", "command", data);
+		},
+		selectInput(hass, device, input) {
+			const target = INPUTS[input]?.lg;
+			if (!target) return Promise.reject(new UnsupportedActionError(this.id, `entrada "${input}"`));
+			return target.app ? this.sendCommand(hass, device, "system.launcher/launch", { id: target.app }) : this.sendCommand(hass, device, "tv/switchInput", { inputId: target.inputId });
 		}
 	},
 	samsung: {
@@ -2490,6 +2792,11 @@ var PLATFORMS = {
 				media_content_type: "send_key",
 				media_content_id: code
 			});
+		},
+		selectInput(hass, device, input) {
+			const code = INPUTS[input]?.samsung;
+			if (!code) return Promise.reject(new UnsupportedActionError(this.id, `entrada "${input}"`));
+			return this.sendCode(hass, device, code);
 		}
 	},
 	roku: {
@@ -2520,6 +2827,9 @@ var PLATFORM_DEFAULTS = {
 	},
 	sendCommand() {
 		return Promise.reject(new UnsupportedActionError(this.id, "commands"));
+	},
+	selectInput(hass, device, input) {
+		return Promise.reject(new UnsupportedActionError(this.id, `entrada "${input}"`));
 	}
 };
 for (const platform of Object.values(PLATFORMS)) Object.setPrototypeOf(platform, PLATFORM_DEFAULTS);
@@ -2548,6 +2858,7 @@ async function executeAction(hass, action, device) {
 		case "button": return platform.sendCode(hass, device, resolved.button);
 		case "command": return platform.sendCommand(hass, device, resolved.command, resolved.payload);
 		case "source": return platform.selectSource(hass, device, resolved.source);
+		case "input": return platform.selectInput(hass, device, resolved.input);
 		case "service": {
 			const [domain, service] = resolved.service.split(".");
 			return hass.callService(domain, service, resolved.data);
@@ -2811,6 +3122,16 @@ var TvControlCard = class extends i$3 {
 			rokuState: roku ? this._hass?.states?.[tv.companion.entity] : null,
 			streaming: settings.streaming
 		});
+		const theme = this._theme;
+		const appSlot = now.sourceId ? settings.streaming.find((sl) => sl.source.id === now.sourceId) : null;
+		const palette = resolvePalette({
+			palettes: this._model.palettes,
+			theme,
+			roku,
+			appRef: appSlot?.palette,
+			rokuRef: tv.companion?.palette,
+			cardRef: settings.palette
+		});
 		const expanded = (action) => action?.type === "numpad" ? String(this._ui.numpad) : void 0;
 		const pad = this._pad;
 		const loadingIndex = this._loading.get(tv.entity);
@@ -2818,7 +3139,8 @@ var TvControlCard = class extends i$3 {
 		const isPlainExit = topLeft.action?.type === "key" && topLeft.action.key === "exit";
 		return {
 			style: this._model.style,
-			theme: this._theme,
+			theme: palette?.base ?? theme,
+			paletteStyle: paletteTokens(palette),
 			status,
 			mode: this._ui.mode ?? "default",
 			roku,
@@ -3179,6 +3501,10 @@ var TvControlCard = class extends i$3 {
 			await this._ensureOn(tv);
 			let ok = true;
 			if (slot.action) await executeAction(this._hass, slot.action, this._route(slot.action));
+			else if (source.input) await executeAction(this._hass, {
+				type: "input",
+				input: source.input
+			}, tvDevice);
 			else if (viaRoku) {
 				if (!this._ui.roku) await this._selectSourceConfirmed(tvDevice, SOURCES_BY_ID.get("roku").alternates);
 				ok = await this._selectSourceConfirmed({
@@ -3264,7 +3590,8 @@ var ACTION_UI_TYPES = {
 	default: "Predeterminada",
 	none: "Ninguna",
 	key: "Tecla",
-	source: "Fuente (select_source)",
+	input: "Entrada (HDMI / antena)",
+	source: "Fuente por nombre (select_source)",
 	script: "Script o escena",
 	service: "Servicio de HA",
 	command: "Command LG (webOS)",
@@ -3275,6 +3602,7 @@ var ACTION_UI_TYPES = {
 };
 var ALL_ACTION_TYPES = [
 	"key",
+	"input",
 	"source",
 	"script",
 	"service",
@@ -3288,12 +3616,14 @@ var STEP_ACTION_TYPES = [
 	"key",
 	"button",
 	"command",
+	"input",
 	"source",
 	"script",
 	"service"
 ];
 var BRAND_ACTION_TYPES = [
 	"key",
+	"input",
 	"source",
 	"script",
 	"service",
@@ -3379,6 +3709,11 @@ var LG_COMMANDS = [
 		label: "Abrir URL en el navegador · payload: { target: \"https://…\" }"
 	}
 ];
+/** Entradas por puerto: LG y Samsung (el Roku no tiene entradas). */
+var INPUT_OPTIONS = Object.entries(INPUTS).map(([id, def]) => ({
+	value: id,
+	label: def.label
+}));
 var SOURCE_OPTIONS = SOURCES.map((s) => ({
 	value: s.id,
 	label: s.service ? s.name : `${s.name} (solo por Roku)`
@@ -3529,6 +3864,10 @@ function actionToForm(raw) {
 			type: "source",
 			source: a.source ?? ""
 		};
+		case "input": return {
+			type: "input",
+			input: a.input ?? ""
+		};
 		case "service": {
 			const data = isPlainObject(a.data) ? a.data : {};
 			const entity = data.entity_id;
@@ -3580,6 +3919,10 @@ function formToAction(data, prevRaw) {
 		case "source": return {
 			type: "source",
 			source: v.source ?? ""
+		};
+		case "input": return v.input ? `input:${v.input}` : {
+			type: "input",
+			input: ""
 		};
 		case "script": return v.entity ? v.entity : {
 			type: "service",
@@ -3660,8 +4003,19 @@ function actionSchema(form, { allowDefault = false, allowNone = true, types = AL
 			schema.push({
 				name: "source",
 				label: "Fuente",
-				helper: "Como aparece en la lista de fuentes de la TV, p. ej. \"HDMI 1\".",
+				helper: "El nombre exacto de la lista de fuentes de la TV. Para un HDMI conviene \"Entrada\": no depende del nombre.",
 				selector: { text: {} }
+			});
+			break;
+		case "input":
+			schema.push({
+				name: "input",
+				label: "Entrada",
+				helper: "Por puerto: funciona aunque la entrada tenga otro nombre en la TV. LG y Samsung.",
+				selector: { select: {
+					mode: "dropdown",
+					options: INPUT_OPTIONS
+				} }
 			});
 			break;
 		case "script":
@@ -3720,6 +4074,527 @@ function actionSchema(form, { allowDefault = false, allowNone = true, types = AL
 	}
 	return schema;
 }
+// src/editor/fold.js
+function fold(head, children, { summary = "", open = false } = {}) {
+	const direct = children.filter((child) => !child.parent).map((child) => child.depth ?? 0);
+	head.fold = {
+		summary,
+		open,
+		base: direct.length ? Math.min(...direct) : head.depth ?? 0
+	};
+	for (const child of children) child.parent ??= head.key;
+	return [head, ...children];
+}
+/** Nodos agrupados por su `parent` ('' = raíz), conservando el orden. Para pintar el árbol. */
+function childrenByParent(nodes) {
+	const map = /* @__PURE__ */ new Map();
+	for (const node of nodes) {
+		const parent = node.parent ?? "";
+		if (!map.has(parent)) map.set(parent, []);
+		map.get(parent).push(node);
+	}
+	return map;
+}
+// src/editor/palettes.js
+/** Valor del selector para "sin paleta" (un select de HA no maneja bien el texto vacío). */
+var NONE = "__none__";
+var FIELD_LABELS = {
+	background: "Fondo",
+	button: "Botones",
+	text: "Texto",
+	accent: "Acento",
+	on: "Encendido"
+};
+var BASE_LABELS = {
+	dark: "oscura",
+	light: "clara"
+};
+/**
+* Colores de Relieve por base: lo que vale un campo vacío. Sirven de punto de
+* partida del selector de color y para el aviso de contraste (en oscuro, `button`
+* es el blanco translúcido de Relieve ya mezclado con el fondo).
+*/
+var BASE_COLORS = {
+	dark: {
+		background: "#16181c",
+		button: "#27292d",
+		text: "#eef0f3",
+		accent: "#dce6f5",
+		on: "#64e3a6"
+	},
+	light: {
+		background: "#eef1f5",
+		button: "#ffffff",
+		text: "#1b1f25",
+		accent: "#1b1f25",
+		on: "#1f9d63"
+	}
+};
+var hexToRgb = (hex) => [
+	1,
+	3,
+	5
+].map((i) => parseInt(hex.slice(i, i + 2), 16));
+var baseOf = (palette) => palette?.base === "light" ? "light" : "dark";
+/** Todas las paletas disponibles: las incluidas + las del YAML (una propia reemplaza a la incluida). */
+function allPalettes(config) {
+	return {
+		...BUILTIN_PALETTES,
+		...isPlainObject(config.palettes) ? config.palettes : {}
+	};
+}
+/** Nombre libre para una paleta nueva: "paleta", "paleta-2", "paleta-3"… */
+function uniqueName(config, stem = "paleta") {
+	const taken = allPalettes(config);
+	let name = stem;
+	for (let n = 2; Object.hasOwn(taken, name); n += 1) name = `${stem}-${n}`;
+	return name;
+}
+/**
+* Una asignación de paleta (lo que hay bajo una clave `palette:`) → la misma
+* asignación con el nombre `from` cambiado por `to`.
+*
+*   ref:  'grafito'                          (una sola paleta, claro y oscuro)
+*         { light: 'nube', dark: 'grafito' } (un par; puede traer solo un lado)
+*         undefined                          (sin asignación)
+*   to:   un nombre nuevo, o null = QUITAR el nombre (así se borra una paleta)
+*
+* Devuelve la asignación nueva, o undefined si ya no queda ningún nombre.
+* NO muta `ref` (HA congela la config) y lo que no se llame `from` queda igual.
+* Pruebas: test/palette-refs.test.mjs
+*
+* VERSIÓN PROVISIONAL del asistente, para poder probar el editor en HA. Es el
+* ejercicio "Learn by Doing" de Ian: su versión reemplaza a esta (mismas pruebas).
+*/
+function renameRef(ref, from, to) {
+	const swap = (name) => name === from ? to ?? void 0 : name;
+	if (typeof ref === "string") return swap(ref);
+	if (!isPlainObject(ref)) return ref;
+	const light = swap(ref.light);
+	const dark = swap(ref.dark);
+	if (light === void 0 && dark === void 0) return void 0;
+	return {
+		...light !== void 0 && { light },
+		...dark !== void 0 && { dark }
+	};
+}
+/**
+* Aplica `fn(ref)` a cada asignación de paleta de la config y devuelve la config
+* nueva (sin mutar). Los 5 lugares: la tarjeta, `tvs[i].overrides` (y su streaming),
+* `tvs[i].companion` y `streaming[j]`. Si fn devuelve undefined, se quita la clave.
+*/
+function mapPaletteRefs(config, fn) {
+	const fix = (obj) => {
+		if (!isPlainObject(obj) || obj.palette === void 0) return obj;
+		const next = fn(obj.palette);
+		if (next !== void 0) return {
+			...obj,
+			palette: next
+		};
+		const { palette: _removed, ...rest } = obj;
+		return rest;
+	};
+	const fixSlots = (list) => Array.isArray(list) ? list.map(fix) : list;
+	const fixTv = (tv) => {
+		if (!isPlainObject(tv)) return tv;
+		let out = tv;
+		if (isPlainObject(tv.companion)) out = {
+			...out,
+			companion: fix(tv.companion)
+		};
+		if (isPlainObject(tv.overrides)) {
+			let overrides = fix(tv.overrides);
+			if (Array.isArray(overrides.streaming)) overrides = {
+				...overrides,
+				streaming: fixSlots(overrides.streaming)
+			};
+			out = {
+				...out,
+				overrides
+			};
+		}
+		return out;
+	};
+	let out = fix(config);
+	if (Array.isArray(out.streaming)) out = {
+		...out,
+		streaming: fixSlots(out.streaming)
+	};
+	if (Array.isArray(out.tvs)) out = {
+		...out,
+		tvs: out.tvs.map(fixTv)
+	};
+	return out;
+}
+/**
+* Renombra una paleta (conservando su lugar en la lista) y actualiza todo lo que la
+* usaba. Sin cambios si el nombre nuevo está vacío, es igual, o ya lo tiene otra paleta propia.
+*/
+function renamePalette(config, from, to) {
+	const name = String(to ?? "").trim();
+	const own = isPlainObject(config.palettes) ? config.palettes : {};
+	if (!name || name === from || !Object.hasOwn(own, from) || Object.hasOwn(own, name)) return config;
+	const palettes = Object.fromEntries(Object.entries(own).map(([key, value]) => [key === from ? name : key, value]));
+	return mapPaletteRefs({
+		...config,
+		palettes
+	}, (ref) => renameRef(ref, from, name));
+}
+/**
+* Borra una paleta. Si la ASIGNACIÓN apuntaba a ella y ya no existe ninguna con ese
+* nombre (ni incluida), se quita de las asignaciones; si era una incluida que se había
+* reemplazado, las asignaciones siguen siendo válidas (vuelve la incluida).
+*/
+function removePalette(config, name) {
+	const next = deletePath(config, ["palettes", name]);
+	if (Object.hasOwn(BUILTIN_PALETTES, name)) return next;
+	return mapPaletteRefs(next, (ref) => renameRef(ref, name, null));
+}
+/**
+* El selector que asigna una paleta en `path` (…`.palette`). Con una sola paleta es un
+* desplegable; con un par claro/oscuro son dos. Los botones pasan de una forma a la otra.
+*/
+function assignmentNodes(config, path, key, depth, label, { init } = {}) {
+	const raw = getPath(config, path);
+	const palettes = allPalettes(config);
+	const optionsFor = (current) => {
+		const options = [{
+			value: NONE,
+			label: "Ninguna (la del estilo)"
+		}, ...Object.entries(palettes).map(([name, p]) => ({
+			value: name,
+			label: `${name} · ${BASE_LABELS[baseOf(p)]}`
+		}))];
+		if (current && current !== "__none__" && !Object.hasOwn(palettes, current)) options.push({
+			value: current,
+			label: `${current} (no existe)`
+		});
+		return options;
+	};
+	const select = (name, text) => ({
+		name,
+		label: text,
+		selector: { select: {
+			mode: "dropdown",
+			options: optionsFor(raw?.[name] ?? raw)
+		} }
+	});
+	if (isPlainObject(raw)) {
+		const same = raw.dark ?? raw.light;
+		return [{
+			kind: "form",
+			key,
+			depth,
+			path,
+			codec: "palette-ref",
+			pair: true,
+			init,
+			schema: [{
+				name: "",
+				type: "grid",
+				schema: [select("light", `${label} · claro`), select("dark", `${label} · oscuro`)]
+			}],
+			data: {
+				light: raw.light ?? "__none__",
+				dark: raw.dark ?? "__none__"
+			}
+		}, {
+			kind: "buttons",
+			key: `${key}.b`,
+			depth,
+			items: [{
+				label: "Usar la misma en claro y oscuro",
+				op: {
+					op: "set",
+					path,
+					value: same
+				}
+			}]
+		}];
+	}
+	const nodes = [{
+		kind: "form",
+		key,
+		depth,
+		path,
+		codec: "palette-ref",
+		init,
+		schema: [{
+			name: "value",
+			label,
+			selector: { select: {
+				mode: "dropdown",
+				options: optionsFor(raw)
+			} }
+		}],
+		data: { value: typeof raw === "string" && raw ? raw : NONE }
+	}];
+	if (typeof raw === "string" && raw) nodes.push({
+		kind: "buttons",
+		key: `${key}.b`,
+		depth,
+		items: [{
+			label: "Distinta en claro y oscuro",
+			op: {
+				op: "set",
+				path,
+				value: {
+					light: raw,
+					dark: raw
+				}
+			}
+		}]
+	});
+	return nodes;
+}
+/** Un color de la paleta: el suyo si lo tiene, si no el de la base (se marca como `base`). */
+function effectiveColors(raw, base) {
+	return PALETTE_FIELDS.map((field) => {
+		const own = raw[field] !== void 0 ? normalizeHex(raw[field]) : null;
+		return {
+			field,
+			label: FIELD_LABELS[field],
+			color: own ?? BASE_COLORS[base][field],
+			base: !own
+		};
+	});
+}
+/** "Contraste texto/fondo 12.1:1 · texto/botones 9.3:1" con ⚠ si no llega a 4.5 (mínimo para texto normal). */
+function contrastNote(colors) {
+	const by = Object.fromEntries(colors.map((c) => [c.field, c.color]));
+	const part = (name, ratio) => `${ratio < 4.5 ? "⚠ " : ""}${name} ${ratio.toFixed(1)}:1`;
+	const text = `Contraste ${part("texto/fondo", contrastRatio(by.text, by.background))} · ${part("texto/botones", contrastRatio(by.text, by.button))}`;
+	return contrastRatio(by.text, by.background) < 4.5 || contrastRatio(by.text, by.button) < 4.5 ? `${text}. Menos de 4.5:1 cuesta leer; prueba un texto más claro u oscuro.` : text;
+}
+/** La key usa la POSICIÓN, no el nombre: renombrar (se emite en cada tecla) no debe recrear el campo ni cerrar el panel. */
+function paletteFold(config, name, index) {
+	const raw = isPlainObject(config.palettes[name]) ? config.palettes[name] : {};
+	const base = baseOf(raw);
+	const kp = `pal.${index}`;
+	const colors = effectiveColors(raw, base);
+	const children = [{
+		kind: "swatches",
+		key: `${kp}.s`,
+		depth: 1,
+		colors
+	}, {
+		kind: "form",
+		key: `${kp}.f`,
+		depth: 1,
+		path: ["palettes", name],
+		codec: "palette-meta",
+		schema: [{
+			name: "",
+			type: "grid",
+			schema: [{
+				name: "name",
+				label: "Nombre",
+				selector: { text: {} }
+			}, {
+				name: "base",
+				label: "Base",
+				helper: "Claro u oscuro: lo que no definas sale de aquí.",
+				selector: { select: {
+					mode: "dropdown",
+					options: [{
+						value: "dark",
+						label: "Oscura"
+					}, {
+						value: "light",
+						label: "Clara"
+					}]
+				} }
+			}]
+		}],
+		data: {
+			name,
+			base
+		}
+	}];
+	for (const field of PALETTE_FIELDS) {
+		if (raw[field] === void 0) continue;
+		children.push({
+			kind: "heading",
+			key: `${kp}.c.${field}`,
+			depth: 1,
+			level: 3,
+			text: FIELD_LABELS[field],
+			actions: [{
+				label: "✕",
+				title: "Quitar: usa el de la base",
+				op: {
+					op: "delete",
+					path: [
+						"palettes",
+						name,
+						field
+					]
+				}
+			}]
+		});
+		children.push({
+			kind: "form",
+			key: `${kp}.c.${field}.f`,
+			depth: 1,
+			path: ["palettes", name],
+			codec: "palette-color",
+			field,
+			schema: [{
+				name: "color",
+				label: "",
+				selector: { color_rgb: {} }
+			}],
+			data: { color: hexToRgb(colors.find((c) => c.field === field).color) }
+		});
+	}
+	const missing = PALETTE_FIELDS.filter((field) => raw[field] === void 0);
+	if (missing.length) children.push({
+		kind: "buttons",
+		key: `${kp}.add`,
+		depth: 1,
+		items: missing.map((field) => ({
+			label: `+ ${FIELD_LABELS[field]}`,
+			op: {
+				op: "set",
+				path: [
+					"palettes",
+					name,
+					field
+				],
+				value: BASE_COLORS[base][field]
+			}
+		}))
+	});
+	children.push({
+		kind: "note",
+		key: `${kp}.n`,
+		depth: 1,
+		text: contrastNote(colors)
+	});
+	const own = PALETTE_FIELDS.length - missing.length;
+	return fold({
+		kind: "heading",
+		key: kp,
+		depth: 0,
+		level: 2,
+		text: name,
+		actions: [{
+			label: "✕",
+			title: "Eliminar la paleta",
+			op: {
+				op: "palette-delete",
+				name
+			}
+		}]
+	}, children, { summary: `${BASE_LABELS[base]} · ${own} de ${PALETTE_FIELDS.length} colores` });
+}
+/** El panel "Paletas" completo (siempre existe: ahí se crea la primera). */
+function paletteSection(config) {
+	const own = isPlainObject(config.palettes) ? config.palettes : {};
+	const names = Object.keys(own);
+	const fresh = uniqueName(config);
+	const copyOptions = Object.entries(allPalettes(config)).map(([name, p]) => ({
+		value: name,
+		label: `${name} · ${BASE_LABELS[baseOf(p)]}`
+	}));
+	const children = [{
+		kind: "note",
+		key: "pal.n",
+		depth: 0,
+		text: "Una paleta son 5 colores y una base (clara u oscura); el resto se calcula. Se asignan en General, en cada TV, en el Roku y en cada botón de streaming."
+	}];
+	names.forEach((name, index) => children.push(...paletteFold({
+		...config,
+		palettes: own
+	}, name, index)));
+	children.push({
+		kind: "buttons",
+		key: "pal.add",
+		depth: 0,
+		items: [{
+			label: "+ Nueva paleta",
+			op: {
+				op: "set",
+				path: ["palettes", fresh],
+				value: {
+					base: "dark",
+					...BASE_COLORS.dark
+				},
+				open: `pal.${names.length}`
+			}
+		}]
+	});
+	children.push({
+		kind: "form",
+		key: "pal.copy",
+		depth: 0,
+		path: [],
+		codec: "palette-copy",
+		newName: fresh,
+		open: `pal.${names.length}`,
+		schema: [{
+			name: "from",
+			label: "Crear copiando una existente",
+			selector: { select: {
+				mode: "dropdown",
+				options: copyOptions
+			} }
+		}],
+		data: { from: "" }
+	});
+	const head = {
+		kind: "heading",
+		key: "pal",
+		depth: 0,
+		level: 1,
+		text: "Paletas"
+	};
+	const builtin = Object.keys(BUILTIN_PALETTES).length;
+	return fold(head, children, { summary: `${names.length ? `${names.length} propias` : "ninguna propia"} · ${builtin} incluidas` });
+}
+/** Un formulario de paletas cambió. `config` ya viene con los atajos expandidos. */
+function applyPaletteForm(config, node, data) {
+	const set = (path, value) => value === void 0 ? deletePath(config, path) : setPath(config, path, value);
+	switch (node.codec) {
+		case "palette-ref": {
+			const pick = (value) => value && value !== "__none__" ? value : void 0;
+			if (!node.pair) return set(node.path, pick(data.value));
+			const light = pick(data.light);
+			const dark = pick(data.dark);
+			return set(node.path, light || dark ? {
+				...light && { light },
+				...dark && { dark }
+			} : void 0);
+		}
+		case "palette-meta": {
+			let next = config;
+			let name = node.path[1];
+			if (data.name !== node.data.name) {
+				const renamed = renamePalette(next, name, data.name);
+				if (renamed !== next) {
+					next = renamed;
+					name = String(data.name).trim();
+				}
+			}
+			if (data.base !== node.data.base && (data.base === "light" || data.base === "dark")) next = setPath(next, [
+				"palettes",
+				name,
+				"base"
+			], data.base);
+			return next;
+		}
+		case "palette-color": {
+			const hex = normalizeHex(data.color);
+			return hex ? setPath(config, [...node.path, node.field], hex) : config;
+		}
+		case "palette-copy": {
+			const source = allPalettes(config)[data.from];
+			if (!source) return config;
+			return setPath(config, ["palettes", node.newName], { ...source });
+		}
+		default: return config;
+	}
+}
 // src/editor/serialize.js
 /** Acción normalizada → la forma más corta que parseAction vuelve a entender igual. */
 function serializeAction(a) {
@@ -3727,6 +4602,7 @@ function serializeAction(a) {
 	switch (a.type) {
 		case "key": return a.key;
 		case "numpad": return "numpad";
+		case "input": return `input:${a.input}`;
 		case "service": {
 			const keys = Object.keys(a.data ?? {});
 			const domain = a.service.split(".")[0];
@@ -3809,6 +4685,7 @@ function serializeV4(raw) {
 	const global = serializeSettings(resolveSettings(raw, []));
 	const isDefaultStreaming = global.streaming.every((e, i) => sameJson(e, { source: DEFAULT_STREAMING[i] }));
 	const out = {};
+	if (typeof raw.type === "string" && raw.type.startsWith("custom:")) out.type = raw.type;
 	if (!model.cardId.startsWith("auto:")) out.card_id = model.cardId;
 	if (model.style !== STYLES[0]) out.style = model.style;
 	if (model.theme !== "dark") out.theme = model.theme;
@@ -3836,8 +4713,16 @@ function serializeV4(raw) {
 	if (Object.keys(global.default_pad).length) out.default_pad = global.default_pad;
 	if (!isDefaultStreaming) out.streaming = global.streaming;
 	if (Object.keys(global.buttons).length) out.buttons = global.buttons;
+	for (const k of HA_CARD_KEYS) if (raw[k] !== void 0) out[k] = clone(raw[k]);
 	return out;
 }
+var HA_CARD_KEYS = [
+	"grid_options",
+	"layout_options",
+	"view_layout",
+	"visibility",
+	"card_mod"
+];
 // src/editor/ops.js
 /** Un formulario cambió: devuelve la config nueva (no toca la original). */
 function applyFormChange(rawConfig, node, data) {
@@ -3853,6 +4738,10 @@ function applyFormChange(rawConfig, node, data) {
 			].map((k) => data[k] ?? node.data[k]).filter(Boolean);
 			return setPath(config, [...node.path, "modes"], modes);
 		}
+		case "palette-ref":
+		case "palette-meta":
+		case "palette-color":
+		case "palette-copy": return applyPaletteForm(config, node, data);
 		default: {
 			let out = config;
 			for (const name of fieldNames(node.schema)) {
@@ -3890,6 +4779,7 @@ function applyOp(rawConfig, op) {
 			[arr[op.index], arr[j]] = [arr[j], arr[op.index]];
 			return setPath(config, op.path, arr);
 		}
+		case "palette-delete": return removePalette(config, op.name);
 		case "convert": return serializeV4(rawConfig);
 		default: return config;
 	}
@@ -3918,6 +4808,31 @@ var EDITOR_CSS = `
 .ed-alert.warning { border-color: var(--warning-color, #ffa600); }
 .ed-alert.info { border-color: var(--info-color, #039be5); }
 .ed-alert .ed-btns { margin-top: 8px; }
+
+/* Muestras de color de una paleta; las punteadas vienen de la base (la paleta no las define). */
+.ed-swatches { display: flex; gap: 8px; }
+.ed-sw { width: 30px; height: 30px; border-radius: 50%; border: 2px solid var(--divider-color, rgb(127 127 127 / 0.5)); box-sizing: border-box; }
+.ed-sw.base { border-style: dashed; opacity: 0.6; }
+
+/* Paneles plegables (acordeón): cada sección es un <details> con su resumen. */
+.ed-fold { border: 1px solid var(--divider-color, rgb(127 127 127 / 0.3)); border-radius: 12px; background: var(--card-background-color, transparent); }
+.ed-fold .ed-fold { background: var(--secondary-background-color, rgb(127 127 127 / 0.06)); }
+.ed-fold > summary { display: flex; align-items: center; gap: 8px; padding: 10px 12px; cursor: pointer; list-style: none; border-radius: 12px; }
+.ed-fold > summary::-webkit-details-marker { display: none; }
+.ed-fold > summary::before {
+  content: ''; flex: none; width: 7px; height: 7px; opacity: 0.6;
+  border-right: 2px solid currentColor; border-bottom: 2px solid currentColor;
+  transform: rotate(-45deg); transition: transform 0.15s;
+}
+.ed-fold[open] > summary::before { transform: rotate(45deg); }
+.ed-fold > summary:focus-visible { outline: 2px solid var(--primary-color, #03a9f4); outline-offset: -2px; }
+.ed-fold-main { flex: 1; min-width: 0; display: grid; }
+.ed-fold-title { font-weight: 600; font-size: 0.95rem; }
+.ed-fold.l1 > summary .ed-fold-title { font-size: 1.02rem; }
+.ed-fold.l3 > summary .ed-fold-title { font-weight: 500; font-size: 0.88rem; }
+.ed-fold-sum { font-size: 0.78rem; opacity: 0.65; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ed-fold-body { display: grid; gap: 8px; padding: 2px 12px 12px; }
+@media (prefers-reduced-motion: reduce) { .ed-fold > summary::before { transition: none; } }
 `;
 // src/editor/view.js
 /** Botones ↑ ↓ ✕ de un elemento de una lista. */
@@ -3957,6 +4872,40 @@ function listActions(arrayPath, index, length, { canRemove = true } = {}) {
 		}
 	];
 }
+/** "Relieve (predeterminado)" → "Relieve": el nombre corto de una opción, para los resúmenes. */
+function shortLabel(options, value) {
+	const found = options.find((o) => o.value === value);
+	return found ? found.label.replace(/ \(.*\)$/, "") : String(value ?? "");
+}
+var ACTION_SHORT = {
+	input: "entrada",
+	source: "fuente",
+	script: "script",
+	service: "servicio de HA",
+	command: "command LG",
+	button: "botón crudo",
+	sequence: "secuencia",
+	numpad: "teclado numérico",
+	platform: "distinta por marca"
+};
+/** Una acción en pocas palabras, para el resumen de un panel cerrado ("tecla Home"). */
+function describeAction(raw, { allowDefault = false, defaultText = "predeterminada" } = {}) {
+	const form = actionToForm(raw);
+	if (form.type === "default") return allowDefault ? defaultText : "sin acción";
+	if (form.type === "none") return "sin acción";
+	if (form.type === "key") return form.key ? `tecla ${KEYS[form.key]?.label ?? form.key}` : "tecla sin elegir";
+	return ACTION_SHORT[form.type] ?? ACTION_UI_TYPES[form.type] ?? form.type;
+}
+/** Nombres de las secciones que una TV puede tener propias (para su resumen). */
+var OVERRIDE_NAMES = {
+	modes: "modos",
+	custom_modes: "modos personalizados",
+	default_pad: "touchpad",
+	streaming: "streaming",
+	buttons: "botones",
+	palette: "paleta"
+};
+var plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
 /** Nodos del editor de UNA acción (se llama a sí misma para secuencias y "por marca"). */
 function actionNodes(config, path, key, depth, opts = {}) {
 	const raw = getPath(config, path);
@@ -4063,15 +5012,16 @@ function padNodes(config, basePath, key, depth, { allowDefault }) {
 	const nodes = [];
 	for (const dir of DIRECTIONS) {
 		const entry = getPath(config, [...basePath, dir]);
-		const defaultLabel = allowDefault ? `Predeterminada (${KEYS[DEFAULT_PAD[dir].action.key].label})` : void 0;
-		nodes.push({
+		const defaultKey = KEYS[DEFAULT_PAD[dir].action.key].label;
+		const defaultLabel = allowDefault ? `Predeterminada (${defaultKey})` : void 0;
+		const head = {
 			kind: "heading",
 			key: `${key}.${dir}`,
 			depth,
 			level: 3,
 			text: DIRECTION_LABELS[dir]
-		});
-		nodes.push({
+		};
+		const children = [{
 			kind: "form",
 			key: `${key}.${dir}.i`,
 			depth,
@@ -4082,15 +5032,18 @@ function padNodes(config, basePath, key, depth, { allowDefault }) {
 				selector: { icon: {} }
 			}],
 			data: { icon: entry?.icon ?? "" }
-		});
-		nodes.push(...actionNodes(config, [
+		}, ...actionNodes(config, [
 			...basePath,
 			dir,
 			"action"
 		], `${key}.${dir}.a`, depth, {
 			allowDefault,
 			defaultLabel
-		}));
+		})];
+		nodes.push(...fold(head, children, { summary: describeAction(entry?.action, {
+			allowDefault,
+			defaultText: `tecla ${defaultKey} (predeterminada)`
+		}) }));
 	}
 	return nodes;
 }
@@ -4113,22 +5066,26 @@ function settingsNodes(config, base, kp, depth, ctx, override) {
 	const nodes = [];
 	const here = getPath(config, base) ?? {};
 	const present = (k) => here[k] !== void 0;
+	const level = override ? 2 : 1;
 	const effectiveModes = (present("modes") ? here.modes : config.modes) ?? DEFAULT_MODES;
+	const customDefs = override && here.custom_modes || config.custom_modes || {};
+	const modeLabel = (id) => FIXED_MODES[id]?.label ?? customDefs[id]?.label ?? id;
+	let modesHead = null;
+	const modesChildren = [];
 	if (!override || present("modes")) {
-		const customDefs = override && here.custom_modes || config.custom_modes || {};
 		const modeOptions = [...Object.entries(FIXED_MODES).map(([id, def]) => ({
 			value: id,
-			label: id === "fuentes" || id === "info" ? `${def.label} (experimental)` : def.label
+			label: id === "info" ? `${def.label} (experimental)` : def.label
 		})), ...CUSTOM_MODE_IDS.map((id) => ({
 			value: id,
 			label: customDefs[id]?.label ? `${customDefs[id].label} (${id})` : `Personalizado ${id.slice(-1)} (${id})`
 		}))];
 		const modes = present("modes") ? here.modes : config.modes ?? DEFAULT_MODES;
-		nodes.push({
+		modesHead = {
 			kind: "heading",
 			key: `${kp}modes`,
 			depth,
-			level: override ? 2 : 1,
+			level,
 			text: override ? "Modos propios" : "Modos del touchpad",
 			actions: override ? [{
 				label: "✕",
@@ -4138,8 +5095,8 @@ function settingsNodes(config, base, kp, depth, ctx, override) {
 					path: [...base, "modes"]
 				}
 			}] : void 0
-		});
-		nodes.push({
+		};
+		modesChildren.push({
 			kind: "form",
 			key: `${kp}modes.f`,
 			depth,
@@ -4177,21 +5134,23 @@ function settingsNodes(config, base, kp, depth, ctx, override) {
 			op: {
 				op: "set",
 				path: [...base, "modes"],
-				value: [...config.modes ?? DEFAULT_MODES]
+				value: [...config.modes ?? DEFAULT_MODES],
+				open: `${kp}modes`
 			}
 		}]
 	});
+	const customNodes = modesHead ? modesChildren : nodes;
 	const usedCustom = CUSTOM_MODE_IDS.filter((id) => effectiveModes.includes(id));
 	if (usedCustom.length) {
 		const cmBase = override ? [...base, "custom_modes"] : ["custom_modes"];
 		if (override && !present("custom_modes")) {
-			nodes.push({
+			customNodes.push({
 				kind: "note",
 				key: `${kp}cm.note`,
 				depth,
 				text: `${usedCustom.join(", ")}: usa la definición global.`
 			});
-			nodes.push({
+			customNodes.push({
 				kind: "buttons",
 				key: `${kp}cm.add`,
 				depth,
@@ -4200,37 +5159,24 @@ function settingsNodes(config, base, kp, depth, ctx, override) {
 					op: {
 						op: "set",
 						path: cmBase,
-						value: clone(config.custom_modes ?? {})
+						value: clone(config.custom_modes ?? {}),
+						open: `${kp}cm`
 					}
 				}]
 			});
 		} else {
-			if (override) nodes.push({
-				kind: "heading",
-				key: `${kp}cm`,
-				depth,
-				level: 2,
-				text: "Modos personalizados propios",
-				actions: [{
-					label: "✕",
-					title: "Usar la definición global",
-					op: {
-						op: "delete",
-						path: cmBase
-					}
-				}]
-			});
+			const defs = [];
 			for (const id of usedCustom) {
 				const n = id.slice(-1);
 				const def = getPath(config, [...cmBase, id]) ?? {};
-				nodes.push({
+				const head = {
 					kind: "heading",
 					key: `${kp}cm.${id}`,
 					depth,
 					level: 2,
 					text: `Modo ${def.label || `Personalizado ${n}`} (${id})`
-				});
-				nodes.push({
+				};
+				const children = [{
 					kind: "form",
 					key: `${kp}cm.${id}.f`,
 					depth,
@@ -4252,17 +5198,45 @@ function settingsNodes(config, base, kp, depth, ctx, override) {
 						label: def.label ?? "",
 						icon: def.icon ?? ""
 					}
-				});
-				nodes.push(...padNodes(config, [...cmBase, id], `${kp}cm.${id}.pad`, depth + 1, { allowDefault: false }));
+				}, ...padNodes(config, [...cmBase, id], `${kp}cm.${id}.pad`, depth + 1, { allowDefault: false })];
+				const done = DIRECTIONS.filter((dir) => getPath(config, [
+					...cmBase,
+					id,
+					dir,
+					"action"
+				]) !== void 0).length;
+				defs.push(...fold(head, children, { summary: done ? `${done} de 4 direcciones definidas` : "sin direcciones definidas" }));
 			}
+			if (override) {
+				const head = {
+					kind: "heading",
+					key: `${kp}cm`,
+					depth,
+					level: 2,
+					text: "Modos personalizados propios",
+					actions: [{
+						label: "✕",
+						title: "Usar la definición global",
+						op: {
+							op: "delete",
+							path: cmBase
+						}
+					}]
+				};
+				customNodes.push(...fold(head, defs, { summary: usedCustom.join(", ") }));
+			} else customNodes.push(...defs);
 		}
 	}
+	if (modesHead) {
+		const names = (Array.isArray(effectiveModes) ? effectiveModes : []).map(modeLabel);
+		nodes.push(...fold(modesHead, modesChildren, { summary: names.join(", ") }));
+	}
 	if (present("default_pad")) {
-		nodes.push({
+		const head = {
 			kind: "heading",
 			key: `${kp}dp`,
 			depth,
-			level: override ? 2 : 1,
+			level,
 			text: "Touchpad sin modo",
 			actions: [{
 				label: "✕",
@@ -4272,27 +5246,38 @@ function settingsNodes(config, base, kp, depth, ctx, override) {
 					path: [...base, "default_pad"]
 				}
 			}]
-		});
-		nodes.push(...padNodes(config, [...base, "default_pad"], `${kp}dp.pad`, depth + 1, { allowDefault: true }));
-	} else nodes.push({
-		kind: "buttons",
-		key: `${kp}dp.add`,
-		depth,
-		items: [{
-			label: "+ Personalizar touchpad sin modo",
-			op: {
-				op: "set",
-				path: [...base, "default_pad"],
-				value: override ? clone(config.default_pad ?? {}) : {}
-			}
-		}]
-	});
+		};
+		nodes.push(...fold(head, padNodes(config, [...base, "default_pad"], `${kp}dp.pad`, depth + 1, { allowDefault: true }), { summary: "personalizado" }));
+	} else {
+		const add = {
+			kind: "buttons",
+			key: `${kp}dp.add`,
+			depth,
+			items: [{
+				label: "+ Personalizar touchpad sin modo",
+				op: {
+					op: "set",
+					path: [...base, "default_pad"],
+					value: override ? clone(config.default_pad ?? {}) : {},
+					open: `${kp}dp`
+				}
+			}]
+		};
+		if (override) nodes.push(add);
+		else nodes.push(...fold({
+			kind: "heading",
+			key: `${kp}dp`,
+			depth,
+			level,
+			text: "Touchpad sin modo"
+		}, [add], { summary: "predeterminado (flechas)" }));
+	}
 	if (!override || present("streaming")) {
-		nodes.push({
+		const head = {
 			kind: "heading",
 			key: `${kp}st`,
 			depth,
-			level: override ? 2 : 1,
+			level,
 			text: override ? "Streaming propio" : "Botones de streaming",
 			actions: override ? [{
 				label: "✕",
@@ -4302,18 +5287,25 @@ function settingsNodes(config, base, kp, depth, ctx, override) {
 					path: [...base, "streaming"]
 				}
 			}] : void 0
-		});
+		};
 		const streamingPath = [...base, "streaming"];
 		const slots = getPath(config, streamingPath) ?? [];
 		const defaults = DEFAULT_STREAMING.map((source) => ({ source }));
+		const children = [];
+		const names = [];
+		let customCount = 0;
 		DEFAULT_STREAMING.forEach((defaultId, i) => {
 			const entry = isPlainObject(slots[i]) ? slots[i] : {};
 			const slotKey = `${kp}st.${i}`;
-			const custom = [
+			const isCustom = [
 				"icon",
 				"action",
-				"accent"
-			].some((k) => entry[k] !== void 0) || ctx.expanded?.has(slotKey);
+				"accent",
+				"palette"
+			].some((k) => entry[k] !== void 0);
+			if (isCustom) customCount += 1;
+			names.push(shortLabel(SOURCE_OPTIONS, entry.source ?? defaultId).replace(/ \(.*\)$/, ""));
+			const custom = isCustom || ctx.expanded?.has(slotKey);
 			const schema = [{
 				name: "source",
 				label: `Botón ${i + 1}`,
@@ -4332,7 +5324,7 @@ function settingsNodes(config, base, kp, depth, ctx, override) {
 				helper: "#e50914 o 229, 9, 20. Vacío = el color de la app.",
 				selector: { text: {} }
 			});
-			nodes.push({
+			children.push({
 				kind: "form",
 				key: `${slotKey}.f`,
 				depth,
@@ -4349,7 +5341,15 @@ function settingsNodes(config, base, kp, depth, ctx, override) {
 				}
 			});
 			if (custom) {
-				nodes.push(...actionNodes(config, [
+				children.push(...assignmentNodes(config, [
+					...streamingPath,
+					i,
+					"palette"
+				], `${slotKey}.pal`, depth + 1, "Paleta de este botón", { init: {
+					path: streamingPath,
+					value: defaults
+				} }));
+				children.push(...actionNodes(config, [
 					...streamingPath,
 					i,
 					"action"
@@ -4358,7 +5358,7 @@ function settingsNodes(config, base, kp, depth, ctx, override) {
 					defaultLabel: "Predeterminada (abrir la fuente)",
 					types: ALL_ACTION_TYPES.filter((t) => t !== "numpad")
 				}));
-				nodes.push({
+				children.push({
 					kind: "buttons",
 					key: `${slotKey}.b`,
 					depth: depth + 1,
@@ -4370,13 +5370,14 @@ function settingsNodes(config, base, kp, depth, ctx, override) {
 							keys: [
 								"icon",
 								"action",
-								"accent"
+								"accent",
+								"palette"
 							],
 							collapse: slotKey
 						}
 					}]
 				});
-			} else nodes.push({
+			} else children.push({
 				kind: "buttons",
 				key: `${slotKey}.b`,
 				depth: depth + 1,
@@ -4389,6 +5390,7 @@ function settingsNodes(config, base, kp, depth, ctx, override) {
 				}]
 			});
 		});
+		nodes.push(...fold(head, children, { summary: `${names.join(", ")}${customCount ? ` · ${plural(customCount, "personalizado", "personalizados")}` : ""}` }));
 	} else nodes.push({
 		kind: "buttons",
 		key: `${kp}st.add`,
@@ -4398,16 +5400,17 @@ function settingsNodes(config, base, kp, depth, ctx, override) {
 			op: {
 				op: "set",
 				path: [...base, "streaming"],
-				value: clone(config.streaming ?? DEFAULT_STREAMING.map((source) => ({ source })))
+				value: clone(config.streaming ?? DEFAULT_STREAMING.map((source) => ({ source }))),
+				open: `${kp}st`
 			}
 		}]
 	});
 	if (!override || present("buttons")) {
-		nodes.push({
+		const head = {
 			kind: "heading",
 			key: `${kp}bt`,
 			depth,
-			level: override ? 2 : 1,
+			level,
 			text: override ? "Botones propios" : "Botones",
 			actions: override ? [{
 				label: "✕",
@@ -4417,13 +5420,15 @@ function settingsNodes(config, base, kp, depth, ctx, override) {
 					path: [...base, "buttons"]
 				}
 			}] : void 0
-		});
+		};
 		const buttons = getPath(config, [...base, "buttons"]) ?? {};
+		const children = [];
+		const changed = [];
 		for (const id of Object.keys(DEFAULT_BUTTONS)) {
 			const bKey = `${kp}bt.${id}`;
 			const entry = buttons[id];
 			if (entry === void 0) {
-				nodes.push({
+				children.push({
 					kind: "heading",
 					key: bKey,
 					depth,
@@ -4438,13 +5443,15 @@ function settingsNodes(config, base, kp, depth, ctx, override) {
 								"buttons",
 								id
 							],
-							value: {}
+							value: {},
+							open: bKey
 						}
 					}]
 				});
 				continue;
 			}
-			nodes.push({
+			changed.push(BUTTON_LABELS[id]);
+			const bHead = {
 				kind: "heading",
 				key: bKey,
 				depth,
@@ -4462,14 +5469,15 @@ function settingsNodes(config, base, kp, depth, ctx, override) {
 						]
 					}
 				}]
-			});
-			if (id === "top_left") nodes.push({
+			};
+			const bChildren = [];
+			if (id === "top_left") bChildren.push({
 				kind: "note",
 				key: `${bKey}.n`,
 				depth,
 				text: "Si solo manda Salir se oculta (ya está abajo). Con Roku, su lugar lo ocupa el selector TV | Roku."
 			});
-			nodes.push({
+			bChildren.push({
 				kind: "form",
 				key: `${bKey}.i`,
 				depth,
@@ -4485,7 +5493,7 @@ function settingsNodes(config, base, kp, depth, ctx, override) {
 				}],
 				data: { icon: entry?.icon ?? "" }
 			});
-			nodes.push(...actionNodes(config, [
+			bChildren.push(...actionNodes(config, [
 				...base,
 				"buttons",
 				id,
@@ -4494,7 +5502,12 @@ function settingsNodes(config, base, kp, depth, ctx, override) {
 				allowDefault: true,
 				defaultLabel: `Predeterminada (${describeDefaultButton(id)})`
 			}));
+			children.push(...fold(bHead, bChildren, { summary: describeAction(entry?.action, {
+				allowDefault: true,
+				defaultText: describeDefaultButton(id)
+			}) }));
 		}
+		nodes.push(...fold(head, children, { summary: changed.length ? `${plural(changed.length, "personalizado", "personalizados")}: ${changed.join(", ")}` : "todos predeterminados" }));
 	} else nodes.push({
 		kind: "buttons",
 		key: `${kp}bt.add`,
@@ -4504,7 +5517,8 @@ function settingsNodes(config, base, kp, depth, ctx, override) {
 			op: {
 				op: "set",
 				path: [...base, "buttons"],
-				value: clone(config.buttons ?? {})
+				value: clone(config.buttons ?? {}),
+				open: `${kp}bt`
 			}
 		}]
 	});
@@ -4545,14 +5559,15 @@ function buildEditorView(rawConfig, ctx = {}) {
 		level: "info",
 		text
 	}));
-	nodes.push({
+	const generalHead = {
 		kind: "heading",
 		key: "general",
 		depth: 0,
 		level: 1,
 		text: "General"
-	});
-	nodes.push({
+	};
+	const general = [];
+	general.push({
 		kind: "form",
 		key: "general.f",
 		depth: 0,
@@ -4591,8 +5606,9 @@ function buildEditorView(rawConfig, ctx = {}) {
 			theme: config.theme ?? "dark"
 		}
 	});
+	general.push(...assignmentNodes(config, ["palette"], "general.pal", 0, "Paleta de la tarjeta"));
 	if (config.control_mode_entity !== void 0 || ctx.expanded?.has("cme")) {
-		nodes.push({
+		general.push({
 			kind: "heading",
 			key: "cme",
 			depth: 0,
@@ -4608,7 +5624,7 @@ function buildEditorView(rawConfig, ctx = {}) {
 				}
 			}]
 		});
-		nodes.push({
+		general.push({
 			kind: "form",
 			key: "cme.f",
 			depth: 0,
@@ -4621,7 +5637,7 @@ function buildEditorView(rawConfig, ctx = {}) {
 			}],
 			data: { control_mode_entity: config.control_mode_entity ?? "" }
 		});
-	} else nodes.push({
+	} else general.push({
 		kind: "buttons",
 		key: "cme.add",
 		depth: 0,
@@ -4633,26 +5649,39 @@ function buildEditorView(rawConfig, ctx = {}) {
 			}
 		}]
 	});
-	nodes.push({
+	const paletteName = typeof config.palette === "string" ? config.palette : isPlainObject(config.palette) ? "paleta claro/oscuro" : "";
+	const generalSummary = [
+		config.card_id,
+		shortLabel(STYLE_OPTIONS, config.style ?? "relieve"),
+		shortLabel(THEME_OPTIONS, config.theme ?? "dark"),
+		paletteName
+	].filter(Boolean).join(" · ");
+	nodes.push(...fold(generalHead, general, {
+		summary: generalSummary,
+		open: true
+	}));
+	const tvsHead = {
 		kind: "heading",
 		key: "tvs",
 		depth: 0,
 		level: 1,
 		text: "Televisores"
-	});
+	};
+	const tvNodes = [];
 	const tvs = Array.isArray(config.tvs) ? config.tvs : [];
 	tvs.forEach((tv, i) => {
 		const t = isPlainObject(tv) ? tv : {};
 		const kp = `tv${i}.`;
-		nodes.push({
+		const tvHead = {
 			kind: "heading",
 			key: `${kp}h`,
 			depth: 0,
 			level: 2,
 			text: `TV ${i + 1}${t.name ? ` · ${t.name}` : ""}`,
 			actions: listActions(["tvs"], i, tvs.length, { canRemove: tvs.length > 1 })
-		});
-		nodes.push({
+		};
+		const children = [];
+		children.push({
 			kind: "form",
 			key: `${kp}f`,
 			depth: 1,
@@ -4684,6 +5713,12 @@ function buildEditorView(rawConfig, ctx = {}) {
 				platform: t.platform ?? normalizePlatform(t.type)
 			}
 		});
+		children.push(...assignmentNodes(config, [
+			"tvs",
+			i,
+			"overrides",
+			"palette"
+		], `${kp}pal`, 1, "Paleta de esta TV"));
 		const adds = [];
 		if (t.companion === void 0) adds.push({
 			label: "+ Roku conectado",
@@ -4706,17 +5741,18 @@ function buildEditorView(rawConfig, ctx = {}) {
 					i,
 					"overrides"
 				],
-				value: {}
+				value: {},
+				open: `${kp}ov`
 			}
 		});
-		if (adds.length) nodes.push({
+		if (adds.length) children.push({
 			kind: "buttons",
 			key: `${kp}add`,
 			depth: 1,
 			items: adds
 		});
 		if (t.companion !== void 0) {
-			nodes.push({
+			children.push({
 				kind: "heading",
 				key: `${kp}rk`,
 				depth: 1,
@@ -4736,7 +5772,7 @@ function buildEditorView(rawConfig, ctx = {}) {
 				}]
 			});
 			const c = isPlainObject(t.companion) ? t.companion : {};
-			nodes.push({
+			children.push({
 				kind: "form",
 				key: `${kp}rk.f`,
 				depth: 1,
@@ -4763,9 +5799,15 @@ function buildEditorView(rawConfig, ctx = {}) {
 					remote_entity: c.remote_entity ?? c.remote ?? ""
 				}
 			});
+			children.push(...assignmentNodes(config, [
+				"tvs",
+				i,
+				"companion",
+				"palette"
+			], `${kp}rk.pal`, 1, "Paleta del modo Roku"));
 		}
 		if (t.overrides !== void 0) {
-			nodes.push({
+			const ovHead = {
 				kind: "heading",
 				key: `${kp}ov`,
 				depth: 1,
@@ -4783,23 +5825,34 @@ function buildEditorView(rawConfig, ctx = {}) {
 						]
 					}
 				}]
-			});
-			nodes.push({
+			};
+			const ovChildren = [{
 				kind: "note",
 				key: `${kp}ov.n`,
 				depth: 1,
 				text: "Lo que agregues aquí reemplaza a la configuración global solo para esta TV."
-			});
-			nodes.push(...settingsNodes(config, [
+			}, ...settingsNodes(config, [
 				"tvs",
 				i,
 				"overrides"
-			], `${kp}ov.`, 1, ctx, true));
+			], `${kp}ov.`, 1, ctx, true)];
+			const own = Object.entries(OVERRIDE_NAMES).filter(([k]) => isPlainObject(t.overrides) && t.overrides[k] !== void 0).map(([, name]) => name);
+			children.push(...fold(ovHead, ovChildren, { summary: own.length ? own.join(", ") : "sin cambios todavía" }));
 		}
+		const tvSummary = [
+			shortLabel(TV_PLATFORM_OPTIONS, t.platform ?? normalizePlatform(t.type)),
+			t.entity || "sin entidad",
+			t.companion !== void 0 && "con Roku",
+			t.overrides !== void 0 && "config. propia"
+		].filter(Boolean).join(" · ");
+		tvNodes.push(...fold(tvHead, children, {
+			summary: tvSummary,
+			open: i === 0
+		}));
 	});
 	const used = new Set(tvs.map((tv) => tv?.entity));
 	const suggestion = (ctx.mediaPlayers ?? []).find((id) => !used.has(id)) ?? "";
-	nodes.push({
+	tvNodes.push({
 		kind: "buttons",
 		key: "tvs.add",
 		depth: 0,
@@ -4812,11 +5865,17 @@ function buildEditorView(rawConfig, ctx = {}) {
 					name: "",
 					entity: suggestion,
 					platform: "lg"
-				}
+				},
+				open: `tv${tvs.length}.h`
 			}
 		}]
 	});
+	nodes.push(...fold(tvsHead, tvNodes, {
+		summary: plural(tvs.length, "TV", "TVs"),
+		open: true
+	}));
 	nodes.push(...settingsNodes(config, [], "", 0, ctx, false));
+	nodes.push(...paletteSection(config));
 	return nodes;
 }
 // src/editor/tv-control-card-editor.js
@@ -4853,6 +5912,7 @@ var TvControlCardEditor = class extends i$3 {
 		this._formReady = false;
 		this._hass = null;
 		this._expanded = /* @__PURE__ */ new Set();
+		this._open = /* @__PURE__ */ new Map();
 		this._schemas = /* @__PURE__ */ new Map();
 	}
 	setConfig(config) {
@@ -4883,12 +5943,49 @@ var TvControlCardEditor = class extends i$3 {
 			error = err.message;
 		}
 		const mediaPlayers = Object.keys(this._hass?.states ?? {}).filter((id) => id.startsWith("media_player."));
-		return b`<div class="ed">${c(buildEditorView(this._config, {
+		const nodes = buildEditorView(this._config, {
 			model,
 			error,
 			expanded: this._expanded,
 			mediaPlayers
-		}), (node) => node.key, (node) => this._renderNode(node))}</div>`;
+		});
+		return b`<div class="ed">${this._renderChildren(childrenByParent(nodes), null)}</div>`;
+	}
+	/**
+	* La lista de nodos es plana, pero cada nodo sabe su `parent` (un encabezado con
+	* `fold` = panel). Aquí se pinta el árbol: los hijos de un panel solo se crean
+	* mientras está abierto, así un editor con muchas secciones cerradas es liviano.
+	*/
+	_renderChildren(tree, parent) {
+		const base = parent?.fold.base ?? 0;
+		return c(tree.get(parent?.key ?? "") ?? [], (node) => node.key, (node) => node.fold ? this._renderFold(node, tree, base) : this._renderNode(node, base));
+	}
+	_isOpen(node) {
+		return this._open.has(node.key) ? this._open.get(node.key) : node.fold.open;
+	}
+	_renderFold(node, tree, base) {
+		const open = this._isOpen(node);
+		const indent = `margin-inline-start: ${Math.max(0, (node.depth ?? 0) - base) * 16}px`;
+		return b`<details class="ed-fold l${node.level}" data-key=${node.key} style=${indent} ?open=${open}>
+      <summary @click=${(e) => this._toggleFold(e, node)}>
+        <span class="ed-fold-main">
+          <span class="ed-fold-title">${node.text}</span>
+          ${node.fold.summary ? b`<span class="ed-fold-sum">${node.fold.summary}</span>` : A}
+        </span>
+        ${(node.actions ?? []).map((item) => this._renderButton(item))}
+      </summary>
+      ${open ? b`<div class="ed-fold-body">${this._renderChildren(tree, node)}</div>` : A}
+    </details>`;
+	}
+	/**
+	* El editor es el ÚNICO dueño del estado abierto/cerrado. Se cancela el plegado
+	* nativo del <details> y se pinta según `_open`: si el navegador y Lit lo cambiaran
+	* a la vez (el evento `toggle` llega después), un repintado en medio deshacía el clic.
+	*/
+	_toggleFold(e, node) {
+		e.preventDefault();
+		this._open.set(node.key, !this._isOpen(node));
+		this.requestUpdate();
 	}
 	/**
 	* buildEditorView crea un schema NUEVO en cada render. Si se le pasara siempre uno
@@ -4905,8 +6002,8 @@ var TvControlCardEditor = class extends i$3 {
 		});
 		return node.schema;
 	}
-	_renderNode(node) {
-		const indent = `margin-inline-start: ${(node.depth ?? 0) * 16}px`;
+	_renderNode(node, base = 0) {
+		const indent = `margin-inline-start: ${Math.max(0, (node.depth ?? 0) - base) * 16}px`;
 		switch (node.kind) {
 			case "form": return b`<ha-form
           data-key=${node.key}
@@ -4918,6 +6015,9 @@ var TvControlCardEditor = class extends i$3 {
           .computeHelper=${computeHelper}
           @value-changed=${(e) => this._onFormChange(e, node)}
         ></ha-form>`;
+			case "swatches": return b`<div class="ed-swatches" data-key=${node.key} style=${indent}>${node.colors.map((c) => b`<span
+          class="ed-sw ${c.base ? "base" : ""}" style="background:${c.color}"
+          title="${c.label}: ${c.color}${c.base ? " (de la base)" : ""}"></span>`)}</div>`;
 			case "heading": return b`<div class="ed-h l${node.level}" data-key=${node.key} style=${indent}>
           <span>${node.text}</span>${(node.actions ?? []).map((item) => this._renderButton(item))}
         </div>`;
@@ -4931,13 +6031,20 @@ var TvControlCardEditor = class extends i$3 {
 	}
 	_renderButton(item) {
 		return b`<button type="button" title=${item.title ?? A} ?disabled=${!!item.disabled}
-      @click=${() => this._onOp(item.op)}>${item.label}</button>`;
+      @click=${(e) => {
+			e.preventDefault();
+			e.stopPropagation();
+			this._onOp(item.op);
+		}}>${item.label}</button>`;
 	}
 	_onFormChange(e, node) {
 		e.stopPropagation();
-		this._commit(applyFormChange(this._config, node, e.detail.value));
+		const next = applyFormChange(this._config, node, e.detail.value);
+		if (node.open && !sameJson(next, this._config)) this._open.set(node.open, true);
+		this._commit(next);
 	}
 	_onOp(op) {
+		if (op.open) this._open.set(op.open, true);
 		if (op.op === "expand") {
 			this._expanded.add(op.key);
 			this.requestUpdate();
@@ -4999,4 +6106,4 @@ if (inBrowser && !customElements.get(CARD_TAG)) {
 	});
 	console.info(`%c TV-CONTROL-CARD %c ${CARD_VERSION} `, "background:#0a84ff;color:#fff;border-radius:3px 0 0 3px", "background:#333;color:#fff;border-radius:0 3px 3px 0");
 }
-export { CARD_VERSION, CODE_TO_KEY, DEFAULT_BUTTONS, FIXED_MODES, HOLDABLE_KEYS, KEYS, PLATFORMS, SOURCES, STYLES, StateWaiters, TV_ONLY_KEYS, TvControlCard, UnsupportedActionError, actionToForm, applyFormChange, applyOp, buildEditorView, deletePath, describeNow, executeAction, formToAction, getPath, getPlatform, isHoldable, normalizeConfig, parseAction, resolveForPlatform, resolveSourceName, routeAction, serializeV4, setPath, sourceMatches, stripSsap, tvStatus };
+export { BUILTIN_PALETTES, CARD_VERSION, CODE_TO_KEY, DEFAULT_BUTTONS, FIXED_MODES, HOLDABLE_KEYS, KEYS, PALETTE_FIELDS, PLATFORMS, SOURCES, STYLES, StateWaiters, TV_ONLY_KEYS, TvControlCard, UnsupportedActionError, actionToForm, applyFormChange, applyOp, buildEditorView, childrenByParent, contrastRatio, deletePath, describeNow, executeAction, formToAction, getPath, getPlatform, isHoldable, mapPaletteRefs, normalizeConfig, normalizeHex, paletteRef, paletteTokens, parseAction, removePalette, renamePalette, renameRef, resolveForPlatform, resolvePalette, resolveSourceName, routeAction, serializeV4, setPath, sourceMatches, stripSsap, tvStatus };

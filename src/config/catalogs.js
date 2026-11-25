@@ -1,4 +1,5 @@
 /* Módulo §5, primera parte: catálogos. La segunda parte es config/normalize.js. */
+import { INPUTS } from '../actions/inputs.js';
 import { KEYS } from '../actions/keys.js';
 import { parseAction } from '../actions/parse.js';
 import { deepFreeze } from '../util.js';
@@ -22,6 +23,8 @@ import { deepFreeze } from '../util.js';
 const SOURCES = [
   // `accent`: color de la marca. Tiñe la luz de la pantalla y el botón activo; un
   // `accent` en el YAML del botón de streaming tiene prioridad.
+  // `input`: el botón cambia de entrada por PUERTO (acción input, sin confirmar);
+  // `service` sigue sirviendo para reconocer la fuente en la pantalla.
   { id: 'netflix',     name: 'Netflix',     icon: 'mdi:netflix',        service: 'Netflix',     rokuSource: 'Netflix',     accent: '#e50914' },
   { id: 'disney',      name: 'Disney+',     icon: 'phu:disney-plus',    service: 'Disney+',     rokuSource: 'Disney Plus', accent: '#1f5bff' },
   { id: 'prime',       name: 'Prime Video', icon: 'phu:prime-video',    service: 'Prime Video', rokuSource: 'Prime Video', accent: '#00a8e1' },
@@ -36,10 +39,10 @@ const SOURCES = [
   { id: 'twitch',      name: 'Twitch',      icon: 'mdi:twitch',         service: 'Twitch',      rokuSource: 'Twitch',      accent: '#9146ff' },
   { id: 'fubo',        name: 'Fubo',        icon: 'mdi:alpha-f-circle', service: null,          rokuSource: 'Fubo: Watch Live TV & Sports', accent: '#fa4616' },
   { id: 'roku',        name: 'Roku',        icon: 'phu:roku-ultra',     service: 'Roku OTT',    alternates: ['Roku OTT', 'Roku'], rokuSource: null, accent: '#6f1ab1' },
-  { id: 'hdmi1',       name: 'HDMI 1',      icon: 'mdi:hdmi-port',      service: 'HDMI 1',      rokuSource: null,          accent: null },
-  { id: 'hdmi2',       name: 'HDMI 2',      icon: 'mdi:hdmi-port',      service: 'HDMI 2',      rokuSource: null,          accent: null },
-  { id: 'hdmi3',       name: 'HDMI 3',      icon: 'mdi:hdmi-port',      service: 'HDMI 3',      rokuSource: null,          accent: null },
-  { id: 'hdmi4',       name: 'HDMI 4',      icon: 'mdi:hdmi-port',      service: 'HDMI 4',      rokuSource: null,          accent: null },
+  { id: 'hdmi1',       name: 'HDMI 1',      icon: 'mdi:hdmi-port',      service: 'HDMI 1',      input: 'hdmi1', rokuSource: null, accent: null },
+  { id: 'hdmi2',       name: 'HDMI 2',      icon: 'mdi:hdmi-port',      service: 'HDMI 2',      input: 'hdmi2', rokuSource: null, accent: null },
+  { id: 'hdmi3',       name: 'HDMI 3',      icon: 'mdi:hdmi-port',      service: 'HDMI 3',      input: 'hdmi3', rokuSource: null, accent: null },
+  { id: 'hdmi4',       name: 'HDMI 4',      icon: 'mdi:hdmi-port',      service: 'HDMI 4',      input: 'hdmi4', rokuSource: null, accent: null },
 ];
 const SOURCES_BY_ID = new Map(SOURCES.map((s) => [s.id, s]));
 
@@ -85,10 +88,10 @@ const FIXED_MODES = {
   fuentes: {
     label: 'Fuentes', icon: 'mdi:television-shimmer',
     pad: pad(
-      ['mdi:numeric-1-box-multiple-outline', 'source:HDMI 1'],
-      ['mdi:numeric-2-box-multiple-outline', 'source:HDMI 2'],
-      ['mdi:numeric-3-box-multiple-outline', 'source:HDMI 3'],
-      ['mdi:numeric-4-box-multiple-outline', 'source:HDMI 4'],
+      [INPUTS.hdmi1.icon, 'input:hdmi1'],
+      [INPUTS.hdmi2.icon, 'input:hdmi2'],
+      [INPUTS.hdmi3.icon, 'input:hdmi3'],
+      [INPUTS.hdmi4.icon, 'input:hdmi4'],
     ),
   },
   info: {
@@ -122,6 +125,6 @@ const BOTTOM_BUTTONS = ['back', 'home', 'exit', 'menu'];
 
 // Los catálogos son de solo lectura (deepFreeze está en util.js). KEYS viene de
 // actions/keys.js, que ya agregó los dígitos al cargarse: aquí se congela completo.
-[KEYS, SOURCES, FIXED_MODES, DEFAULT_PAD, DEFAULT_BUTTONS].forEach(deepFreeze);
+[KEYS, INPUTS, SOURCES, FIXED_MODES, DEFAULT_PAD, DEFAULT_BUTTONS].forEach(deepFreeze);
 
 export { BOTTOM_BUTTONS, CUSTOM_MODE_IDS, DEFAULT_BUTTONS, DEFAULT_PAD, DEFAULT_STREAMING, DIRECTIONS, FIXED_MODES, MODE_ALIASES, NUMPAD_DIGITS, RESERVED_MODES, SOURCES, SOURCES_BY_ID, pad };

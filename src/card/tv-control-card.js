@@ -28,7 +28,7 @@
  * ========================================================================== */
 import { LitElement, nothing, unsafeCSS } from 'lit';
 import { isHoldable } from '../actions/parse.js';
-import { CENTER_GUARD_MS, SOURCE_ATTEMPTS, StateWaiters, TIMING, describeNow, resolveSourceName, routeAction, sourceMatches, storage, tvStatus } from './logic.js';
+import { CENTER_GUARD_MS, SOURCE_ATTEMPTS, StateWaiters, TIMING, describeNow, paletteTokens, resolvePalette, resolveSourceName, routeAction, sourceMatches, storage, tvStatus } from './logic.js';
 import { CARD_CSS } from './styles.js';
 import { cardTemplate } from './template.js';
 import { BOTTOM_BUTTONS, DIRECTIONS, MODE_ALIASES, SOURCES_BY_ID } from '../config/catalogs.js';
@@ -320,6 +320,15 @@ class TvControlCard extends LitElement {
       rokuState: roku ? this._hass?.states?.[tv.companion.entity] : null,
       streaming: settings.streaming,
     });
+    // Paleta: la del botón de la app activa, la del modo Roku o la de la tarjeta.
+    // Como todo lo demás, se recalcula en cada render: al salir de Netflix, la
+    // paleta "cine" desaparece sola (styleMap borra los tokens que ya no vienen).
+    const theme = this._theme;
+    const appSlot = now.sourceId ? settings.streaming.find((sl) => sl.source.id === now.sourceId) : null;
+    const palette = resolvePalette({
+      palettes: this._model.palettes, theme, roku,
+      appRef: appSlot?.palette, rokuRef: tv.companion?.palette, cardRef: settings.palette,
+    });
     // Los botones que abren el numpad dicen si está abierto (aria-expanded).
     const expanded = (action) => (action?.type === 'numpad' ? String(this._ui.numpad) : undefined);
     const pad = this._pad;
@@ -333,7 +342,9 @@ class TvControlCard extends LitElement {
 
     return {
       style: this._model.style,
-      theme: this._theme,
+      // La paleta decide si la tarjeta es clara u oscura (su `base`).
+      theme: palette?.base ?? theme,
+      paletteStyle: paletteTokens(palette),
       status,
       mode: this._ui.mode ?? 'default',
       roku,
@@ -706,6 +717,10 @@ class TvControlCard extends LitElement {
       let ok = true;
       if (slot.action) {
         await executeAction(this._hass, slot.action, this._route(slot.action));
+      } else if (source.input) {
+        // Por puerto no se espera confirmación: HA reporta el NOMBRE de la entrada
+        // ("PlayStation"), que no dice si es el HDMI 2. Si falla, el catch avisa.
+        await executeAction(this._hass, { type: 'input', input: source.input }, tvDevice);
       } else if (viaRoku) {
         if (!this._ui.roku) await this._selectSourceConfirmed(tvDevice, SOURCES_BY_ID.get('roku').alternates);
         ok = await this._selectSourceConfirmed({ platform: companion.platform, entity: companion.entity }, [source.rokuSource]);

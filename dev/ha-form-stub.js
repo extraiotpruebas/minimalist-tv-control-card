@@ -28,6 +28,14 @@ customElements.define('ha-form', class extends HTMLElement {
   get schema() { return this._schema; }
   set data(d) { this._data = d || {}; this._sync(); }
   get data() { return this._data; }
+  // Las etiquetas pueden llegar DESPUÉS del schema (Lit asigna las propiedades en el
+  // orden en que aparecen en la plantilla): si cambian, se rehace el formulario. Ojo:
+  // Lit vuelve a asignar objetos y funciones en CADA render aunque sean los mismos,
+  // así que solo se rehace si la función es otra (si no, se perdería el foco).
+  set computeLabel(fn) { if (fn === this._computeLabel) return; this._computeLabel = fn; this._sig = ''; this._sync(); }
+  get computeLabel() { return this._computeLabel; }
+  set computeHelper(fn) { if (fn === this._computeHelper) return; this._computeHelper = fn; this._sig = ''; this._sync(); }
+  get computeHelper() { return this._computeHelper; }
 
   _fields(schema = this._schema) {
     return schema.flatMap((f) => (Array.isArray(f.schema) && !f.name ? this._fields(f.schema) : [f]));
@@ -47,6 +55,7 @@ customElements.define('ha-form', class extends HTMLElement {
 
   _setValue(input, value) {
     if (input.type === 'checkbox') input.checked = !!value;
+    else if (input.type === 'color') input.value = Array.isArray(value) ? `#${value.map((n) => Number(n).toString(16).padStart(2, '0')).join('')}` : '#000000';
     else if (input.tagName === 'TEXTAREA') input.value = value && Object.keys(value).length ? JSON.stringify(value) : '';
     else input.value = value ?? '';
   }
@@ -102,6 +111,9 @@ customElements.define('ha-form', class extends HTMLElement {
       }
       input.setAttribute('list', list.id);
       queueMicrotask(() => input.after(list));
+    } else if (sel.color_rgb) {
+      input = document.createElement('input');
+      input.type = 'color';   // el color_rgb de HA entrega [r, g, b], igual que se convierte abajo
     } else if (sel.number) {
       input = document.createElement('input');
       input.type = 'number';
@@ -119,6 +131,7 @@ customElements.define('ha-form', class extends HTMLElement {
     const emit = () => {
       let value;
       if (input.type === 'checkbox') value = input.checked;
+      else if (input.type === 'color') value = [1, 3, 5].map((i) => parseInt(input.value.slice(i, i + 2), 16));
       else if (input.type === 'number') value = input.value === '' ? undefined : Number(input.value);
       else if (input.tagName === 'TEXTAREA') {
         if (input.value.trim() === '') value = {};

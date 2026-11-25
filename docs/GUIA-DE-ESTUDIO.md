@@ -2,6 +2,7 @@
 
 > Para: Ian. Nivel: principiante en JavaScript, CSS y HTML.
 > Código fuente: `src/` (módulos). Archivo que se instala en HA: `dist/minimalist-tv-control-card.js` (ver 8).
+> ¿Un término que no recuerdas? Búscalo con Ctrl + F en el [glosario](GLOSARIO.md).
 
 Esta guía explica, pieza por pieza, el código de tu tarjeta. Está pensada para leerse
 en orden, pero cada parte se entiende por separado. Todos los fragmentos de código
