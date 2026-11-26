@@ -23,7 +23,7 @@ function cardTemplate(v) {
   return html`
 <ha-card class="card ${classMap({ multi: v.multi })}" data-ref="card"
   data-style=${v.style} data-theme=${v.theme} data-status=${v.status} data-mode=${v.mode}
-  data-roku=${String(v.roku)} data-busy=${String(v.busy)} data-numpad=${String(v.numpad)}
+  data-roku=${String(v.roku)} data-busy=${String(v.busy)} data-numpad=${String(v.numpad)} data-text=${String(v.text)}
   style=${styleMap({ ...v.paletteStyle, '--tv-accent': v.accent ?? undefined, '--tv-glow': v.accent ?? undefined })}>
   <div class="body">
     <header class="head">
@@ -63,6 +63,15 @@ function cardTemplate(v) {
       <button type="button" class="key num" data-act="numpad_close" aria-label="Cerrar teclado"><ha-icon icon="mdi:close"></ha-icon></button>
       <button type="button" class="key num" data-act="digit" data-digit="0">0</button>
       <button type="button" class="key num" data-act="numpad_ok" aria-label="OK"><ha-icon icon="mdi:keyboard-return"></ha-icon></button>
+    </section>
+    <section class="textpad" data-ref="textpad" role="group" aria-label="Escribir texto">
+      <input class="text-input" data-ref="textInput" type="text" placeholder="Escribe aquí" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="send" aria-label="Texto para la TV">
+      <div class="text-actions">
+        <button type="button" class="key text-btn" data-act="text_send">Enviar</button>
+        <button type="button" class="key text-btn" data-act="text_delete" aria-label="Borrar un carácter"><ha-icon icon="mdi:backspace-outline"></ha-icon></button>
+        <button type="button" class="key text-btn" data-act="text_enter" aria-label="Enter"><ha-icon icon="mdi:keyboard-return"></ha-icon></button>
+      </div>
+      <p class="text-note">${v.textNote}</p>
     </section>
     <nav class="modes" data-ref="modes" role="radiogroup" aria-label="Modo del touchpad">${repeat(v.modes, (m) => m.id, (m) =>
       html`<button type="button" class="mode" data-act="mode" data-id=${m.id} role="radio" aria-checked=${String(m.checked)} ?disabled=${v.locked}><ha-icon icon=${icon(m.icon)}></ha-icon><span>${m.label}</span></button>`)}</nav>

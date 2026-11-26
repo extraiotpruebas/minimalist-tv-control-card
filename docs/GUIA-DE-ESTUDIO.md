@@ -1182,6 +1182,9 @@ Las formas posibles de salida (la lista completa de `type` es `ACTION_TYPES`, en
 { type: 'sequence', steps: [acción, ...], delay: 500 }
 { type: 'platform', by: { lg: acción, samsung: acción, default: acción } }
 { type: 'numpad' }   // abre o cierra el teclado numérico; lo maneja la tarjeta, no se manda a ningún dispositivo
+{ type: 'toast',    message: 'Hola' }                                         // mensaje en la pantalla (solo LG)
+{ type: 'url',      url: 'http://10.0.0.10:1984/stream.html?src=puerta' }     // abre una página en la TV (solo LG)
+{ type: 'text',     text: 'hola' }                                            // también op: 'delete' | 'enter'; lo usa el modo text
 ```
 
 Todas comparten el campo `type`, que dice "qué clase de acción es" y, por lo tanto,
@@ -1444,8 +1447,8 @@ del YAML. Toda la "arqueología" de formatos viejos queda encerrada en §5.
   `fuentes`, `info`), cada uno con su `pad` (las 4 direcciones del touchpad).
 - `MODE_ALIASES = { navegacion: 'menu' }`: el modo viejo `navegacion` se migra a
   `menu`.
-- `RESERVED_MODES`: `text` y `amplificador`, para la Fase 4; si aparecen, se omiten
-  con un aviso.
+- `RESERVED_MODES`: solo `amplificador`, para una versión futura; si aparece, se omite
+  con un aviso. El modo `text` ya existe en `FIXED_MODES`.
 - `DEFAULT_BUTTONS`: los botones fijos. `top_left` es el botón de arriba a la
   izquierda, que en la v3 se llamaba `exit` y que muchos clientes usan para scripts.
   En la v4 queda separado del EXIT de abajo (bug B4).

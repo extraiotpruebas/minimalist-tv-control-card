@@ -80,6 +80,7 @@ function routeAction(action, { tv, rokuMode, mode }) {
   const companion = tv.companion;
   if (!action || !rokuMode || !companion?.remote || TV_MODES.has(mode)) return tvDevice;
   const companionDevice = { platform: companion.platform, entity: companion.entity, remote: companion.remote };
+  if (action.type === 'text') return companionDevice;
   if (action.type === 'platform') return has(action.by, companion.platform) ? companionDevice : tvDevice;
   if (action.type === 'sequence') {
     const ctx = { tv, rokuMode, mode };

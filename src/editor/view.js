@@ -24,6 +24,7 @@ function shortLabel(options, value) {
 const ACTION_SHORT = {
   input: 'entrada', source: 'fuente', script: 'script', service: 'servicio de HA', command: 'command LG',
   button: 'botón crudo', sequence: 'secuencia', numpad: 'teclado numérico', platform: 'distinta por marca',
+  toast: 'mensaje en pantalla', url: 'abrir página', text: 'escribir texto',
 };
 
 function describeAction(raw, { allowDefault = false, defaultText = 'predeterminada' } = {}) {

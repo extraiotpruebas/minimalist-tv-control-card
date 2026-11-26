@@ -22,7 +22,10 @@ function actionToForm(raw) {
     case 'command': return { type: 'command', command: a.command ?? '', payload: isPlainObject(a.payload) ? a.payload : {} };
     case 'button': return { type: 'button', button: a.button ?? '' };
     case 'sequence': return { type: 'sequence', delay: a.delay ?? 400 };
+    case 'toast': return { type: 'toast', message: a.message ?? '' };
+    case 'url': return { type: 'url', url: a.url ?? '' };
     case 'numpad':
+    case 'text':
     case 'platform': return { type: a.type };
     default: return { type: 'none' };
   }
@@ -53,7 +56,10 @@ function formToAction(data, prevRaw) {
       const ms = Number(v.delay);
       return { type: 'sequence', steps, delay: v.delay !== undefined && v.delay !== '' && Number.isFinite(ms) ? Math.max(0, ms) : 400 };
     }
+    case 'toast': return { type: 'toast', message: v.message ?? '' };
+    case 'url': return { type: 'url', url: v.url ?? '' };
     case 'numpad': return 'numpad';
+    case 'text': return prevRaw;
     case 'platform': return { type: 'platform', by: !changed && isPlainObject(prevRaw?.by) ? prevRaw.by : {} };
     default: return undefined;
   }
@@ -89,6 +95,12 @@ function actionSchema(form, { allowDefault = false, allowNone = true, types = AL
         { name: 'command', label: 'Command', helper: 'Elige uno de la lista o escribe otro URI (sin ssap://).', selector: { select: { mode: 'dropdown', custom_value: true, options: LG_COMMANDS } } },
         { name: 'payload', label: 'Payload', selector: { object: {} } },
       );
+      break;
+    case 'toast':
+      schema.push({ name: 'message', label: 'Mensaje', helper: 'Aparece unos segundos en la pantalla de la TV. Solo LG.', selector: { text: {} } });
+      break;
+    case 'url':
+      schema.push({ name: 'url', label: 'Dirección', helper: 'Empieza con http:// o https://. Para una cámara con go2rtc: http://10.0.0.10:1984/stream.html?src=NOMBRE. Solo LG.', selector: { text: {} } });
       break;
     case 'button':
       schema.push({ name: 'button', label: 'Código', helper: 'Se manda tal cual: KEY_HDMI (Samsung), INPUT_HUB (LG)…', selector: { text: {} } });

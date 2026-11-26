@@ -237,3 +237,64 @@ test('input: variantes escritas a mano se normalizan; lo que no está en el cat�
   assert.deepEqual(parseAction({ type: 'input', input: 'TV' }), { type: 'input', input: 'tv' });
   for (const v of ['hdmi5', 'HDMI 9', 'antena']) assert.equal(parseAction(`input:${v}`), null, v);
 });
+
+test('toast y url: se analizan y se rechazan las vacías o que no sean http(s)', () => {
+  assert.deepEqual(parseAction({ type: 'toast', message: '  Hola ' }), { type: 'toast', message: 'Hola' });
+  assert.deepEqual(parseAction('toast:Hay alguien en la puerta: servicio'), { type: 'toast', message: 'Hay alguien en la puerta: servicio' });
+  assert.equal(parseAction({ type: 'toast', message: '   ' }), null);
+  assert.equal(parseAction('toast:'), null);
+  const url = 'http://10.0.0.10:1984/stream.html?src=servicio';
+  assert.deepEqual(parseAction({ type: 'url', url }), { type: 'url', url });
+  assert.deepEqual(parseAction(`url:${url}`), { type: 'url', url });
+  assert.equal(parseAction({ type: 'url', url: 'rtsp://camara/stream' }), null, 'la TV no abre rtsp://');
+  assert.equal(parseAction({ type: 'url', url: '' }), null);
+});
+
+test('text: texto, borrar y enter se analizan; lo vacío no', () => {
+  assert.deepEqual(parseAction({ type: 'text', text: 'hola mundo' }), { type: 'text', text: 'hola mundo' });
+  assert.deepEqual(parseAction({ type: 'text', op: 'delete' }), { type: 'text', op: 'delete' });
+  assert.deepEqual(parseAction({ type: 'text', op: 'enter' }), { type: 'text', op: 'enter' });
+  assert.equal(parseAction({ type: 'text', text: '' }), null);
+  assert.equal(parseAction({ type: 'text', op: 'otra' }), null);
+});
+
+test('LG: toast y url llaman a webostv.command con el command y el payload exactos', async () => {
+  const hass = createFakeHass();
+  await executeAction(hass, parseAction('toast:Hay alguien en la puerta de servicio'), LG_TV);
+  await executeAction(hass, parseAction('url:http://10.0.0.10:1984/stream.html?src=servicio'), LG_TV);
+  assert.deepEqual(hass.calls, [
+    { domain: 'webostv', service: 'command', data: { entity_id: 'media_player.lg', command: 'system.notifications/createToast', payload: { message: 'Hay alguien en la puerta de servicio' } } },
+    { domain: 'webostv', service: 'command', data: { entity_id: 'media_player.lg', command: 'system.launcher/open', payload: { target: 'http://10.0.0.10:1984/stream.html?src=servicio' } } },
+  ]);
+});
+
+test('Samsung y Roku rechazan toast, url y texto con UnsupportedActionError', async () => {
+  const hass = createFakeHass();
+  for (const device of [SAMSUNG_TV, ROKU]) {
+    await assert.rejects(executeAction(hass, parseAction('toast:Hola'), device), UnsupportedActionError);
+    await assert.rejects(executeAction(hass, parseAction('url:http://x.y/z'), device), UnsupportedActionError);
+  }
+  await assert.rejects(executeAction(hass, { type: 'text', text: 'abc' }, SAMSUNG_TV), UnsupportedActionError);
+  await assert.rejects(executeAction(hass, { type: 'text', op: 'enter' }, SAMSUNG_TV), UnsupportedActionError);
+  assert.deepEqual(hass.calls, []);
+});
+
+test('texto en LG: insertText sin reemplazar, deleteCharacters y sendEnterKey', async () => {
+  const hass = createFakeHass();
+  await executeAction(hass, { type: 'text', text: 'hola mundo' }, LG_TV);
+  await executeAction(hass, { type: 'text', op: 'delete' }, LG_TV);
+  await executeAction(hass, { type: 'text', op: 'enter' }, LG_TV);
+  assert.deepEqual(hass.calls.map((c) => [c.service, c.data.command, c.data.payload]), [
+    ['command', 'com.webos.service.ime/insertText', { text: 'hola mundo', replace: 0 }],
+    ['command', 'com.webos.service.ime/deleteCharacters', { count: 1 }],
+    ['command', 'com.webos.service.ime/sendEnterKey', undefined],
+  ]);
+});
+
+test('texto en Roku: todavía no está soportado y no manda nada', async () => {
+  const hass = createFakeHass();
+  for (const action of [{ type: 'text', text: 'abc' }, { type: 'text', op: 'delete' }, { type: 'text', op: 'enter' }]) {
+    await assert.rejects(executeAction(hass, action, ROKU), UnsupportedActionError);
+  }
+  assert.deepEqual(hass.calls, []);
+});

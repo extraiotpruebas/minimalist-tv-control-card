@@ -103,6 +103,13 @@ test('acción: forma más legible, reinicio al cambiar de tipo, predeterminada =
   assert.deepEqual(formToAction({ type: 'key', key: 'vol_up' }, undefined), { type: 'key', key: '' }, 'recién elegido el tipo, la tecla empieza vacía');
   assert.equal(formToAction({ type: 'script', entity: 'script.pin' }, { type: 'service', service: 'script.turn_on', data: {} }), 'script.pin');
   assert.equal(formToAction({ type: 'numpad' }, 'back'), 'numpad');
+  assert.deepEqual(formToAction({ type: 'toast', message: 'Hola' }, { type: 'toast', message: '' }), { type: 'toast', message: 'Hola' });
+  assert.deepEqual(formToAction({ type: 'url', url: 'http://x.y/z' }, { type: 'url', url: '' }), { type: 'url', url: 'http://x.y/z' });
+  assert.deepEqual(formToAction({ type: 'toast' }, undefined), { type: 'toast', message: '' }, 'recién elegido el tipo, el mensaje empieza vacío');
+  assert.deepEqual(actionToForm({ type: 'toast', message: 'Hola' }), { type: 'toast', message: 'Hola' });
+  assert.deepEqual(actionToForm('url:http://x.y/z'), { type: 'url', url: 'http://x.y/z' });
+  const typed = { type: 'text', text: 'abc' };
+  assert.equal(formToAction({ type: 'text' }, typed), typed, 'una acción text escrita a mano se conserva al editar');
   assert.equal(formToAction({ type: 'default' }, 'back'), undefined);
   assert.equal(formToAction({ type: 'none' }, 'back'), null);
   assert.deepEqual(formToAction({ type: 'source', key: 'vol_up' }, 'vol_up'), { type: 'source', source: '' }, 'no arrastra campos del tipo anterior');

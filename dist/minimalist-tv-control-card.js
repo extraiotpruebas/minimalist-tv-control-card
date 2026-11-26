@@ -924,7 +924,10 @@ var ACTION_TYPES = [
 	"service",
 	"sequence",
 	"platform",
-	"numpad"
+	"numpad",
+	"toast",
+	"url",
+	"text"
 ];
 function stripSsap(uri) {
 	return String(uri).trim().replace(/^ssap:\/\//i, "");
@@ -996,6 +999,29 @@ function parseAction(raw) {
 				} : null;
 			}
 			case "numpad": return { type: "numpad" };
+			case "toast": {
+				const message = String(raw.message ?? "").trim();
+				return message ? {
+					type: "toast",
+					message
+				} : null;
+			}
+			case "url": {
+				const url = String(raw.url ?? "").trim();
+				return /^https?:\/\/\S+$/i.test(url) ? {
+					type: "url",
+					url
+				} : null;
+			}
+			case "text":
+				if (raw.op === "delete" || raw.op === "enter") return {
+					type: "text",
+					op: raw.op
+				};
+				return typeof raw.text === "string" && raw.text !== "" ? {
+					type: "text",
+					text: raw.text
+				} : null;
 		}
 		return null;
 	}
@@ -1030,6 +1056,14 @@ function parseAction(raw) {
 			command
 		} : null;
 	}
+	if (str.startsWith("toast:")) return parseAction({
+		type: "toast",
+		message: str.slice(6)
+	});
+	if (str.startsWith("url:")) return parseAction({
+		type: "url",
+		url: str.slice(4)
+	});
 	if (str.startsWith("key:")) return parseAction({
 		type: "key",
 		key: str.slice(4).trim()
@@ -1264,6 +1298,11 @@ var FIXED_MODES = {
 		icon: "mdi:television-shimmer",
 		pad: pad([INPUTS.hdmi1.icon, "input:hdmi1"], [INPUTS.hdmi2.icon, "input:hdmi2"], [INPUTS.hdmi3.icon, "input:hdmi3"], [INPUTS.hdmi4.icon, "input:hdmi4"])
 	},
+	text: {
+		label: "Texto",
+		icon: "mdi:keyboard-outline",
+		pad: pad()
+	},
 	info: {
 		label: "Información",
 		icon: "mdi:information-variant-circle-outline",
@@ -1283,7 +1322,7 @@ var FIXED_MODES = {
 	}
 };
 var MODE_ALIASES = { navegacion: "menu" };
-var RESERVED_MODES = /* @__PURE__ */ new Set(["text", "amplificador"]);
+var RESERVED_MODES = /* @__PURE__ */ new Set(["amplificador"]);
 var CUSTOM_MODE_IDS = [
 	"custom1",
 	"custom2",
@@ -1416,6 +1455,7 @@ function routeAction(action, { tv, rokuMode, mode }) {
 		entity: companion.entity,
 		remote: companion.remote
 	};
+	if (action.type === "text") return companionDevice;
 	if (action.type === "platform") return has(action.by, companion.platform) ? companionDevice : tvDevice;
 	if (action.type === "sequence") {
 		const ctx = {
@@ -1640,6 +1680,14 @@ ha-card.card {
 .numpad { grid-area: pad; display: none; justify-self: center; width: min(100%, 280px); aspect-ratio: 1; grid-template-columns: repeat(3, 1fr); grid-template-rows: repeat(4, minmax(0, 1fr)); gap: 10px; }
 .card[data-numpad="true"] .numpad { display: grid; animation: tv-pop 0.18s ease-out; }
 .card[data-numpad="true"] .pad { display: none; }
+.textpad { grid-area: pad; display: none; justify-self: center; width: min(100%, 280px); aspect-ratio: 1; grid-template-rows: 50px 50px minmax(0, 1fr); align-content: start; gap: 10px; }
+.card[data-text="true"] .textpad { display: grid; animation: tv-pop 0.18s ease-out; }
+.card[data-text="true"] .pad { display: none; }
+.text-input { width: 100%; height: 50px; padding: 0 14px; border-radius: 14px; border: 1px solid var(--tv-line); background: transparent; color: var(--tv-ink); font: inherit; font-size: 16px; user-select: text; -webkit-user-select: text; }
+.text-input:focus-visible { outline: 2px solid var(--tv-accent); outline-offset: 2px; }
+.text-actions { display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 10px; }
+.text-btn { height: 50px; font-weight: 500; color: var(--tv-ink); }
+.text-note { margin: 0; font-size: 12px; line-height: 1.35; color: var(--tv-ink-2); overflow: hidden; }
 .num { height: auto; min-height: 0; font-size: 22px; font-weight: 500; font-variant-numeric: tabular-nums; color: var(--tv-ink); }
 
 .toast {
@@ -1662,10 +1710,10 @@ ha-card.card {
     grid-template-areas: "head pad" "screen pad" "apps pad" "modes pad" "keys pad";
     grid-template-rows: auto auto auto auto 1fr;
   }
-  .pad, .numpad { width: min(100%, 310px); }
+  .pad, .numpad, .textpad { width: min(100%, 310px); }
   .keys { align-self: end; }
 }
-@container (min-width: 860px) { .pad, .numpad { width: min(100%, 360px); } }
+@container (min-width: 860px) { .pad, .numpad, .textpad { width: min(100%, 360px); } }
 
 .card[data-style="relieve"] {
   --tv-surface: #eef1f5; --tv-surface-top: #f5f7fa; --tv-raised: #ffffff; --tv-raised-2: #f6f8fa; --tv-thumb: #ffffff;
@@ -1744,6 +1792,7 @@ ha-card.card {
   transition: transform 0.12s, box-shadow 0.12s;
 }
 .card[data-style="halo"] .key { width: 52px; height: 52px; justify-self: center; border-radius: 50%; }
+.card[data-style="halo"] .text-btn { width: auto; height: 50px; justify-self: stretch; border-radius: 16px; }
 .card[data-style="halo"] .num { width: auto; height: 100%; aspect-ratio: 1; }
 .card[data-style="halo"] .app { border-radius: 18px; }
 .card[data-style="halo"] .app.active::after { content: ""; position: absolute; bottom: 7px; width: 16px; height: 3px; border-radius: 3px; background: currentColor; }
@@ -1797,7 +1846,7 @@ ha-card.card {
   --tv-accent-default: #dce6f5; --tv-blob: color-mix(in srgb, var(--tv-glow) 45%, #3d5cff);
   --tv-card-shadow: 0 1px 2px rgb(0 0 0 / 0.4), 0 28px 56px -32px var(--tv-shadow);
 }
-.card[data-style="cristal"] :is(.round, .switch, .apps, .pad, .modes, .keys, .numpad) {
+.card[data-style="cristal"] :is(.round, .switch, .apps, .pad, .modes, .keys, .numpad, .textpad) {
   background: linear-gradient(180deg, var(--tv-raised), var(--tv-raised-2));
   -webkit-backdrop-filter: blur(20px) saturate(160%); backdrop-filter: blur(20px) saturate(160%);
   box-shadow: inset 0 1px 0 var(--tv-hi), inset 0 0 0 1px var(--tv-line), 0 12px 28px -16px var(--tv-shadow);
@@ -1805,7 +1854,7 @@ ha-card.card {
 .card[data-style="cristal"] .round { transition: transform 0.12s; }
 .card[data-style="cristal"] .round:is(.pressed, :active) { transform: scale(0.95); }
 .card[data-style="cristal"] .switch button[aria-pressed="true"] { background: var(--tv-ink); color: var(--tv-surface); }
-.card[data-style="cristal"] :is(.apps, .keys, .numpad) { border-radius: 22px; padding: 6px; gap: 4px; }
+.card[data-style="cristal"] :is(.apps, .keys, .numpad, .textpad) { border-radius: 22px; padding: 6px; gap: 4px; }
 .card[data-style="cristal"] :is(.app, .key) { border-radius: 16px; transition: background 0.2s; }
 .card[data-style="cristal"] .key { height: 46px; }
 .card[data-style="cristal"] .app.active { background: color-mix(in srgb, currentColor 12%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, currentColor 30%, transparent); }
@@ -1833,8 +1882,8 @@ ha-card.card {
 .card[data-style="cristal"] .picker-item.active { background: var(--tv-raised); box-shadow: inset 0 1px 0 var(--tv-hi), 0 4px 12px -6px var(--tv-shadow); }
 .card[data-style="cristal"][data-theme="dark"] .picker-item.active { background: rgb(255 255 255 / 0.13); }
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
-  .card[data-style="cristal"] :is(.round, .switch, .apps, .pad, .modes, .keys, .picker, .numpad) { background: color-mix(in srgb, var(--tv-surface) 75%, #ffffff); }
-  .card[data-style="cristal"][data-theme="dark"] :is(.round, .switch, .apps, .pad, .modes, .keys, .picker, .numpad) { background: #1b1e24; }
+  .card[data-style="cristal"] :is(.round, .switch, .apps, .pad, .modes, .keys, .picker, .numpad, .textpad) { background: color-mix(in srgb, var(--tv-surface) 75%, #ffffff); }
+  .card[data-style="cristal"][data-theme="dark"] :is(.round, .switch, .apps, .pad, .modes, .keys, .picker, .numpad, .textpad) { background: #1b1e24; }
 }
 
 .card { --tv-cta-bg: var(--tv-ink); --tv-cta-ink: var(--tv-surface); --tv-cta-shadow: 0 10px 24px -10px var(--tv-shadow); }
@@ -2056,7 +2105,7 @@ function cardTemplate(v) {
 	return b`
 <ha-card class="card ${e$1({ multi: v.multi })}" data-ref="card"
   data-style=${v.style} data-theme=${v.theme} data-status=${v.status} data-mode=${v.mode}
-  data-roku=${String(v.roku)} data-busy=${String(v.busy)} data-numpad=${String(v.numpad)}
+  data-roku=${String(v.roku)} data-busy=${String(v.busy)} data-numpad=${String(v.numpad)} data-text=${String(v.text)}
   style=${o({
 		...v.paletteStyle,
 		"--tv-accent": v.accent ?? void 0,
@@ -2101,6 +2150,15 @@ function cardTemplate(v) {
       <button type="button" class="key num" data-act="numpad_close" aria-label="Cerrar teclado"><ha-icon icon="mdi:close"></ha-icon></button>
       <button type="button" class="key num" data-act="digit" data-digit="0">0</button>
       <button type="button" class="key num" data-act="numpad_ok" aria-label="OK"><ha-icon icon="mdi:keyboard-return"></ha-icon></button>
+    </section>
+    <section class="textpad" data-ref="textpad" role="group" aria-label="Escribir texto">
+      <input class="text-input" data-ref="textInput" type="text" placeholder="Escribe aquí" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="send" aria-label="Texto para la TV">
+      <div class="text-actions">
+        <button type="button" class="key text-btn" data-act="text_send">Enviar</button>
+        <button type="button" class="key text-btn" data-act="text_delete" aria-label="Borrar un carácter"><ha-icon icon="mdi:backspace-outline"></ha-icon></button>
+        <button type="button" class="key text-btn" data-act="text_enter" aria-label="Enter"><ha-icon icon="mdi:keyboard-return"></ha-icon></button>
+      </div>
+      <p class="text-note">${v.textNote}</p>
     </section>
     <nav class="modes" data-ref="modes" role="radiogroup" aria-label="Modo del touchpad">${c(v.modes, (m) => m.id, (m) => b`<button type="button" class="mode" data-act="mode" data-id=${m.id} role="radio" aria-checked=${String(m.checked)} ?disabled=${v.locked}><ha-icon icon=${icon(m.icon)}></ha-icon><span>${m.label}</span></button>`)}</nav>
     <footer class="keys">
@@ -2572,6 +2630,24 @@ var PLATFORMS = {
 			const target = INPUTS[input]?.lg;
 			if (!target) return Promise.reject(new UnsupportedActionError(this.id, `entrada "${input}"`));
 			return target.app ? this.sendCommand(hass, device, "system.launcher/launch", { id: target.app }) : this.sendCommand(hass, device, "tv/switchInput", { inputId: target.inputId });
+		},
+		showMessage(hass, device, message) {
+			return this.sendCommand(hass, device, "system.notifications/createToast", { message });
+		},
+		openUrl(hass, device, url) {
+			return this.sendCommand(hass, device, "system.launcher/open", { target: url });
+		},
+		typeText(hass, device, text) {
+			return this.sendCommand(hass, device, "com.webos.service.ime/insertText", {
+				text,
+				replace: 0
+			});
+		},
+		deleteText(hass, device) {
+			return this.sendCommand(hass, device, "com.webos.service.ime/deleteCharacters", { count: 1 });
+		},
+		sendEnter(hass, device) {
+			return this.sendCommand(hass, device, "com.webos.service.ime/sendEnterKey");
 		}
 	},
 	samsung: {
@@ -2623,6 +2699,21 @@ var PLATFORM_DEFAULTS = {
 	},
 	selectInput(hass, device, input) {
 		return Promise.reject(new UnsupportedActionError(this.id, `entrada "${input}"`));
+	},
+	showMessage() {
+		return Promise.reject(new UnsupportedActionError(this.id, "mensaje en pantalla"));
+	},
+	openUrl() {
+		return Promise.reject(new UnsupportedActionError(this.id, "abrir una página"));
+	},
+	typeText() {
+		return Promise.reject(new UnsupportedActionError(this.id, "escribir texto"));
+	},
+	deleteText() {
+		return Promise.reject(new UnsupportedActionError(this.id, "escribir texto"));
+	},
+	sendEnter() {
+		return Promise.reject(new UnsupportedActionError(this.id, "escribir texto"));
 	}
 };
 for (const platform of Object.values(PLATFORMS)) Object.setPrototypeOf(platform, PLATFORM_DEFAULTS);
@@ -2656,6 +2747,12 @@ async function executeAction(hass, action, device) {
 				await executeAction(hass, resolved.steps[i], device);
 			}
 			return;
+		case "toast": return platform.showMessage(hass, device, resolved.message);
+		case "url": return platform.openUrl(hass, device, resolved.url);
+		case "text":
+			if (resolved.op === "delete") return platform.deleteText(hass, device);
+			if (resolved.op === "enter") return platform.sendEnter(hass, device);
+			return platform.typeText(hass, device, resolved.text);
 		case "numpad": throw new Error("\"numpad\" es una acción de la tarjeta, no de la TV");
 		default: throw new Error(`Tipo de acción desconocido: ${resolved.type}`);
 	}
@@ -2710,6 +2807,11 @@ var TvControlCard = class extends i$3 {
 			"lostpointercapture"
 		]) root.addEventListener(type, () => this._stopHold());
 		root.addEventListener("keydown", (e) => {
+			if (e.key === "Enter" && e.target?.dataset?.ref === "textInput") {
+				e.preventDefault();
+				this._textSend();
+				return;
+			}
 			if (e.key !== "Escape") return;
 			if (this._ui.numpad) this._toggleNumpad(false);
 			this._togglePicker(false);
@@ -2862,6 +2964,7 @@ var TvControlCard = class extends i$3 {
 		if (status !== "on") {
 			if (this._hold) this._stopHold();
 			this._ui.numpad = false;
+			if (this._ui.mode === "text") this._ui.mode = null;
 		}
 		if (status === "on" && this._lastStatus !== null && this._lastStatus !== "on") this._centerGuardUntil = performance.now() + 800;
 		this._lastStatus = status;
@@ -2914,6 +3017,8 @@ var TvControlCard = class extends i$3 {
 			roku,
 			busy: !!busy,
 			numpad: this._ui.numpad,
+			text: this._ui.mode === "text",
+			textNote: this._textNote(),
 			multi: this._model.tvs.length > 1,
 			accent: now.accent,
 			locked,
@@ -2999,6 +3104,16 @@ var TvControlCard = class extends i$3 {
 				key: "enter"
 			});
 			case "numpad_close": return this._toggleNumpad(false);
+			case "text_send": return this._textSend();
+			case "text_delete": return this._textRun({
+				type: "text",
+				op: "delete"
+			});
+			case "text_enter": return this._textRun({
+				type: "text",
+				op: "enter"
+			});
+			case "text_close": return this._toggleMode("text");
 			case "picker": return this._togglePicker();
 			case "tv": return this._selectTv(Number(el.dataset.index));
 		}
@@ -3097,6 +3212,43 @@ var TvControlCard = class extends i$3 {
 			platform: tv.platform,
 			entity: tv.entity
 		});
+	}
+	_textNote() {
+		const platform = this._route({
+			type: "text",
+			text: " "
+		}).platform;
+		if (platform === "lg") return "En la LG solo escribe en los campos de texto de la propia TV (ajustes, buscador del sistema). No funciona en apps como YouTube o Netflix.";
+		if (platform === "roku") return "Escribir en el Roku todavía no está disponible.";
+		return "Esta marca no soporta escribir texto desde la tarjeta.";
+	}
+	async _textRun(action) {
+		this._haptic();
+		try {
+			await executeAction(this._hass, action, this._route(action));
+			return true;
+		} catch (err) {
+			this._showError(err);
+			return false;
+		}
+	}
+	async _textSend() {
+		const input = this.renderRoot.querySelector("[data-ref=\"textInput\"]");
+		const text = input?.value ?? "";
+		if (text === "") {
+			this._toast("Escribe un texto primero.");
+			return;
+		}
+		if (this._textBusy) return;
+		this._textBusy = true;
+		try {
+			if (await this._textRun({
+				type: "text",
+				text
+			})) input.value = "";
+		} finally {
+			this._textBusy = false;
+		}
 	}
 	_toggleNumpad(force) {
 		const open = force ?? !this._ui.numpad;
@@ -3306,6 +3458,8 @@ var ACTION_UI_TYPES = {
 	script: "Script o escena",
 	service: "Servicio de HA",
 	command: "Command LG (webOS)",
+	toast: "Mensaje en pantalla (solo LG)",
+	url: "Abrir una página en la TV (solo LG)",
 	button: "Botón crudo (código)",
 	sequence: "Secuencia de pasos (p. ej. un PIN)",
 	numpad: "Abrir teclado numérico",
@@ -3318,6 +3472,8 @@ var ALL_ACTION_TYPES = [
 	"script",
 	"service",
 	"command",
+	"toast",
+	"url",
 	"button",
 	"sequence",
 	"numpad",
@@ -3327,6 +3483,8 @@ var STEP_ACTION_TYPES = [
 	"key",
 	"button",
 	"command",
+	"toast",
+	"url",
 	"input",
 	"source",
 	"script",
@@ -3339,6 +3497,8 @@ var BRAND_ACTION_TYPES = [
 	"script",
 	"service",
 	"command",
+	"toast",
+	"url",
 	"button",
 	"sequence"
 ];
@@ -3580,7 +3740,16 @@ function actionToForm(raw) {
 			type: "sequence",
 			delay: a.delay ?? 400
 		};
+		case "toast": return {
+			type: "toast",
+			message: a.message ?? ""
+		};
+		case "url": return {
+			type: "url",
+			url: a.url ?? ""
+		};
 		case "numpad":
+		case "text":
 		case "platform": return { type: a.type };
 		default: return { type: "none" };
 	}
@@ -3637,7 +3806,16 @@ function formToAction(data, prevRaw) {
 				delay: v.delay !== void 0 && v.delay !== "" && Number.isFinite(ms) ? Math.max(0, ms) : 400
 			};
 		}
+		case "toast": return {
+			type: "toast",
+			message: v.message ?? ""
+		};
+		case "url": return {
+			type: "url",
+			url: v.url ?? ""
+		};
 		case "numpad": return "numpad";
+		case "text": return prevRaw;
 		case "platform": return {
 			type: "platform",
 			by: !changed && isPlainObject(prevRaw?.by) ? prevRaw.by : {}
@@ -3730,6 +3908,22 @@ function actionSchema(form, { allowDefault = false, allowNone = true, types = AL
 				name: "payload",
 				label: "Payload",
 				selector: { object: {} }
+			});
+			break;
+		case "toast":
+			schema.push({
+				name: "message",
+				label: "Mensaje",
+				helper: "Aparece unos segundos en la pantalla de la TV. Solo LG.",
+				selector: { text: {} }
+			});
+			break;
+		case "url":
+			schema.push({
+				name: "url",
+				label: "Dirección",
+				helper: "Empieza con http:// o https://. Para una cámara con go2rtc: http://10.0.0.10:1984/stream.html?src=NOMBRE. Solo LG.",
+				selector: { text: {} }
 			});
 			break;
 		case "button":
@@ -4503,7 +4697,10 @@ var ACTION_SHORT = {
 	button: "botón crudo",
 	sequence: "secuencia",
 	numpad: "teclado numérico",
-	platform: "distinta por marca"
+	platform: "distinta por marca",
+	toast: "mensaje en pantalla",
+	url: "abrir página",
+	text: "escribir texto"
 };
 function describeAction(raw, { allowDefault = false, defaultText = "predeterminada" } = {}) {
 	const form = actionToForm(raw);

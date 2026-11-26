@@ -2,7 +2,7 @@ import { CODE_TO_KEY, HOLDABLE_KEYS, KEYS } from './keys.js';
 import { normalizeInputId } from './inputs.js';
 import { has } from '../util.js';
 
-const ACTION_TYPES = ['key', 'button', 'command', 'source', 'input', 'service', 'sequence', 'platform', 'numpad'];
+const ACTION_TYPES = ['key', 'button', 'command', 'source', 'input', 'service', 'sequence', 'platform', 'numpad', 'toast', 'url', 'text'];
 
 function stripSsap(uri) {
   return String(uri).trim().replace(/^ssap:\/\//i, '');
@@ -55,6 +55,18 @@ function parseAction(raw) {
       }
       case 'numpad':
         return { type: 'numpad' };
+      case 'toast': {
+        const message = String(raw.message ?? '').trim();
+        return message ? { type: 'toast', message } : null;
+      }
+      case 'url': {
+        const url = String(raw.url ?? '').trim();
+        return /^https?:\/\/\S+$/i.test(url) ? { type: 'url', url } : null;
+      }
+      case 'text': {
+        if (raw.op === 'delete' || raw.op === 'enter') return { type: 'text', op: raw.op };
+        return typeof raw.text === 'string' && raw.text !== '' ? { type: 'text', text: raw.text } : null;
+      }
     }
     return null;
   }
@@ -79,6 +91,8 @@ function parseAction(raw) {
     const command = stripSsap(str.slice('command:'.length));
     return command ? { type: 'command', command } : null;
   }
+  if (str.startsWith('toast:')) return parseAction({ type: 'toast', message: str.slice('toast:'.length) });
+  if (str.startsWith('url:')) return parseAction({ type: 'url', url: str.slice('url:'.length) });
   if (str.startsWith('key:')) {
     return parseAction({ type: 'key', key: str.slice(4).trim() });
   }

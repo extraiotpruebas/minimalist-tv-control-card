@@ -192,6 +192,7 @@ Tocar un modo lo activa; tocarlo otra vez vuelve al touchpad sin modo (`default_
 | `audio` | Audio | Volumen + | Silenciar | — | Volumen − |
 | `fuentes` | Fuentes | HDMI 1 | HDMI 2 | HDMI 3 | HDMI 4 |
 | `info` | Información | Guía | Info | Apps recientes ¹ | Ajustes rápidos ¹ |
+| `text` | Texto | abre un panel para escribir (ver abajo) | | | |
 | `custom1`…`custom3` | Personalizado | definidos en `custom_modes` |
 
 ¹ En LG. En Samsung esos dos botones son Mis apps y Herramientas.
@@ -203,6 +204,19 @@ El modo `fuentes` cambia de entrada **por puerto** (acción `input`, ver
 [Acciones](#acciones)), así que funciona aunque la entrada tenga otro nombre en la TV.
 Para otras entradas o íconos (p. ej. "PlayStation" en HDMI 2), usa un modo
 personalizado con acciones `input:`.
+
+El modo `text` abre, en el lugar del touchpad, un panel con un campo de texto y los
+botones **Enviar**, **Borrar** y **Enter**. Se escribe en el campo (con el teclado del
+celular) y **Enviar** manda todo el texto de una vez. Con el Roku activo, el panel avisa
+que escribir ahí todavía no está disponible.
+
+- **LG**: usa `com.webos.service.ime/insertText`. Solo escribe en los campos de texto de
+  la propia TV (ajustes, buscador del sistema). No funciona en apps como YouTube o
+  Netflix.
+- **Roku**: todavía no está soportado. Home Assistant manda las teclas del Roku sin
+  pausa entre una y otra y el Roku pierde letras, y el espacio no llega (sale como `+`).
+  Se resolverá en una versión futura.
+- **Samsung**: no soportado.
 
 ### `custom_modes` y `default_pad`
 
@@ -340,6 +354,8 @@ Cualquier `action` puede escribirse así:
 action: vol_up                      # tecla (tabla de abajo); también VOLUMEUP o KEY_VOLUP
 action: script.mi_script            # script o escena
 action: numpad                      # abre el teclado numérico
+action: toast:Hay alguien en la puerta        # mensaje en la pantalla de la TV (solo LG)
+action: url:http://10.0.0.10:1984/stream.html?src=puerta   # abre una página en la TV (solo LG)
 action: [digit_1, digit_2, enter]   # secuencia (pausa de 400 ms)
 
 action: { type: key, key: input_menu }
@@ -372,6 +388,13 @@ dependen del nombre que la entrada tenga en la TV:
 | `tv` | `system.launcher/launch` `{ id: com.webos.app.livetv }` | `ST_TV` |
 
 Con un Roku conectado, las entradas siempre van a la TV. El Roku no tiene entradas.
+
+**Mensaje y página en la TV (solo LG)**: `toast` muestra unos segundos un mensaje en la
+pantalla (`system.notifications/createToast`) y `url` abre una página en el navegador de
+la TV (`system.launcher/open`). Los dos van siempre a la TV, aunque el Roku esté activo.
+En Samsung y Roku muestran el aviso "no soporta". `url` solo acepta direcciones
+`http://` o `https://`: la TV no abre `rtsp://`. En el editor son "Mensaje en pantalla"
+y "Abrir una página en la TV".
 
 
 - **Mantener presionado** repite solo las flechas (cada 250 ms, hasta 10 s). Todo lo
@@ -432,6 +455,39 @@ Con un Roku conectado, las entradas siempre van a la TV. El Roku no tiene entrad
 Una tecla que la marca no tiene (—) muestra un aviso en lugar de mandar algo.
 
 </details>
+
+### Mostrar una cámara en la TV (LG)
+
+La TV no abre `rtsp://`, así que hace falta un servidor que convierta la cámara a algo
+que su navegador reproduzca. Lo más corto es **go2rtc** como add-on de Home Assistant:
+
+1. Ajustes → Add-ons → Tienda de add-ons → ⋮ → Repositorios → agrega
+   `https://github.com/AlexxIT/hassio-addons` → instala **go2rtc** → Iniciar.
+2. En su interfaz web, agrega la cámara en `go2rtc.yaml` (`/config/go2rtc.yaml`):
+
+   ```yaml
+   streams:
+     puerta: rtsp://USUARIO:CLAVE@IP_CAMARA:554/Streaming/Channels/102
+   ```
+
+   Un canal secundario (en Hikvision, `102`) suele ser H.264 y de menor resolución, lo
+   que le sienta mejor a la TV.
+3. Un botón de la tarjeta con las dos acciones, aviso y cámara:
+
+   ```yaml
+   action:
+     type: sequence
+     steps:
+       - { type: toast, message: "Hay alguien en la puerta" }
+       - { type: url, url: "http://IP_DE_HA:1984/stream.html?src=puerta" }
+   ```
+
+   Para avisar sin que nadie toque la tarjeta, usa las mismas dos acciones en una
+   automatización con `webostv.command` (`system.notifications/createToast` y
+   `system.launcher/open`).
+
+**Seguridad**: por defecto go2rtc deja ver las cámaras sin contraseña a cualquier
+equipo de la red local. No abras el puerto `1984` a internet.
 
 ---
 

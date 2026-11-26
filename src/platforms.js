@@ -29,6 +29,21 @@ const PLATFORMS = {
         ? this.sendCommand(hass, device, 'system.launcher/launch', { id: target.app })
         : this.sendCommand(hass, device, 'tv/switchInput', { inputId: target.inputId });
     },
+    showMessage(hass, device, message) {
+      return this.sendCommand(hass, device, 'system.notifications/createToast', { message });
+    },
+    openUrl(hass, device, url) {
+      return this.sendCommand(hass, device, 'system.launcher/open', { target: url });
+    },
+    typeText(hass, device, text) {
+      return this.sendCommand(hass, device, 'com.webos.service.ime/insertText', { text, replace: 0 });
+    },
+    deleteText(hass, device) {
+      return this.sendCommand(hass, device, 'com.webos.service.ime/deleteCharacters', { count: 1 });
+    },
+    sendEnter(hass, device) {
+      return this.sendCommand(hass, device, 'com.webos.service.ime/sendEnterKey');
+    },
   },
 
   samsung: {
@@ -76,6 +91,21 @@ const PLATFORM_DEFAULTS = {
   },
   selectInput(hass, device, input) {
     return Promise.reject(new UnsupportedActionError(this.id, `entrada "${input}"`));
+  },
+  showMessage() {
+    return Promise.reject(new UnsupportedActionError(this.id, 'mensaje en pantalla'));
+  },
+  openUrl() {
+    return Promise.reject(new UnsupportedActionError(this.id, 'abrir una página'));
+  },
+  typeText() {
+    return Promise.reject(new UnsupportedActionError(this.id, 'escribir texto'));
+  },
+  deleteText() {
+    return Promise.reject(new UnsupportedActionError(this.id, 'escribir texto'));
+  },
+  sendEnter() {
+    return Promise.reject(new UnsupportedActionError(this.id, 'escribir texto'));
   },
 };
 for (const platform of Object.values(PLATFORMS)) {

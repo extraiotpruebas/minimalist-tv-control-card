@@ -61,13 +61,17 @@ const FIXED_MODES = {
       [INPUTS.hdmi4.icon, 'input:hdmi4'],
     ),
   },
+  text: {
+    label: 'Texto', icon: 'mdi:keyboard-outline',
+    pad: pad(),
+  },
   info: {
     label: 'Información', icon: 'mdi:information-variant-circle-outline',
     pad: pad(['mdi:television-guide', 'guide'], ['mdi:information-slab-circle-outline', 'info'], ['mdi:history', { type: 'platform', by: { lg: 'recent', samsung: 'apps' } }], ['mdi:tune-variant', { type: 'platform', by: { lg: 'qmenu', samsung: 'asterisk' } }]),
   },
 };
 const MODE_ALIASES = { navegacion: 'menu' };
-const RESERVED_MODES = new Set(['text', 'amplificador']);
+const RESERVED_MODES = new Set(['amplificador']);
 const CUSTOM_MODE_IDS = ['custom1', 'custom2', 'custom3'];
 
 const DEFAULT_PAD = pad(['mdi:chevron-up', 'up'], ['mdi:chevron-left', 'left'], ['mdi:chevron-right', 'right'], ['mdi:chevron-down', 'down']);

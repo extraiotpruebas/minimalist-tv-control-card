@@ -201,3 +201,20 @@ test('describeNow: modo Roku usa la app del Roku', () => {
   assert.deepEqual([home.title, home.accent], ['Home', '#6f1ab1'], 'app sin color: morado Roku');
   assert.equal(now({ hasCompanion: true, tvState: st('on', { source: 'HDMI 2' }) }).sub, 'En la TV');
 });
+
+test('routeAction: el texto va al Roku solo con el modo Roku activo; toast y url siempre a la TV', () => {
+  const text = { type: 'text', text: 'abc' };
+  assert.equal(routeAction(text, { tv: TV_WITH_ROKU, rokuMode: true, mode: 'text' }).platform, 'roku');
+  assert.equal(routeAction(text, { tv: TV_WITH_ROKU, rokuMode: false, mode: 'text' }).platform, 'lg');
+  for (const raw of ['toast:Hola', 'url:http://x.y/z']) {
+    assert.equal(routeAction(parseAction(raw), { tv: TV_WITH_ROKU, rokuMode: true, mode: null }).platform, 'lg');
+  }
+});
+
+test('modo text: existe, no avisa como reservado y su pad queda vacío', () => {
+  const m = normalizeConfig({ entity: 'media_player.tv', mode_slot_1: 'text' });
+  assert.deepEqual(m.warnings, []);
+  assert.deepEqual(m.tvs[0].settings.modes, ['text', 'busqueda', 'audio']);
+  assert.equal(FIXED_MODES.text.label, 'Texto');
+  assert.ok(Object.values(FIXED_MODES.text.pad).every((d) => d.action === null));
+});

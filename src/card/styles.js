@@ -113,6 +113,14 @@ ha-card.card {
 .numpad { grid-area: pad; display: none; justify-self: center; width: min(100%, 280px); aspect-ratio: 1; grid-template-columns: repeat(3, 1fr); grid-template-rows: repeat(4, minmax(0, 1fr)); gap: 10px; }
 .card[data-numpad="true"] .numpad { display: grid; animation: tv-pop 0.18s ease-out; }
 .card[data-numpad="true"] .pad { display: none; }
+.textpad { grid-area: pad; display: none; justify-self: center; width: min(100%, 280px); aspect-ratio: 1; grid-template-rows: 50px 50px minmax(0, 1fr); align-content: start; gap: 10px; }
+.card[data-text="true"] .textpad { display: grid; animation: tv-pop 0.18s ease-out; }
+.card[data-text="true"] .pad { display: none; }
+.text-input { width: 100%; height: 50px; padding: 0 14px; border-radius: 14px; border: 1px solid var(--tv-line); background: transparent; color: var(--tv-ink); font: inherit; font-size: 16px; user-select: text; -webkit-user-select: text; }
+.text-input:focus-visible { outline: 2px solid var(--tv-accent); outline-offset: 2px; }
+.text-actions { display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 10px; }
+.text-btn { height: 50px; font-weight: 500; color: var(--tv-ink); }
+.text-note { margin: 0; font-size: 12px; line-height: 1.35; color: var(--tv-ink-2); overflow: hidden; }
 .num { height: auto; min-height: 0; font-size: 22px; font-weight: 500; font-variant-numeric: tabular-nums; color: var(--tv-ink); }
 
 .toast {
@@ -135,10 +143,10 @@ ha-card.card {
     grid-template-areas: "head pad" "screen pad" "apps pad" "modes pad" "keys pad";
     grid-template-rows: auto auto auto auto 1fr;
   }
-  .pad, .numpad { width: min(100%, 310px); }
+  .pad, .numpad, .textpad { width: min(100%, 310px); }
   .keys { align-self: end; }
 }
-@container (min-width: 860px) { .pad, .numpad { width: min(100%, 360px); } }
+@container (min-width: 860px) { .pad, .numpad, .textpad { width: min(100%, 360px); } }
 
 .card[data-style="relieve"] {
   --tv-surface: #eef1f5; --tv-surface-top: #f5f7fa; --tv-raised: #ffffff; --tv-raised-2: #f6f8fa; --tv-thumb: #ffffff;
@@ -217,6 +225,7 @@ ha-card.card {
   transition: transform 0.12s, box-shadow 0.12s;
 }
 .card[data-style="halo"] .key { width: 52px; height: 52px; justify-self: center; border-radius: 50%; }
+.card[data-style="halo"] .text-btn { width: auto; height: 50px; justify-self: stretch; border-radius: 16px; }
 .card[data-style="halo"] .num { width: auto; height: 100%; aspect-ratio: 1; }
 .card[data-style="halo"] .app { border-radius: 18px; }
 .card[data-style="halo"] .app.active::after { content: ""; position: absolute; bottom: 7px; width: 16px; height: 3px; border-radius: 3px; background: currentColor; }
@@ -270,7 +279,7 @@ ha-card.card {
   --tv-accent-default: #dce6f5; --tv-blob: color-mix(in srgb, var(--tv-glow) 45%, #3d5cff);
   --tv-card-shadow: 0 1px 2px rgb(0 0 0 / 0.4), 0 28px 56px -32px var(--tv-shadow);
 }
-.card[data-style="cristal"] :is(.round, .switch, .apps, .pad, .modes, .keys, .numpad) {
+.card[data-style="cristal"] :is(.round, .switch, .apps, .pad, .modes, .keys, .numpad, .textpad) {
   background: linear-gradient(180deg, var(--tv-raised), var(--tv-raised-2));
   -webkit-backdrop-filter: blur(20px) saturate(160%); backdrop-filter: blur(20px) saturate(160%);
   box-shadow: inset 0 1px 0 var(--tv-hi), inset 0 0 0 1px var(--tv-line), 0 12px 28px -16px var(--tv-shadow);
@@ -278,7 +287,7 @@ ha-card.card {
 .card[data-style="cristal"] .round { transition: transform 0.12s; }
 .card[data-style="cristal"] .round:is(.pressed, :active) { transform: scale(0.95); }
 .card[data-style="cristal"] .switch button[aria-pressed="true"] { background: var(--tv-ink); color: var(--tv-surface); }
-.card[data-style="cristal"] :is(.apps, .keys, .numpad) { border-radius: 22px; padding: 6px; gap: 4px; }
+.card[data-style="cristal"] :is(.apps, .keys, .numpad, .textpad) { border-radius: 22px; padding: 6px; gap: 4px; }
 .card[data-style="cristal"] :is(.app, .key) { border-radius: 16px; transition: background 0.2s; }
 .card[data-style="cristal"] .key { height: 46px; }
 .card[data-style="cristal"] .app.active { background: color-mix(in srgb, currentColor 12%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, currentColor 30%, transparent); }
@@ -306,8 +315,8 @@ ha-card.card {
 .card[data-style="cristal"] .picker-item.active { background: var(--tv-raised); box-shadow: inset 0 1px 0 var(--tv-hi), 0 4px 12px -6px var(--tv-shadow); }
 .card[data-style="cristal"][data-theme="dark"] .picker-item.active { background: rgb(255 255 255 / 0.13); }
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
-  .card[data-style="cristal"] :is(.round, .switch, .apps, .pad, .modes, .keys, .picker, .numpad) { background: color-mix(in srgb, var(--tv-surface) 75%, #ffffff); }
-  .card[data-style="cristal"][data-theme="dark"] :is(.round, .switch, .apps, .pad, .modes, .keys, .picker, .numpad) { background: #1b1e24; }
+  .card[data-style="cristal"] :is(.round, .switch, .apps, .pad, .modes, .keys, .picker, .numpad, .textpad) { background: color-mix(in srgb, var(--tv-surface) 75%, #ffffff); }
+  .card[data-style="cristal"][data-theme="dark"] :is(.round, .switch, .apps, .pad, .modes, .keys, .picker, .numpad, .textpad) { background: #1b1e24; }
 }
 
 .card { --tv-cta-bg: var(--tv-ink); --tv-cta-ink: var(--tv-surface); --tv-cta-shadow: 0 10px 24px -10px var(--tv-shadow); }

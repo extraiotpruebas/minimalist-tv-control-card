@@ -191,6 +191,7 @@ Tapping a mode activates it; tapping it again returns to the touchpad with no mo
 | `audio` | Audio | Volume + | Mute | — | Volume − |
 | `fuentes` | Fuentes (Inputs) | HDMI 1 | HDMI 2 | HDMI 3 | HDMI 4 |
 | `info` | Información (Info) | Guide | Info | Recent apps ¹ | Quick settings ¹ |
+| `text` | Texto (Text) | opens a typing panel (see below) | | | |
 | `custom1`…`custom3` | Custom | defined in `custom_modes` |
 
 ¹ On LG. On Samsung those two buttons are My apps and Tools.
@@ -202,6 +203,18 @@ The `fuentes` mode switches inputs **by port** (`input` action, see
 [Actions](#actions)), so it works even if the input has another name on the TV. For
 other inputs or icons (e.g. "PlayStation" on HDMI 2), use a custom mode with `input:`
 actions.
+
+The `text` mode opens, in place of the touchpad, a panel with a text field and the
+**Send**, **Delete** and **Enter** buttons. You type in the field (with your phone's
+keyboard) and **Send** sends the whole text at once. With Roku active, the panel says
+that typing there is not available yet.
+
+- **LG**: uses `com.webos.service.ime/insertText`. It only types into the TV's own text
+  fields (settings, system search). It does not work in apps such as YouTube or Netflix.
+- **Roku**: not supported yet. Home Assistant sends the Roku keys with no pause between
+  them and the Roku drops letters, and the space does not arrive (it comes out as `+`).
+  It will be solved in a future version.
+- **Samsung**: not supported.
 
 ### `custom_modes` and `default_pad`
 
@@ -338,6 +351,8 @@ Any `action` can be written like this:
 action: vol_up                      # key (table below); also VOLUMEUP or KEY_VOLUP
 action: script.mi_script            # script or scene
 action: numpad                      # opens the numeric keypad
+action: toast:Someone is at the door          # message on the TV screen (LG only)
+action: url:http://10.0.0.10:1984/stream.html?src=door     # opens a page on the TV (LG only)
 action: [digit_1, digit_2, enter]   # sequence (400 ms pause)
 
 action: { type: key, key: input_menu }
@@ -370,6 +385,13 @@ depend on the input's name on the TV:
 | `tv` | `system.launcher/launch` `{ id: com.webos.app.livetv }` | `ST_TV` |
 
 With a connected Roku, inputs always go to the TV. The Roku has no inputs.
+
+**Message and page on the TV (LG only)**: `toast` shows a message on the screen for a few
+seconds (`system.notifications/createToast`) and `url` opens a page in the TV's browser
+(`system.launcher/open`). Both always go to the TV, even when Roku is active. On Samsung
+and Roku they show a "not supported" notice. `url` only accepts `http://` or `https://`
+addresses: the TV cannot open `rtsp://`. In the editor they are "Mensaje en pantalla" and
+"Abrir una página en la TV".
 
 
 - **Holding down** repeats only the arrows (every 250 ms, for up to 10 s). Everything
@@ -430,6 +452,39 @@ With a connected Roku, inputs always go to the TV. The Roku has no inputs.
 A key the brand doesn't have (—) shows a notice instead of sending anything.
 
 </details>
+
+### Showing a camera on the TV (LG)
+
+The TV cannot open `rtsp://`, so a server is needed to convert the camera into something
+its browser can play. The shortest way is **go2rtc** as a Home Assistant add-on:
+
+1. Settings → Add-ons → Add-on store → ⋮ → Repositories → add
+   `https://github.com/AlexxIT/hassio-addons` → install **go2rtc** → Start.
+2. In its web interface, add the camera to `go2rtc.yaml` (`/config/go2rtc.yaml`):
+
+   ```yaml
+   streams:
+     door: rtsp://USER:PASSWORD@CAMERA_IP:554/Streaming/Channels/102
+   ```
+
+   A secondary channel (`102` on Hikvision) is usually H.264 at a lower resolution, which
+   suits the TV better.
+3. A card button with both actions, notice and camera:
+
+   ```yaml
+   action:
+     type: sequence
+     steps:
+       - { type: toast, message: "Someone is at the door" }
+       - { type: url, url: "http://HA_IP:1984/stream.html?src=door" }
+   ```
+
+   To notify without anyone touching the card, use the same two actions in an automation
+   with `webostv.command` (`system.notifications/createToast` and
+   `system.launcher/open`).
+
+**Security**: by default go2rtc lets any device on the local network watch the cameras
+without a password. Do not expose port `1984` to the internet.
 
 ---
 

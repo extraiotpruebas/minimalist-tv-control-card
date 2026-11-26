@@ -28,7 +28,7 @@ test('config mínima del README: una TV LG, modos por defecto y navegacion → m
 });
 
 test('modos reservados o desconocidos se omiten con aviso', () => {
-  const m = normalizeConfig({ entity: 'media_player.tv', mode_slot_1: 'text', mode_slot_2: 'inventado', mode_slot_3: 'fuentes' });
+  const m = normalizeConfig({ entity: 'media_player.tv', mode_slot_1: 'amplificador', mode_slot_2: 'inventado', mode_slot_3: 'fuentes' });
   assert.deepEqual(m.tvs[0].settings.modes, ['fuentes']);
   assert.equal(m.warnings.length, 2);
 });

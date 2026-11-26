@@ -35,6 +35,14 @@ async function executeAction(hass, action, device) {
         await executeAction(hass, resolved.steps[i], device);
       }
       return;
+    case 'toast':
+      return platform.showMessage(hass, device, resolved.message);
+    case 'url':
+      return platform.openUrl(hass, device, resolved.url);
+    case 'text':
+      if (resolved.op === 'delete') return platform.deleteText(hass, device);
+      if (resolved.op === 'enter') return platform.sendEnter(hass, device);
+      return platform.typeText(hass, device, resolved.text);
     case 'numpad':
       throw new Error('"numpad" es una acción de la tarjeta, no de la TV');
     default:

@@ -41,6 +41,15 @@ visual guarda el formato nuevo v4. Ver [docs/ARCHITECTURE.md](docs/ARCHITECTURE.
   Samsung, valor `'pendiente'` mandado a la TV y `console.log` de depuración.
 
 ### Agregado
+- **Modo `text`.** Un panel con un campo de texto y los botones Enviar, Borrar y Enter, en
+  el lugar del touchpad. En LG solo escribe en los campos de texto de la propia TV, no en
+  apps como YouTube o Netflix. En Roku y Samsung todavía no está soportado: con el Roku
+  activo el panel lo avisa (HA manda las teclas del Roku sin pausa y se pierden letras).
+- **Acciones `toast` y `url` (solo LG).** `toast` muestra un mensaje en la pantalla de la
+  TV y `url` abre una página en su navegador (la TV no abre `rtsp://`). Con ellas, un botón
+  puede avisar y mostrar una cámara servida por go2rtc. Atajos `toast:Texto` y
+  `url:http://…`. El editor las ofrece como "Mensaje en pantalla" y "Abrir una página en
+  la TV". El README explica cómo mostrar una cámara con go2rtc.
 - **Paletas de color.** `palette` y `palettes`: una paleta son 5 colores (`background`,
   `button`, `text`, `accent`, `on`) y una base clara u oscura; el resto de los tonos se
   deriva con `color-mix()`. Incluye 8 paletas (`grafito`, `medianoche`, `ciruela`,
@@ -123,8 +132,8 @@ visual guarda el formato nuevo v4. Ver [docs/ARCHITECTURE.md](docs/ARCHITECTURE.
   construye, revisa que `dist/` esté actualizado y corre las pruebas.
 
 ### Eliminado
-- Los modos `text` y `amplificador` (eran maquetas sin función). Si un YAML los trae
-  se omiten con un aviso; volverán en una versión futura.
+- El modo `amplificador` (era una maqueta sin función). Si un YAML lo trae se omite con un
+  aviso; volverá en una versión futura. El modo `text` sí se implementó (ver Agregado).
 - La clave `selected_sources`. Las claves `prime_*` se ignoran cuando la config usa
   `appletv_*` para el cuarto botón de streaming (igual que producción).
 

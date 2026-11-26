@@ -47,6 +47,11 @@ class TvControlCard extends LitElement {
       root.addEventListener(type, () => this._stopHold());
     }
     root.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && e.target?.dataset?.ref === 'textInput') {
+        e.preventDefault();
+        this._textSend();
+        return;
+      }
       if (e.key !== 'Escape') return;
       if (this._ui.numpad) this._toggleNumpad(false);
       this._togglePicker(false);
@@ -204,6 +209,7 @@ class TvControlCard extends LitElement {
     if (status !== 'on') {
       if (this._hold) this._stopHold();
       this._ui.numpad = false;
+      if (this._ui.mode === 'text') this._ui.mode = null;
     }
     if (status === 'on' && this._lastStatus !== null && this._lastStatus !== 'on') {
       this._centerGuardUntil = performance.now() + CENTER_GUARD_MS;
@@ -256,6 +262,8 @@ class TvControlCard extends LitElement {
       roku,
       busy: !!busy,
       numpad: this._ui.numpad,
+      text: this._ui.mode === 'text',
+      textNote: this._textNote(),
       multi: this._model.tvs.length > 1,
       accent: now.accent,
       locked,
@@ -336,6 +344,10 @@ class TvControlCard extends LitElement {
       case 'digit':    return this._numpadKey({ type: 'key', key: `digit_${el.dataset.digit}` });
       case 'numpad_ok':    return this._numpadKey({ type: 'key', key: 'enter' });
       case 'numpad_close': return this._toggleNumpad(false);
+      case 'text_send':    return this._textSend();
+      case 'text_delete':  return this._textRun({ type: 'text', op: 'delete' });
+      case 'text_enter':   return this._textRun({ type: 'text', op: 'enter' });
+      case 'text_close':   return this._toggleMode('text');
       case 'picker':   return this._togglePicker();
       case 'tv':       return this._selectTv(Number(el.dataset.index));
     }
@@ -424,6 +436,40 @@ class TvControlCard extends LitElement {
     this._haptic();
     const tv = this._tv;
     this._run(action, { platform: tv.platform, entity: tv.entity });
+  }
+
+  _textNote() {
+    const platform = this._route({ type: 'text', text: ' ' }).platform;
+    if (platform === 'lg') return 'En la LG solo escribe en los campos de texto de la propia TV (ajustes, buscador del sistema). No funciona en apps como YouTube o Netflix.';
+    if (platform === 'roku') return 'Escribir en el Roku todavía no está disponible.';
+    return 'Esta marca no soporta escribir texto desde la tarjeta.';
+  }
+
+  async _textRun(action) {
+    this._haptic();
+    try {
+      await executeAction(this._hass, action, this._route(action));
+      return true;
+    } catch (err) {
+      this._showError(err);
+      return false;
+    }
+  }
+
+  async _textSend() {
+    const input = this.renderRoot.querySelector('[data-ref="textInput"]');
+    const text = input?.value ?? '';
+    if (text === '') {
+      this._toast('Escribe un texto primero.');
+      return;
+    }
+    if (this._textBusy) return;
+    this._textBusy = true;
+    try {
+      if (await this._textRun({ type: 'text', text })) input.value = '';
+    } finally {
+      this._textBusy = false;
+    }
   }
 
   _toggleNumpad(force) {

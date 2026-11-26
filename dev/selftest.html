@@ -549,6 +549,75 @@
   check(callsSince(n).length === 5 && callsSince(n).every((c) => c.includes('"entity_id":"media_player.sala"')),
     `secuencia: 5 pasos una sola vez (el doble toque se ignora) y todos a la TV en modo Roku (${callsSince(n).length})`);
 
+  out.push('', '— modo texto, mensaje y página —');
+  card3.setConfig({
+    card_id: 'selftest5b',
+    modes: ['text', 'custom1'],
+    custom_modes: { custom1: { label: 'Aviso', icon: 'mdi:bell-ring-outline',
+      up: { icon: 'mdi:doorbell', action: { type: 'sequence', delay: 20, steps: [
+        { type: 'toast', message: 'Hay alguien en la puerta de servicio' },
+        { type: 'url', url: 'http://10.0.0.10:1984/stream.html?src=servicio' }] } } } },
+    tvs: [{ name: 'Sala', entity: 'media_player.sala', platform: 'lg',
+            companion: { platform: 'roku', media_entity: 'media_player.roku', remote_entity: 'remote.roku' } }],
+  });
+  set('media_player.sala', 'on', { source: 'HDMI 1' });
+  await frame();
+  q3('[data-act="target"][data-id="roku"]').click(); await frame();
+  const textInput = q3('[data-ref="textInput"]');
+  const padH = q3('.pad').offsetHeight;
+  q3('[data-act="mode"][data-id="text"]').click(); await frame();
+  check(q3('.card').dataset.text === 'true' && display('.textpad') === 'grid' && display('.pad') === 'none', 'el modo Texto abre su panel en el lugar del touchpad');
+  check(Math.abs(q3('.textpad').offsetHeight - padH) <= 1, `el panel de texto ocupa lo mismo que el touchpad (${padH} → ${q3('.textpad').offsetHeight})`);
+  check(q3('.card').dataset.roku === 'true' && q3('.text-note').textContent.includes('todavía no está disponible'), 'con el modo Roku activo, la nota avisa que escribir en el Roku todavía no está disponible');
+  textInput.value = 'ab';
+  n = calls.length;
+  q3('[data-act="text_send"]').click();
+  q3('[data-act="text_delete"]').click();
+  q3('[data-act="text_enter"]').click();
+  await sleep(40);
+  check(callsSince(n).length === 0 && textInput.value === 'ab', 'con el Roku activo, Enviar, Borrar y Enter no mandan nada y el texto se conserva');
+  textInput.value = '';
+  n = calls.length;
+  q3('[data-act="text_send"]').click();
+  await sleep(40);
+  check(callsSince(n).length === 0, 'enviar con el campo vacío no manda nada');
+  q3('[data-act="target"][data-id="tv"]').click(); await frame();
+  check(q3('.text-note').textContent.includes('LG'), 'con la TV activa, la nota avisa que en la LG solo sirven los campos nativos');
+  textInput.value = 'hola mundo';
+  n = calls.length;
+  q3('[data-act="text_send"]').click();
+  await sleep(40);
+  check(callsSince(n).join('|') === 'webostv.command {"entity_id":"media_player.sala","command":"com.webos.service.ime/insertText","payload":{"text":"hola mundo","replace":0}}',
+    `Enviar con la LG usa ime/insertText sin reemplazar (${callsSince(n)})`);
+  textInput.value = 'x';
+  n = calls.length;
+  textInput.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, composed: true }));
+  await sleep(40);
+  check(callsSince(n).join('|') === 'webostv.command {"entity_id":"media_player.sala","command":"com.webos.service.ime/insertText","payload":{"text":"x","replace":0}}', 'Enter dentro del campo también envía');
+  n = calls.length;
+  q3('[data-act="text_delete"]').click();
+  q3('[data-act="text_enter"]').click();
+  await sleep(40);
+  check(callsSince(n).join('|') === [
+    'webostv.command {"entity_id":"media_player.sala","command":"com.webos.service.ime/deleteCharacters","payload":{"count":1}}',
+    'webostv.command {"entity_id":"media_player.sala","command":"com.webos.service.ime/sendEnterKey"}',
+  ].join('|'), `Borrar y Enter usan deleteCharacters y sendEnterKey en la LG (${callsSince(n)})`);
+  q3('[data-act="mode"][data-id="text"]').click(); await frame();
+  check(q3('.card').dataset.text === 'false' && display('.pad') !== 'none', 'tocar otra vez el modo cierra el panel');
+  q3('[data-act="mode"][data-id="text"]').click(); await frame();
+  set('media_player.sala', 'off'); await frame();
+  check(q3('.card').dataset.text === 'false', 'si la TV se apaga, el panel de texto se cierra');
+  set('media_player.sala', 'on', { source: 'HDMI 1' }); await frame(); await sleep(900);
+  q3('[data-act="target"][data-id="roku"]').click(); await frame();
+  q3('[data-act="mode"][data-id="custom1"]').click(); await frame();
+  n = calls.length;
+  q3('[data-dir="up"]').click();
+  await sleep(150);
+  check(callsSince(n).join('|') === [
+    'webostv.command {"entity_id":"media_player.sala","command":"system.notifications/createToast","payload":{"message":"Hay alguien en la puerta de servicio"}}',
+    'webostv.command {"entity_id":"media_player.sala","command":"system.launcher/open","payload":{"target":"http://10.0.0.10:1984/stream.html?src=servicio"}}',
+  ].join('|'), `botón Aviso: mensaje y luego la cámara, los dos a la TV aunque el Roku esté activo (${callsSince(n)})`);
+
   out.push('', '— paletas —');
   set('media_player.pal', 'on', { source: 'HDMI 1' });
   const card4 = document.createElement('tv-control-card');

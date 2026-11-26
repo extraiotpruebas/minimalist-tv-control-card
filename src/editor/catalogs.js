@@ -11,14 +11,16 @@ const ACTION_UI_TYPES = {
   script: 'Script o escena',
   service: 'Servicio de HA',
   command: 'Command LG (webOS)',
+  toast: 'Mensaje en pantalla (solo LG)',
+  url: 'Abrir una página en la TV (solo LG)',
   button: 'Botón crudo (código)',
   sequence: 'Secuencia de pasos (p. ej. un PIN)',
   numpad: 'Abrir teclado numérico',
   platform: 'Distinta por marca',
 };
-const ALL_ACTION_TYPES = ['key', 'input', 'source', 'script', 'service', 'command', 'button', 'sequence', 'numpad', 'platform'];
-const STEP_ACTION_TYPES = ['key', 'button', 'command', 'input', 'source', 'script', 'service'];
-const BRAND_ACTION_TYPES = ['key', 'input', 'source', 'script', 'service', 'command', 'button', 'sequence'];
+const ALL_ACTION_TYPES = ['key', 'input', 'source', 'script', 'service', 'command', 'toast', 'url', 'button', 'sequence', 'numpad', 'platform'];
+const STEP_ACTION_TYPES = ['key', 'button', 'command', 'toast', 'url', 'input', 'source', 'script', 'service'];
+const BRAND_ACTION_TYPES = ['key', 'input', 'source', 'script', 'service', 'command', 'toast', 'url', 'button', 'sequence'];
 const BRANDS = [['lg', 'LG'], ['samsung', 'Samsung'], ['roku', 'Roku'], ['default', 'Otras marcas']];
 
 const PLATFORM_NAMES = { lg: 'LG', samsung: 'Samsung', roku: 'Roku' };

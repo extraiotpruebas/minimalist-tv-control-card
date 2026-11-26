@@ -152,6 +152,9 @@ Toda acción normalizada es un objeto con `type` (una "unión discriminada"):
 | `sequence` | `steps[]`, `delay` | Pasos en orden con pausa (ms, def. 400) | los de cada paso |
 | `platform` | `by: { lg, samsung, roku, default }` | Una variante por marca | la de la variante |
 | `numpad` | — | Abre/cierra el teclado numérico | ninguno (lo maneja la tarjeta) |
+| `toast` | `message` | Mensaje en la pantalla de la TV | LG `webostv.command system.notifications/createToast`; Samsung y Roku: no soportado |
+| `url` | `url` (solo `http://` o `https://`) | Abre una página en el navegador de la TV | LG `webostv.command system.launcher/open` `{ target }`; Samsung y Roku: no soportado |
+| `text` | `text`, o `op: 'delete' \| 'enter'` | Lo usa el panel del modo `text`; también se puede escribir en el YAML. El editor no lo ofrece | LG `ime/insertText`, `ime/deleteCharacters`, `ime/sendEnterKey`; Roku y Samsung: no soportado (ver límites) |
 
 `parseAction` también acepta los **strings** del formato viejo:
 
@@ -163,6 +166,7 @@ Toda acción normalizada es un objeto con `type` (una "unión discriminada"):
 | `'source:HDMI 1'` | `source` |
 | `'input:hdmi2'` | `input` (id del catálogo; inválido → `null`) |
 | `'command:ssap://tv/switchInput'` | `command` (se quita el `ssap://`) |
+| `'toast:Hola'` / `'url:http://…'` | `toast` / `url` |
 | `'key:vol_up'` o `'vol_up'` | `key` |
 | `'VOLUMEUP'`, `'KEY_VOLUP'`, `'volume_up'` | `key: 'vol_up'` (vía `CODE_TO_KEY`, sirve en cualquier marca) |
 | cualquier otro (`'KEY_HDMI'`) | `button` crudo |
@@ -178,7 +182,9 @@ Toda acción normalizada es un objeto con `type` (una "unión discriminada"):
 
 Cada driver implementa `sendCode`, y hereda de `PLATFORM_DEFAULTS` (por
 `Object.setPrototypeOf`) `selectSource`, `turnOn`, `turnOff` y un `sendCommand` que
-rechaza con `UnsupportedActionError`. Solo LG sobrescribe `sendCommand`. Todas las
+rechaza con `UnsupportedActionError`. Solo LG sobrescribe `sendCommand`. Los métodos de
+texto y mensaje (`showMessage`, `openUrl`, `typeText`, `deleteText`, `sendEnter`) existen
+solo en LG; los demás casos rechazan. Todas las
 funciones devuelven la Promise de `hass.callService`, para poder hacer `await`.
 
 `device` es siempre `{ platform, entity, remote? }`. En el Roku las teclas van por
@@ -399,7 +405,9 @@ TV real (los endpoints "Luna" no funcionan por `webostv.command`).
 
 **Un modo fijo** → agregarlo a `FIXED_MODES` con `pad(...)` (orden: up, left, right,
 down) y quitarlo de `RESERVED_MODES` si estaba ahí. Si todo debe ir a la TV aunque
-haya Roku, agregarlo a `TV_MODES`. El editor lo lista solo.
+haya Roku, agregarlo a `TV_MODES`. El editor lo lista solo. El modo `text` es una excepción: no cambia el pad sino que
+muestra un panel propio (`.textpad`, `_textSend`, `_textRun`), y `routeAction` manda el
+texto al Roku cuando el modo Roku está activo, por eso `text` no está en `TV_MODES`.
 
 **Un botón fijo** → `DEFAULT_BUTTONS`, la plantilla (`card/template.js`, con su `data-act`), `_view()`, `_actionFor`,
 `BUTTON_LABELS` del editor y, si es de la fila de abajo, `BOTTOM_BUTTONS`.
@@ -466,9 +474,16 @@ archivos sin nombrarlos; en un clon sin la carpeta simplemente no corren.
 
 ## 11. Límites conocidos
 
-- `webostv.command` no devuelve la respuesta de la TV: los endpoints `get…` no sirven
-  desde la tarjeta. Los endpoints "Luna" (`showInputPicker`, `setSystemSettings`) no
-  funcionan por ese servicio.
+- Escribir texto en el Roku no está soportado: el `remote.send_command` de HA para el Roku
+  ignora `delay_secs` (solo repite la lista de teclas) y el Roku pierde letras si llegan sin
+  pausa; además `rokuecp` codifica cada carácter con `quote_plus` y el espacio llega como
+  `+`. La salida sería una llamada por tecla con una pausa propia de la tarjeta, y
+  `roku.search` para buscar frases con espacios.
+- La tarjeta no lee la respuesta de `webostv.command`, así que los endpoints `get…` no le
+  sirven. En la HA de pruebas (2026.11) la acción sí devuelve la respuesta de la TV cuando
+  se llama desde Herramientas para desarrolladores o con `response_variable` (por ejemplo,
+  `system.notifications/createToast` devuelve `returnValue` y `toastId`). Los endpoints
+  "Luna" (`showInputPicker`, `setSystemSettings`) no funcionan por ese servicio.
 - `turn_on` en LG requiere el Wake on LAN configurado en la integración.
 - El modo `info` se probó en una LG: `GUIDE`, `INFO`, `RECENT` y `QMENU` responden. En
   esa TV `MYAPPS` y `ASTERISK` no hacen nada. Por eso el pad de `info` usa una acción
