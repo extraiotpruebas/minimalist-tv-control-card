@@ -470,8 +470,11 @@ archivos sin nombrarlos; en un clon sin la carpeta simplemente no corren.
   desde la tarjeta. Los endpoints "Luna" (`showInputPicker`, `setSystemSettings`) no
   funcionan por ese servicio.
 - `turn_on` en LG requiere el Wake on LAN configurado en la integración.
-- El modo `info` es experimental: sus teclas (`GUIDE`, `INFO`, `MYAPPS`, `ASTERISK` y
-  sus equivalentes Samsung) no se han probado en TVs reales.
+- El modo `info` se probó en una LG: `GUIDE`, `INFO`, `RECENT` y `QMENU` responden. En
+  esa TV `MYAPPS` y `ASTERISK` no hacen nada. Por eso el pad de `info` usa una acción
+  `platform`: en LG `recent` y `qmenu` (teclas solo LG), y en Samsung `apps` y `asterisk`
+  como antes (sin probar en TVs reales). Un código no puede repetirse dentro de una
+  plataforma en `KEYS`, por eso `recent` y `qmenu` no tienen código Samsung.
 - Las entradas por puerto no se confirman (ver `_stream`). En Samsung, `ST_HDMIn`
   depende de ha-samsungtv-smart (el fork de TheFab21 lo resuelve en local, por
   SmartThings o con `KEY_HDMIn`).

@@ -686,6 +686,12 @@ var KEYS = {
 		samsung: "KEY_APP_LIST",
 		roku: null
 	},
+	recent: {
+		label: "Apps recientes",
+		lg: "RECENT",
+		samsung: null,
+		roku: null
+	},
 	search: {
 		label: "Buscar",
 		lg: null,
@@ -786,6 +792,12 @@ var KEYS = {
 		label: "Asterisco / Herramientas",
 		lg: "ASTERISK",
 		samsung: "KEY_TOOLS",
+		roku: null
+	},
+	qmenu: {
+		label: "Ajustes rápidos",
+		lg: "QMENU",
+		samsung: null,
 		roku: null
 	},
 	screen_remote: {
@@ -1255,7 +1267,19 @@ var FIXED_MODES = {
 	info: {
 		label: "Información",
 		icon: "mdi:information-variant-circle-outline",
-		pad: pad(["mdi:television-guide", "guide"], ["mdi:information-slab-circle-outline", "info"], ["mdi:apps", "apps"], ["mdi:tools", "asterisk"])
+		pad: pad(["mdi:television-guide", "guide"], ["mdi:information-slab-circle-outline", "info"], ["mdi:history", {
+			type: "platform",
+			by: {
+				lg: "recent",
+				samsung: "apps"
+			}
+		}], ["mdi:tune-variant", {
+			type: "platform",
+			by: {
+				lg: "qmenu",
+				samsung: "asterisk"
+			}
+		}])
 	}
 };
 var MODE_ALIASES = { navegacion: "menu" };
@@ -1375,7 +1399,11 @@ var TIMING = Object.freeze({
 	sourceConfirm: 6e3
 });
 var ROKU_ACCENT = "#6f1ab1";
-var TV_MODES = /* @__PURE__ */ new Set(["audio", "fuentes"]);
+var TV_MODES = /* @__PURE__ */ new Set([
+	"audio",
+	"fuentes",
+	"info"
+]);
 function routeAction(action, { tv, rokuMode, mode }) {
 	const tvDevice = {
 		platform: tv.platform,
@@ -4650,7 +4678,7 @@ function settingsNodes(config, base, kp, depth, ctx, override) {
 	if (!override || present("modes")) {
 		const modeOptions = [...Object.entries(FIXED_MODES).map(([id, def]) => ({
 			value: id,
-			label: id === "info" ? `${def.label} (experimental)` : def.label
+			label: def.label
 		})), ...CUSTOM_MODE_IDS.map((id) => ({
 			value: id,
 			label: customDefs[id]?.label ? `${customDefs[id].label} (${id})` : `Personalizado ${id.slice(-1)} (${id})`

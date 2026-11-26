@@ -73,7 +73,7 @@ const SOURCE_ATTEMPTS = 2;
 const CENTER_GUARD_MS = 800;
 const ROKU_ACCENT = '#6f1ab1';
 
-const TV_MODES = new Set(['audio', 'fuentes']);
+const TV_MODES = new Set(['audio', 'fuentes', 'info']);
 
 function routeAction(action, { tv, rokuMode, mode }) {
   const tvDevice = { platform: tv.platform, entity: tv.entity };

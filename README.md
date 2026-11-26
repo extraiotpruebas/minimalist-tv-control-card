@@ -191,11 +191,13 @@ Tocar un modo lo activa; tocarlo otra vez vuelve al touchpad sin modo (`default_
 | `busqueda` | Canales | Canal + | Menú de fuentes | Guía | Canal − |
 | `audio` | Audio | Volumen + | Silenciar | — | Volumen − |
 | `fuentes` | Fuentes | HDMI 1 | HDMI 2 | HDMI 3 | HDMI 4 |
-| `info` *(experimental)* | Información | Guía | Info | Mis apps | Herramientas |
+| `info` | Información | Guía | Info | Apps recientes ¹ | Ajustes rápidos ¹ |
 | `custom1`…`custom3` | Personalizado | definidos en `custom_modes` |
 
-`navegacion` (de versiones anteriores) se convierte en `menu`. En los modos `audio` y
-`fuentes` todo va a la TV aunque el modo Roku esté activo.
+¹ En LG. En Samsung esos dos botones son Mis apps y Herramientas.
+
+`navegacion` (de versiones anteriores) se convierte en `menu`. En los modos `audio`,
+`fuentes` e `info` todo va a la TV aunque el modo Roku esté activo.
 
 El modo `fuentes` cambia de entrada **por puerto** (acción `input`, ver
 [Acciones](#acciones)), así que funciona aunque la entrada tenga otro nombre en la TV.
@@ -401,6 +403,7 @@ Con un Roku conectado, las entradas siempre van a la TV. El Roku no tiene entrad
 | `info` | Info | `INFO` | `KEY_INFO` | `info` |
 | `guide` | Guía | `GUIDE` | `KEY_GUIDE` | — |
 | `apps` | Mis apps | `MYAPPS` | `KEY_APP_LIST` | — |
+| `recent` | Apps recientes | `RECENT` | — | — |
 | `search` | Buscar | — | — | `search` |
 | `input_menu` | Menú de fuentes | `INPUT_HUB` | `KEY_SOURCE` | — |
 | `ch_up` | Subir canal | `CHANNELUP` | `KEY_CHUP` | `channel_up` |
@@ -418,6 +421,7 @@ Con un Roku conectado, las entradas siempre van a la TV. El Roku no tiene entrad
 | `record` | Grabar | `RECORD` | `KEY_REC` | — |
 | `cc` | Subtítulos | `CC` | `KEY_CAPTION` | — |
 | `asterisk` | Asterisco / Herramientas | `ASTERISK` | `KEY_TOOLS` | — |
+| `qmenu` | Ajustes rápidos | `QMENU` | — | — |
 | `screen_remote` | Control en pantalla | `SCREEN_REMOTE` | — | — |
 | `red` | Rojo | `RED` | `KEY_RED` | — |
 | `green` | Verde | `GREEN` | `KEY_GREEN` | — |

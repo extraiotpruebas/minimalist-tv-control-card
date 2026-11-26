@@ -100,7 +100,11 @@ visual guarda el formato nuevo v4. Ver [docs/ARCHITECTURE.md](docs/ARCHITECTURE.
 - Solo las flechas se repiten al mantener presionado; volumen, canal, scripts,
   commands y fuentes se mandan una vez por toque.
 - El modo `fuentes` cambia de entrada por puerto (acción `input`) y deja de ser
-  experimental. El modo `info` sigue siendo experimental (falta probarlo en TVs reales).
+  experimental. El modo `info` también deja de serlo: se probó en una LG, donde
+  `MYAPPS` y `ASTERISK` no responden, así que en LG sus botones 3 y 4 pasan a ser
+  `recent` (Apps recientes) y `qmenu` (Ajustes rápidos); en Samsung siguen siendo
+  Mis apps y Herramientas. Con el Roku activo, `info` va a la TV, igual que `audio`
+  y `fuentes`.
 - Los botones de streaming `hdmi1`…`hdmi4` cambian por puerto, sin esperar
   confirmación.
 - Render: el DOM se construye una vez y después solo se actualiza lo que cambió; los

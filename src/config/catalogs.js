@@ -63,7 +63,7 @@ const FIXED_MODES = {
   },
   info: {
     label: 'Información', icon: 'mdi:information-variant-circle-outline',
-    pad: pad(['mdi:television-guide', 'guide'], ['mdi:information-slab-circle-outline', 'info'], ['mdi:apps', 'apps'], ['mdi:tools', 'asterisk']),
+    pad: pad(['mdi:television-guide', 'guide'], ['mdi:information-slab-circle-outline', 'info'], ['mdi:history', { type: 'platform', by: { lg: 'recent', samsung: 'apps' } }], ['mdi:tune-variant', { type: 'platform', by: { lg: 'qmenu', samsung: 'asterisk' } }]),
   },
 };
 const MODE_ALIASES = { navegacion: 'menu' };

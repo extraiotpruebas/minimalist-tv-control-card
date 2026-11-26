@@ -190,11 +190,13 @@ Tapping a mode activates it; tapping it again returns to the touchpad with no mo
 | `busqueda` | Canales | Channel + | Input menu | Guide | Channel − |
 | `audio` | Audio | Volume + | Mute | — | Volume − |
 | `fuentes` | Fuentes (Inputs) | HDMI 1 | HDMI 2 | HDMI 3 | HDMI 4 |
-| `info` *(experimental)* | Información (Info) | Guide | Info | My apps | Tools |
+| `info` | Información (Info) | Guide | Info | Recent apps ¹ | Quick settings ¹ |
 | `custom1`…`custom3` | Custom | defined in `custom_modes` |
 
-`navegacion` (from earlier versions) is converted to `menu`. In the `audio` and
-`fuentes` modes everything goes to the TV even when Roku mode is active.
+¹ On LG. On Samsung those two buttons are My apps and Tools.
+
+`navegacion` (from earlier versions) is converted to `menu`. In the `audio`,
+`fuentes` and `info` modes everything goes to the TV even when Roku mode is active.
 
 The `fuentes` mode switches inputs **by port** (`input` action, see
 [Actions](#actions)), so it works even if the input has another name on the TV. For
@@ -399,6 +401,7 @@ With a connected Roku, inputs always go to the TV. The Roku has no inputs.
 | `info` | Info | `INFO` | `KEY_INFO` | `info` |
 | `guide` | Guide | `GUIDE` | `KEY_GUIDE` | — |
 | `apps` | My apps | `MYAPPS` | `KEY_APP_LIST` | — |
+| `recent` | Recent apps | `RECENT` | — | — |
 | `search` | Search | — | — | `search` |
 | `input_menu` | Input menu | `INPUT_HUB` | `KEY_SOURCE` | — |
 | `ch_up` | Channel up | `CHANNELUP` | `KEY_CHUP` | `channel_up` |
@@ -416,6 +419,7 @@ With a connected Roku, inputs always go to the TV. The Roku has no inputs.
 | `record` | Record | `RECORD` | `KEY_REC` | — |
 | `cc` | Subtitles | `CC` | `KEY_CAPTION` | — |
 | `asterisk` | Asterisk / Tools | `ASTERISK` | `KEY_TOOLS` | — |
+| `qmenu` | Quick settings | `QMENU` | — | — |
 | `screen_remote` | On-screen remote | `SCREEN_REMOTE` | — | — |
 | `red` | Red | `RED` | `KEY_RED` | — |
 | `green` | Green | `GREEN` | `KEY_GREEN` | — |

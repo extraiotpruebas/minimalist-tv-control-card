@@ -107,7 +107,7 @@ function settingsNodes(config, base, kp, depth, ctx, override) {
   const modesChildren = [];
   if (!override || present('modes')) {
     const modeOptions = [
-      ...Object.entries(FIXED_MODES).map(([id, def]) => ({ value: id, label: id === 'info' ? `${def.label} (experimental)` : def.label })),
+      ...Object.entries(FIXED_MODES).map(([id, def]) => ({ value: id, label: def.label })),
       ...CUSTOM_MODE_IDS.map((id) => ({ value: id, label: customDefs[id]?.label ? `${customDefs[id].label} (${id})` : `Personalizado ${id.slice(-1)} (${id})` })),
     ];
     const modes = present('modes') ? here.modes : (config.modes ?? DEFAULT_MODES);

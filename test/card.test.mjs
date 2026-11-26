@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   tvStatus, StateWaiters, TvControlCard, normalizeConfig, parseAction,
-  routeAction, sourceMatches, resolveSourceName, describeNow, STYLES,
+  routeAction, sourceMatches, resolveSourceName, describeNow, STYLES, FIXED_MODES, KEYS,
 } from '../src/index.js';
 
 const hassWith = (states) => ({ states });
@@ -100,10 +100,25 @@ test('routeAction: en modo Roku van al Roku solo las teclas que el Roku tiene', 
   assert.equal(toRoku({ type: 'platform', by: { lg: 'MYAPPS' } }), false);
 });
 
-test('routeAction: en modos audio y fuentes todo va a la TV (como producción)', () => {
+test('routeAction: en modos audio, fuentes e info todo va a la TV', () => {
   assert.equal(toRoku('up', { mode: 'audio' }), false);
   assert.equal(toRoku('up', { mode: 'fuentes' }), false);
+  assert.equal(toRoku('up', { mode: 'info' }), false);
+  assert.equal(toRoku('info', { mode: 'info' }), false, 'el Roku tiene `info`, pero en este modo se manda a la TV');
   assert.equal(toRoku('up', { mode: 'menu' }), true);
+});
+
+test('modo info: cada botón manda una tecla con código en LG y en Samsung', () => {
+  const keyFor = (action, platform) => (action.type === 'platform' ? action.by[platform] : action).key;
+  const actions = Object.values(FIXED_MODES.info.pad).map((d) => d.action);
+  assert.deepEqual(actions.map((a) => keyFor(a, 'lg')), ['guide', 'info', 'recent', 'qmenu']);
+  assert.deepEqual(actions.map((a) => keyFor(a, 'samsung')), ['guide', 'info', 'apps', 'asterisk']);
+  for (const a of actions) {
+    assert.ok(KEYS[keyFor(a, 'lg')].lg, 'sin código LG');
+    assert.ok(KEYS[keyFor(a, 'samsung')].samsung, 'sin código Samsung');
+  }
+  assert.equal(KEYS.recent.lg, 'RECENT');
+  assert.equal(KEYS.qmenu.lg, 'QMENU');
 });
 
 test('routeAction: companion sin remote → todo a la TV', () => {
